@@ -1,0 +1,70 @@
+# generated: 2026-05-23
+# last_updated: 2026-05-24
+# project: BoxWise
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-05-23
+last_updated: 2026-05-24
+project: BoxWise
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  1-1-project-scaffolding: review
+  1-2-identity-auth: review
+  1-3-admin-account-management: review
+  epic-1-retrospective: optional
+  epic-2: backlog
+  2-1-location-entity-crud: backlog
+  2-2-location-tree-api: backlog
+  2-3-tag-system: backlog
+  2-4-location-tag-selector: backlog
+  epic-2-retrospective: optional
+  epic-3: backlog
+  3-1-item-image-upload: backlog
+  3-2-item-entry-api: backlog
+  3-3-ai-recognition: backlog
+  3-4-item-entry-ui: backlog
+  3-5-item-detail: backlog
+  epic-3-retrospective: optional
+  epic-4: backlog
+  4-1-search-functionality: backlog
+  4-2-thumbnail-grid-browse: backlog
+  4-3-location-tag-filter: backlog
+  4-4-item-detail-delete: backlog
+  4-5-pwa-offline: backlog
+  4-6-docker-deployment: backlog
+  epic-4-retrospective: optional

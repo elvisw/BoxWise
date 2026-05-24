@@ -1,0 +1,25 @@
+@page "/admin/create"
+@model BoxWise.Server.Pages.Admin.CreateAccountModel
+@{
+    ViewData["Title"] = "创建账户";
+}
+
+<h2>创建账户</h2>
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="error-message">@Model.ErrorMessage</div>
+}
+
+<form method="post">
+    <div class="form-group">
+        <label for="username">用户名</label>
+        <input type="text" id="username" name="Input.Username" value="@Model.Input.Username" required />
+    </div>
+    <div class="form-group">
+        <label for="password">密码</label>
+        <input type="password" id="password" name="Input.Password" required minlength="4" />
+    </div>
+    <button type="submit" class="btn btn-primary">创建账户</button>
+    <a href="/admin" class="btn btn-link">返回列表</a>
+</form>
