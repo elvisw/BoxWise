@@ -167,13 +167,13 @@ group.MapPost("/items", CreateItem)
 
 #### Hierarchical Location Tree: Materialized Path
 
-**Decision:** Materialized path pattern stored as `Path TEXT NOT NULL` column (e.g., `"001/003/007/"`), with `SortOrder INT` for same-level ordering.
+**Decision:** Materialized path pattern stored as `Path TEXT NOT NULL` column (e.g., `"/1/3/7/"`), with `SortOrder INT` for same-level ordering.
 
 **Rationale:** EF Core recursive CTE in SQLite requires raw SQL (bypasses change tracker) and has O(depth) per query. Materialized path uses B-tree indexed `LIKE` for subtree queries (O(log N)) and single-`UPDATE` subtree moves.
 
 **Implementation notes:**
-- Subtree query: `WHERE Path LIKE '001/003/%'`
-- Subtree move: `UPDATE Location SET Path = REPLACE(Path, '001/003/', '001/005/') WHERE Path LIKE '001/003/%'`
+- Subtree query: `WHERE Path LIKE '/1/3/%'`
+- Subtree move: `UPDATE Location SET Path = REPLACE(Path, '/1/3/', '/1/5/') WHERE Path LIKE '/1/3/%'`
 - Depth validation: Application-layer check on path separator count
 - All operations encapsulated in `LocationRepository`
 

@@ -10,6 +10,8 @@ public class AppDbContext : IdentityDbContext<AppUser>
     {
     }
 
+    public DbSet<Location> Locations => Set<Location>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
