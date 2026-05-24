@@ -78,9 +78,9 @@ public class LocationRepository
         if (hasChildren)
             throw new InvalidOperationException("无法删除：该位置下还有子位置");
 
-        // TODO: 物品关联检查 (Story 3.1)
-        // var hasItems = await _db.Items.AnyAsync(i => i.LocationId == id);
-        // if (hasItems) throw new InvalidOperationException("无法删除：该位置下还有物品");
+        var hasItems = await _db.Items.AnyAsync(i => i.LocationId == id);
+        if (hasItems)
+            throw new InvalidOperationException("无法删除：该位置下还有物品");
 
         _db.Locations.Remove(location);
         await _db.SaveChangesAsync();

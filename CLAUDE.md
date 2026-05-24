@@ -22,6 +22,23 @@ dotnet ef database update
 
 Server 开发环境监听 `https://localhost:5000`，Client 开发服务器监听 `https://localhost:5001`。开发时需**同时运行两个项目**（或仅启动 Server，它同时提供 API 和 Client 静态文件回退）。
 
+## 测试
+
+```bash
+# 运行所有测试
+dotnet test BoxWise.slnx
+
+# 运行特定测试项目
+dotnet test src/BoxWise.Server.Tests
+
+# 运行特定测试类
+dotnet test src/BoxWise.Server.Tests --filter "FullyQualifiedName~LocationRepositoryTests"
+```
+
+**测试框架:** xUnit + EF Core InMemory Database。测试项目 `src/BoxWise.Server.Tests/` 引用 `BoxWise.Server`，使用 `TestDbContextFactory.Create()` 创建隔离的 InMemory DbContext。
+
+**测试模式:** Repository 层单元测试，每个测试独立创建 DbContext（GUID 命名），覆盖正常路径 + 边界条件（空值、超长、不存在 ID、重复创建、业务规则违反）。
+
 ## 项目架构
 
 ```

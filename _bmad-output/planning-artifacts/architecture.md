@@ -177,11 +177,11 @@ group.MapPost("/items", CreateItem)
 - Depth validation: Application-layer check on path separator count
 - All operations encapsulated in `LocationRepository`
 
-#### Image Processing: ImageSharp + Two-Level Thumbnails
+#### Image Processing: SkiaSharp + Two-Level Thumbnails
 
-**Decision:** SixLabors.ImageSharp generates two thumbnail sizes on upload: 300px wide (list/grid view) and 1200px wide (detail view). Thumbnail generation runs asynchronously in background via `Task.Run` with scoped `IServiceScopeFactory`. Upload endpoint returns 202 Accepted immediately.
+**Decision:** SkiaSharp generates two thumbnail sizes on upload: 300px wide (list/grid view) and 1200px wide (detail view). Thumbnail generation runs asynchronously in background via `Task.Run` with scoped `IServiceScopeFactory`. Upload endpoint returns 202 Accepted immediately.
 
-**Rationale:** 1C1G VPS cannot serve 4-5MB original images in grid view. Thumbnails (50-100KB) enable responsive browsing. ImageSharp is pure managed code — no libgdiplus dependency on Linux.
+**Rationale:** 1C1G VPS cannot serve 4-5MB original images in grid view. Thumbnails (50-100KB) enable responsive browsing. SkiaSharp (MIT license) is cross-platform — no libgdiplus dependency on Linux, no commercial license required.
 
 **Pipeline:**
 ```
@@ -243,7 +243,9 @@ Upload (multipart/form-data) → Validate → Save original
 /api/locations/{id}     DELETE 认证  删除空位置
 /api/locations/{id}/children  GET  认证  子节点
 /api/tags               GET    认证  标签列表 + 物品计数
-/api/images/{id}        GET    认证  图片文件（type=thumb|medium|original）
+/api/tags               POST   认证  创建标签
+/api/images/upload      POST   认证  上传物品照片（multipart/form-data）
+/api/images/{itemId}    GET    认证  图片文件（type=thumb|medium|original）
 /api/admin/accounts     GET    Admin 账户列表
 /api/admin/accounts     POST   Admin 创建账户
 ```

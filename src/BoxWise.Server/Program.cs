@@ -6,6 +6,7 @@ using BoxWise.Server.Data;
 using BoxWise.Server.Endpoints;
 using BoxWise.Server.Models;
 using BoxWise.Server.Repositories;
+using BoxWise.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -71,6 +72,8 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<LocationRepository>();
 builder.Services.AddScoped<TagRepository>();
+builder.Services.AddSingleton<ImageStorageService>();
+builder.Services.AddSingleton<ThumbnailService>();
 
 builder.Services.AddRazorPages();
 
@@ -123,6 +126,7 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapLocationEndpoints();
+app.MapImageEndpoints();
 app.MapTagEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
