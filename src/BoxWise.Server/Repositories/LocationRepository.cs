@@ -84,4 +84,25 @@ public class LocationRepository
         _db.Locations.Remove(location);
         await _db.SaveChangesAsync();
     }
+
+    public async Task<List<Location>> GetAllAsync()
+    {
+        return await _db.Locations
+            .OrderBy(l => l.SortOrder)
+            .ThenBy(l => l.Name)
+            .ToListAsync();
+    }
+
+    public async Task<List<Location>> GetChildrenAsync(int id)
+    {
+        var location = await _db.Locations.FindAsync(id);
+        if (location is null)
+            throw new KeyNotFoundException("位置不存在");
+
+        return await _db.Locations
+            .Where(l => l.ParentId == id)
+            .OrderBy(l => l.SortOrder)
+            .ThenBy(l => l.Name)
+            .ToListAsync();
+    }
 }

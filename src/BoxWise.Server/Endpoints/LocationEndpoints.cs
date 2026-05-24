@@ -11,15 +11,23 @@ public static class LocationEndpoints
     {
         var group = app.MapGroup("/api/locations");
 
+        group.MapGet("/", GetAllLocationsAsync)
+            .Produces<List<LocationDto>>(200)
+            .ProducesProblem(401)
+            .WithTags("Locations")
+            .WithDescription("获取所有位置列表");
+
         group.MapPost("/", CreateLocationAsync)
             .Produces<LocationDto>(201)
             .ProducesProblem(400)
+            .ProducesProblem(401)
             .WithTags("Locations")
             .WithDescription("创建位置节点");
 
         group.MapPut("/{id:int}", RenameLocationAsync)
             .Produces<LocationDto>(200)
             .ProducesProblem(400)
+            .ProducesProblem(401)
             .Produces(404)
             .WithTags("Locations")
             .WithDescription("重命名位置");
@@ -27,9 +35,17 @@ public static class LocationEndpoints
         group.MapDelete("/{id:int}", DeleteLocationAsync)
             .Produces(204)
             .ProducesProblem(400)
+            .ProducesProblem(401)
             .Produces(404)
             .WithTags("Locations")
             .WithDescription("删除空位置");
+
+        group.MapGet("/{id:int}/children", GetChildrenAsync)
+            .Produces<List<LocationDto>>(200)
+            .ProducesProblem(401)
+            .Produces(404)
+            .WithTags("Locations")
+            .WithDescription("获取直接子节点");
 
         return group;
     }
@@ -87,6 +103,33 @@ public static class LocationEndpoints
         catch (DbUpdateException)
         {
             return TypedResults.Problem("无法删除：该位置下还有关联数据", statusCode: 400);
+        }
+    }
+
+    private static async Task<Ok<List<LocationDto>>>
+        GetAllLocationsAsync(LocationRepository repo)
+    {
+        var locations = await repo.GetAllAsync();
+        var dtos = locations.Select(l => new LocationDto(
+            l.Id, l.Name, l.Path, l.ParentId, l.SortOrder
+        )).ToList();
+        return TypedResults.Ok(dtos);
+    }
+
+    private static async Task<Results<Ok<List<LocationDto>>, NotFound>>
+        GetChildrenAsync(int id, LocationRepository repo)
+    {
+        try
+        {
+            var children = await repo.GetChildrenAsync(id);
+            var dtos = children.Select(l => new LocationDto(
+                l.Id, l.Name, l.Path, l.ParentId, l.SortOrder
+            )).ToList();
+            return TypedResults.Ok(dtos);
+        }
+        catch (KeyNotFoundException)
+        {
+            return TypedResults.NotFound();
         }
     }
 }
