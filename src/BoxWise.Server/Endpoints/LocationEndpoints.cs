@@ -55,7 +55,7 @@ public static class LocationEndpoints
     {
         try
         {
-            var location = await repo.CreateAsync(request.Name, request.ParentId);
+            var location = await repo.CreateAsync(request.Name, request.ParentId, request.SortOrder);
             var dto = new LocationDto(location.Id, location.Name, location.Path, location.ParentId, location.SortOrder);
             return TypedResults.Created($"/api/locations/{dto.Id}", dto);
         }

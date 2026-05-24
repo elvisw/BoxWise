@@ -19,9 +19,10 @@ builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddMudServices();
 
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:5000/";
 builder.Services.AddScoped(sp => new HttpClient
 {
-    BaseAddress = new Uri("https://localhost:5000/")
+    BaseAddress = new Uri(apiBaseUrl)
 });
 
 await builder.Build().RunAsync();

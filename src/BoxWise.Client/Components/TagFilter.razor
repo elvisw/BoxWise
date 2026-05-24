@@ -1,14 +1,23 @@
 @using BoxWise.Shared.Dtos
 @inject TagService TagService
 
-@if (!_hasData)
+@if (_loading)
+{
+    <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+}
+else if (_error)
+{
+    <MudText Typo="Typo.caption" Color="Color.Error">加载标签失败</MudText>
+}
+else if (!_hasData)
 {
     <MudText Typo="Typo.caption" Color="Color.Default">暂无标签，录入物品时可自动创建</MudText>
 }
 else
 {
     <MudChipSet T="int" SelectionMode="SelectionMode.MultiSelection"
-                @bind-SelectedValues="SelectedTagIds">
+                SelectedValues="SelectedTagIds"
+                SelectedValuesChanged="OnSelectedValuesChanged">
         @foreach (var tag in _tags)
         {
             <MudChip Value="@tag.Id" Color="Color.Primary" Variant="Variant.Outlined">
@@ -24,6 +33,8 @@ else
 
     private List<TagDto> _tags = [];
     private bool _hasData;
+    private bool _loading = true;
+    private bool _error;
 
     protected override async Task OnInitializedAsync()
     {
@@ -34,7 +45,17 @@ else
         }
         catch
         {
-            _hasData = false;
+            _error = true;
         }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnSelectedValuesChanged(IReadOnlyCollection<int> values)
+    {
+        SelectedTagIds = values;
+        await SelectedTagIdsChanged.InvokeAsync(values);
     }
 }

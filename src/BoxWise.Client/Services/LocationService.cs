@@ -12,10 +12,10 @@ public class LocationService
         _http = http;
     }
 
-    public async Task<List<LocationDto>> GetAllAsync()
+    public async Task<List<LocationDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var response = await _http.GetAsync("api/locations");
+        var response = await _http.GetAsync("api/locations", cancellationToken);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<List<LocationDto>>() ?? [];
+        return await response.Content.ReadFromJsonAsync<List<LocationDto>>(cancellationToken) ?? [];
     }
 }

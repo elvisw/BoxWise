@@ -144,6 +144,15 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 - **种子数据缺陷：** `Program.cs` 中的种子数据创建了 `admin` 用户但**未创建 `"Admin"` 角色也未分配**，导致 `IsInRoleAsync` 始终返回 `false`。Story 1.3 需要修复此问题。
 - **AuthService.cs 中的重复 DTO：** `AuthService.cs` 内部定义了 `private record AuthUserDto`，与 `BoxWise.Shared.Dtos.AuthUserDto` 重复但字段相同——这是客户端私有副本，不影响功能。
 
+## Epic 2 技术债务清理记录 (2026-05-24)
+
+| 债务 | 状态 | 修复 |
+|------|------|------|
+| HttpClient BaseAddress 硬编码 | ✅ 已清理 | `Program.cs` 从 `IConfiguration["ApiBaseUrl"]` 读取，默认 `https://localhost:5000/` |
+| 缺少 CancellationToken | ✅ 已清理 | `LocationService.GetAllAsync` / `TagService.GetAllAsync` 添加 `CancellationToken` 参数 |
+| SortOrder 未在 CreateAsync 赋值 | ✅ 已清理 | `LocationRepository.CreateAsync` 接受 `sortOrder` 参数并赋值 |
+| 缺少单元测试框架 | ⏳ Epic 3 规划 | 需新建测试项目 + 配置 |
+
 ## BMad 工作流上下文
 
 - **BMad 版本：** v6.7.1（bmm + core 模块）

@@ -258,6 +258,12 @@ dotnet build BoxWise.slnx
 
 deepseek-v4-pro
 
+**代码审查修复记录:**
+- 🔴 TagFilter `@bind-SelectedValues` 不传播 → 改为显式 `SelectedValues` + handler `InvokeAsync` 模式
+- 🟡 BuildTree O(n²) → O(n) Dictionary 分组（`GroupBy(ParentId ?? 0)`）
+- 🟡 catch 吞异常 → 区分 `_error`（网络/权限失败）和 `_hasData`（空数据），显示不同提示
+- 🟡 首屏闪烁 → 添加 `_loading` 状态 + `MudProgressCircular` 加载指示器
+
 ### Debug Log References
 
 - MudBlazor 9.x API 适配：`ActivatedValue`→`SelectedValue`, `Filter`/`MultiSelection`→`SelectionMode`, `List<int>`→`IReadOnlyCollection<int>`

@@ -14,7 +14,7 @@ public class LocationRepository
         _db = db;
     }
 
-    public async Task<Location> CreateAsync(string name, int? parentId)
+    public async Task<Location> CreateAsync(string name, int? parentId, int sortOrder = 0)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("位置名称不能为空");
@@ -37,6 +37,7 @@ public class LocationRepository
         {
             Name = name,
             ParentId = parentId,
+            SortOrder = sortOrder,
             Path = "/"
         };
 

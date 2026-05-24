@@ -1,7 +1,15 @@
 @using BoxWise.Shared.Dtos
 @inject LocationService LocationService
 
-@if (!_hasData)
+@if (_loading)
+{
+    <MudProgressCircular Color="Color.Primary" Size="Size.Small" Indeterminate="true" />
+}
+else if (_error)
+{
+    <MudText Typo="Typo.caption" Color="Color.Error">加载位置失败</MudText>
+}
+else if (!_hasData)
 {
     <MudText Typo="Typo.caption" Color="Color.Default">暂无位置，请先在管理后台创建</MudText>
 }
@@ -27,6 +35,8 @@ else
     private List<TreeItemData<LocationDto>> TreeItems = [];
     private LocationDto? _selectedValue;
     private bool _hasData;
+    private bool _loading = true;
+    private bool _error;
 
     protected override async Task OnInitializedAsync()
     {
@@ -34,11 +44,15 @@ else
         {
             var locations = await LocationService.GetAllAsync();
             _hasData = locations.Count > 0;
-            TreeItems = BuildTree(locations, null);
+            TreeItems = BuildTree(locations);
         }
         catch
         {
-            _hasData = false;
+            _error = true;
+        }
+        finally
+        {
+            _loading = false;
         }
     }
 
@@ -49,17 +63,25 @@ else
         await SelectedLocationIdChanged.InvokeAsync(SelectedLocationId);
     }
 
-    private static List<TreeItemData<LocationDto>> BuildTree(List<LocationDto> locations, int? parentId)
+    private static List<TreeItemData<LocationDto>> BuildTree(List<LocationDto> locations)
     {
-        return locations
-            .Where(l => l.ParentId == parentId)
-            .OrderBy(l => l.SortOrder)
-            .ThenBy(l => l.Name)
-            .Select(l => new TreeItemData<LocationDto>
+        var byParent = locations
+            .GroupBy(l => l.ParentId ?? 0)
+            .ToDictionary(g => g.Key, g => g.OrderBy(l => l.SortOrder).ThenBy(l => l.Name).ToList());
+
+        return BuildLevel(0);
+
+        List<TreeItemData<LocationDto>> BuildLevel(int parentId)
+        {
+            if (!byParent.TryGetValue(parentId, out var children))
+                return [];
+
+            return children.Select(l => new TreeItemData<LocationDto>
             {
                 Value = l,
                 Text = l.Name,
-                Children = BuildTree(locations, l.Id)
+                Children = BuildLevel(l.Id)
             }).ToList();
+        }
     }
 }

@@ -12,10 +12,10 @@ public class TagService
         _http = http;
     }
 
-    public async Task<List<TagDto>> GetAllAsync()
+    public async Task<List<TagDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var response = await _http.GetAsync("api/tags");
+        var response = await _http.GetAsync("api/tags", cancellationToken);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<List<TagDto>>() ?? [];
+        return await response.Content.ReadFromJsonAsync<List<TagDto>>(cancellationToken) ?? [];
     }
 }
