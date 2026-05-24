@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BoxWise.Client/BoxWise.Client.csproj" />
+    <Project Path="src/BoxWise.Server/BoxWise.Server.csproj" />
+    <Project Path="src/BoxWise.Shared/BoxWise.Shared.csproj" />
+  </Folder>
+</Solution>
