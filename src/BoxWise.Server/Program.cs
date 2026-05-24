@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
 using BoxWise.Server.Endpoints;
 using BoxWise.Server.Models;
+using BoxWise.Server.Configuration;
 using BoxWise.Server.Repositories;
 using BoxWise.Server.Services;
 
@@ -73,6 +74,12 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<LocationRepository>();
 builder.Services.AddScoped<TagRepository>();
 builder.Services.AddScoped<ItemRepository>();
+
+// LLM
+builder.Services.AddOptions<LlmOptions>()
+    .Bind(builder.Configuration.GetSection(LlmOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddHttpClient<LlmClient>();
 builder.Services.AddSingleton<ImageStorageService>();
 builder.Services.AddSingleton<ThumbnailService>();
 
