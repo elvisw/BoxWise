@@ -86,7 +86,7 @@ public static class ItemEndpoints
         SearchItemsAsync(string? q, ItemRepository repo, HttpContext httpContext)
     {
         var items = string.IsNullOrWhiteSpace(q)
-            ? []
+            ? await repo.GetAllAsync()
             : await repo.SearchAsync(q);
 
         var dtos = items.Select(i => new ItemSummaryDto(

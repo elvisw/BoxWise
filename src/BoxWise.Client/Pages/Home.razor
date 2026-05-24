@@ -103,11 +103,14 @@
             </MudButton>
         </MudItem>
         <MudItem xs="6">
-            <MudPaper Elevation="2" Class="pa-8 text-center" Style="background:#E0E0E0">
-                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Large" Color="Color.Default" />
-                <MudText Typo="Typo.h6">浏览物品</MudText>
-                <MudText Typo="Typo.caption">即将推出</MudText>
-            </MudPaper>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                       OnClick='() => Navigation.NavigateTo("/browse")'
+                       FullWidth="true" Class="pa-8">
+                <MudStack>
+                    <MudIcon Icon="@Icons.Material.Filled.GridView" Size="Size.Large" />
+                    <MudText Typo="Typo.h6">浏览物品</MudText>
+                </MudStack>
+            </MudButton>
         </MudItem>
     </MudGrid>
 

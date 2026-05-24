@@ -60,6 +60,17 @@ public class ItemRepository
             .FirstOrDefaultAsync(i => i.Id == id);
     }
 
+    public async Task<List<Item>> GetAllAsync()
+    {
+        return await _db.Items
+            .Include(i => i.Location)
+            .Include(i => i.Tags)
+            .OrderByDescending(i => i.CreatedAt)
+            .Take(100)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
+
     public async Task<List<Item>> SearchAsync(string query)
     {
         if (string.IsNullOrWhiteSpace(query))

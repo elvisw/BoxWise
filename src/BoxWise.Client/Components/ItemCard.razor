@@ -1,0 +1,38 @@
+@inject NavigationManager Navigation
+
+<div style="cursor:pointer" @onclick='() => Navigation.NavigateTo($"/items/{Item.Id}")'>
+<MudPaper Elevation="1" Class="rounded pa-0" Style="overflow:hidden">
+    @if (!string.IsNullOrEmpty(Item.ThumbPath))
+    {
+        <img src="api/images/@Item.Id?type=thumb"
+             alt="@Item.Name"
+             loading="lazy"
+             style="width:100%;height:150px;object-fit:cover;display:block;" />
+    }
+    else
+    {
+        <div style="width:100%;height:150px;display:flex;align-items:center;justify-content:center;background:#F5F5F5">
+            <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" Color="Color.Default" />
+        </div>
+    }
+    <MudStack Class="pa-2" Spacing="0">
+        <MudText Typo="Typo.body2" Style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            @Item.Name
+        </MudText>
+        <MudText Typo="Typo.caption" Color="Color.Default" Style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            @FormatLocationPath(Item.LocationPath)
+        </MudText>
+    </MudStack>
+</MudPaper>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ItemSummaryDto Item { get; set; } = null!;
+
+    private static string FormatLocationPath(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return "";
+        return string.Join(" → ", path.Split('/', StringSplitOptions.RemoveEmptyEntries));
+    }
+}

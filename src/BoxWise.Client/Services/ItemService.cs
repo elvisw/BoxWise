@@ -19,6 +19,13 @@ public class ItemService
         return await response.Content.ReadFromJsonAsync<ItemDto>(cancellationToken);
     }
 
+    public async Task<List<ItemSummaryDto>?> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        var response = await _http.GetAsync("api/items", cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<List<ItemSummaryDto>>(cancellationToken);
+    }
+
     public async Task<List<ItemSummaryDto>?> SearchAsync(string query, CancellationToken cancellationToken = default)
     {
         var response = await _http.GetAsync($"api/items?q={Uri.EscapeDataString(query)}", cancellationToken);

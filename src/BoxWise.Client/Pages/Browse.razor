@@ -1,0 +1,77 @@
+@page "/browse"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+@inject ItemService ItemService
+
+<MudText Typo="Typo.h5" Class="mb-4">浏览物品</MudText>
+
+@if (_loading)
+{
+    <div class="d-flex justify-center my-8">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
+}
+else if (_error)
+{
+    <div class="d-flex flex-column align-center justify-center my-8" style="color:#9E9E9E;">
+        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-2">加载失败</MudText>
+        <MudButton Variant="Variant.Outlined" OnClick="ReloadAsync" Class="mt-2">重试</MudButton>
+    </div>
+}
+else if (_items is { Count: 0 })
+{
+    <div class="d-flex flex-column align-center justify-center my-8" style="color:#9E9E9E;">
+        <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-2">暂无物品</MudText>
+        <MudText Typo="Typo.caption">去录入第一个吧</MudText>
+    </div>
+}
+else if (_items is not null)
+{
+    <MudGrid>
+        @foreach (var item in _items)
+        {
+            <MudItem xs="6" sm="4" md="3" lg="2">
+                <ItemCard Item="item" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private List<ItemSummaryDto>? _items;
+    private bool _loading = true;
+    private bool _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = false;
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _items = await ItemService.GetAllAsync();
+        }
+        catch
+        {
+            _error = true;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+    }
+}
