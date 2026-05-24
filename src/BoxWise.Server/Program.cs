@@ -72,6 +72,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<LocationRepository>();
 builder.Services.AddScoped<TagRepository>();
+builder.Services.AddScoped<ItemRepository>();
 builder.Services.AddSingleton<ImageStorageService>();
 builder.Services.AddSingleton<ThumbnailService>();
 
@@ -127,6 +128,7 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapLocationEndpoints();
 app.MapImageEndpoints();
+app.MapItemEndpoints();
 app.MapTagEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
