@@ -19,6 +19,13 @@ public static class ItemEndpoints
             .WithTags("Items")
             .WithDescription("创建物品");
 
+        group.MapGet("/{id:int}", GetItemByIdAsync)
+            .Produces<ItemDto>(200)
+            .Produces(404)
+            .ProducesProblem(401)
+            .WithTags("Items")
+            .WithDescription("获取物品详情");
+
         return group;
     }
 
@@ -37,7 +44,7 @@ public static class ItemEndpoints
             var dto = new ItemDto(
                 item.Id, item.Name, item.Note,
                 item.PhotoPath, item.ThumbPath, item.MediumPath,
-                item.LocationId,
+                item.LocationId, null,
                 item.CreatedByUser?.UserName ?? "",
                 item.CreatedAt);
 
@@ -51,5 +58,21 @@ public static class ItemEndpoints
         {
             return TypedResults.Problem(ex.Message, statusCode: 400);
         }
+    }
+
+    private static async Task<Results<Ok<ItemDto>, NotFound>>
+        GetItemByIdAsync(int id, ItemRepository repo)
+    {
+        var item = await repo.GetByIdAsync(id);
+        if (item is null) return TypedResults.NotFound();
+
+        var dto = new ItemDto(
+            item.Id, item.Name, item.Note,
+            item.PhotoPath, item.ThumbPath, item.MediumPath,
+            item.LocationId, item.Location?.Name,
+            item.CreatedByUser?.UserName ?? "",
+            item.CreatedAt);
+
+        return TypedResults.Ok(dto);
     }
 }

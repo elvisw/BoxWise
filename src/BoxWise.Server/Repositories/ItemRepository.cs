@@ -51,4 +51,12 @@ public class ItemRepository
 
         return item;
     }
+
+    public async Task<Item?> GetByIdAsync(int id)
+    {
+        return await _db.Items
+            .Include(i => i.CreatedByUser)
+            .Include(i => i.Location)
+            .FirstOrDefaultAsync(i => i.Id == id);
+    }
 }

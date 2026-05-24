@@ -8,5 +8,6 @@ public record ItemDto(
     string? ThumbPath,
     string? MediumPath,
     int? LocationId,
+    string? LocationName,
     string CreatedByUserName,
     DateTime CreatedAt);

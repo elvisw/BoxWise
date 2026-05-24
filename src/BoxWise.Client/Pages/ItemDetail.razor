@@ -1,0 +1,79 @@
+@page "/items/{id:int}"
+@attribute [Authorize]
+
+@using BoxWise.Shared.Dtos
+@inject ItemService ItemService
+@inject NavigationManager Navigation
+
+@if (_loading)
+{
+    <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+}
+else if (_notFound)
+{
+    <MudText Typo="Typo.h5" Color="Color.Error">物品不存在</MudText>
+}
+else if (_item is not null)
+{
+    @if (_item.ThumbPath is not null)
+    {
+        <img src="@($"/api/images/{_item.Id}?type=medium")" style="max-width:100%;max-height:400px;border-radius:4px" />
+    }
+    else
+    {
+        <MudPaper Elevation="1" Class="pa-4 my-3" Style="text-align:center;background:#F5F5F5">
+            <MudIcon Icon="@Icons.Material.Filled.Image" Size="Size.Large" Color="Color.Default" />
+            <MudText Typo="Typo.caption">暂无照片</MudText>
+        </MudPaper>
+    }
+
+    <MudText Typo="Typo.h5" Class="mt-3">@_item.Name</MudText>
+
+    <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-2">
+        <strong>位置:</strong> @(_item.LocationName ?? _item.LocationId?.ToString() ?? "未分配")
+    </MudText>
+
+    @if (_item.Note is not null)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-1">
+            <strong>备注:</strong> @_item.Note
+        </MudText>
+    }
+
+    <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-1">
+        <strong>录入者:</strong> @(_item.CreatedByUserName.Length > 0 ? _item.CreatedByUserName : "未知")
+    </MudText>
+    <MudText Typo="Typo.caption" Color="Color.Default">
+        录入时间: @_item.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+    </MudText>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               OnClick='() => Navigation.NavigateTo("/")' Class="mt-4">
+        返回首页
+    </MudButton>
+}
+
+@code {
+    private ItemDto? _item;
+    private bool _loading = true;
+    private bool _notFound;
+
+    [Parameter] public int Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _item = await ItemService.GetByIdAsync(Id);
+            _notFound = _item is null;
+        }
+        catch
+        {
+            _notFound = true;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
