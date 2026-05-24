@@ -1,6 +1,6 @@
 {
-  "name": "BoxWise.Client",
-  "short_name": "BoxWise.Client",
+  "name": "箱知 BoxWise",
+  "short_name": "BoxWise",
   "id": "./",
   "start_url": "./",
   "display": "standalone",

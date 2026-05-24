@@ -2,14 +2,19 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <UserSecretsId>68b5e442-371d-4903-a2c0-a88c511e560c</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\BoxWise.Shared\BoxWise.Shared.csproj" />
+    <ProjectReference Include="..\BoxWise.Client\BoxWise.Client.csproj" />
   </ItemGroup>
 
 </Project>
