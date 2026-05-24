@@ -1,0 +1,134 @@
+@page "/entry"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Components.Forms
+@inject NavigationManager Navigation
+@inject ItemEntryService ItemService
+@inject AppState AppState
+
+<MudText Typo="Typo.h5" Class="mb-4">录入物品</MudText>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <MudPaper Class="pa-2 mb-3" Style="background-color:#FFF3F0;border:1px solid #EF5350;color:#C62828">
+        <MudText>@_errorMessage</MudText>
+    </MudPaper>
+}
+
+@if (_step == EntryStep.Initial)
+{
+    <MudStack Row="true" Justify="Justify.Center" Class="my-8">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="() => _step = EntryStep.TakingPhoto">
+            拍照
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   OnClick="() => _step = EntryStep.FillingForm">
+            跳过拍照
+        </MudButton>
+    </MudStack>
+}
+else
+{
+    @if (_step == EntryStep.TakingPhoto)
+    {
+        <ImageUploader OnFileUploaded="OnFileUploaded" />
+        @if (_uploading)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+        }
+    }
+
+    @if (_step is EntryStep.FillingForm or EntryStep.TakingPhoto)
+    {
+        <MudTextField @bind-Value="_name" Label="物品名称" Variant="Variant.Outlined" Class="mb-3" />
+        <MudTextField @bind-Value="_note" Label="备注" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">选择位置</MudText>
+        <LocationTree SelectedLocationId="_selectedLocationId"
+                      SelectedLocationIdChanged="OnSelectedLocationChanged" />
+        <MudDivider Class="my-3" />
+
+        <MudText Typo="Typo.subtitle2" Class="mb-2">选择标签</MudText>
+        <TagFilter SelectedTagIds="_selectedTagIds"
+                   SelectedTagIdsChanged="OnSelectedTagsChanged" />
+
+        <MudDivider Class="my-3" />
+        <ContinuityBanner />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   FullWidth="true" OnClick="OnSaveAsync"
+                   Disabled="@(_saving || string.IsNullOrWhiteSpace(_name) || _selectedLocationId is null)">
+            保存
+        </MudButton>
+    }
+}
+
+@code {
+    private enum EntryStep { Initial, TakingPhoto, FillingForm }
+
+    private EntryStep _step = EntryStep.Initial;
+    private string _name = "";
+    private string _note = "";
+    private int? _selectedLocationId;
+    private string? _selectedLocationName;
+    private IReadOnlyCollection<int> _selectedTagIds = Array.Empty<int>();
+    private bool _uploading;
+    private bool _saving;
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        if (AppState.ContinuousLocationId is not null)
+        {
+            _selectedLocationId = AppState.ContinuousLocationId;
+            _selectedLocationName = AppState.ContinuousLocationName;
+            _step = EntryStep.FillingForm;
+        }
+    }
+
+    private async Task OnFileUploaded(IBrowserFile file)
+    {
+        _uploading = true;
+        StateHasChanged();
+
+        await Task.Delay(500);
+        _uploading = false;
+        _step = EntryStep.FillingForm;
+    }
+
+    private Task OnSelectedLocationChanged(int? value)
+    {
+        _selectedLocationId = value;
+        _selectedLocationName = null; // Will be updated from LocationTree's internal state
+        return Task.CompletedTask;
+    }
+
+    private Task OnSelectedTagsChanged(IReadOnlyCollection<int> value)
+    {
+        _selectedTagIds = value;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnSaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name) || _selectedLocationId is null) return;
+
+        _errorMessage = null;
+        _saving = true;
+        var tagIds = _selectedTagIds.ToList();
+        var request = new CreateItemRequest(_name.Trim(), _selectedLocationId.Value, tagIds, _note.Trim());
+        var itemId = await ItemService.CreateItemAsync(request);
+
+        if (itemId is not null)
+        {
+            var locationLabel = _selectedLocationName ?? $"位置 #{_selectedLocationId}";
+            AppState.SetContinuousLocation(_selectedLocationId.Value, locationLabel);
+            Navigation.NavigateTo("/");
+            return;
+        }
+
+        _saving = false;
+        _errorMessage = "保存失败，请检查输入后重试";
+    }
+}

@@ -17,6 +17,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AppState>();
 builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<TagService>();
+builder.Services.AddScoped<ItemEntryService>();
 builder.Services.AddMudServices();
 
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:5000/";

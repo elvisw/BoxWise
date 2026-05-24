@@ -45,6 +45,7 @@ else
             var locations = await LocationService.GetAllAsync();
             _hasData = locations.Count > 0;
             TreeItems = BuildTree(locations);
+            InitSelectedValue(locations);
         }
         catch
         {
@@ -53,6 +54,34 @@ else
         finally
         {
             _loading = false;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (SelectedLocationId.HasValue && TreeItems.Count > 0
+            && (_selectedValue is null || _selectedValue.Id != SelectedLocationId.Value))
+        {
+            _selectedValue = FindLocationById(TreeItems, SelectedLocationId.Value);
+        }
+    }
+
+    private static LocationDto? FindLocationById(List<TreeItemData<LocationDto>> items, int id)
+    {
+        foreach (var item in items)
+        {
+            if (item.Value?.Id == id) return item.Value;
+            var found = FindLocationById(item.Children?.OfType<TreeItemData<LocationDto>>().ToList() ?? [], id);
+            if (found is not null) return found;
+        }
+        return null;
+    }
+
+    private void InitSelectedValue(List<LocationDto> locations)
+    {
+        if (SelectedLocationId.HasValue)
+        {
+            _selectedValue = locations.FirstOrDefault(l => l.Id == SelectedLocationId.Value);
         }
     }
 

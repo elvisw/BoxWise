@@ -1,0 +1,19 @@
+@inject AppState AppState
+
+@if (AppState.ContinuousLocationId is not null)
+{
+    <MudPaper Class="pa-3 my-3" Style="background-color:#C8E6C9;color:#2E7D32">
+        <MudText>
+            连续收纳中：@AppState.ContinuousLocationName
+            <MudButton Color="Color.Default" Size="Size.Small" Variant="Variant.Text"
+                       OnClick="ClearContinuous">退出连续模式</MudButton>
+        </MudText>
+    </MudPaper>
+}
+
+@code {
+    private void ClearContinuous()
+    {
+        AppState.ClearContinuousLocation();
+    }
+}
