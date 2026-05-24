@@ -33,13 +33,42 @@ async function onActivate(event) {
     // Delete unused caches
     const cacheKeys = await caches.keys();
     await Promise.all(cacheKeys
-        .filter(key => key.startsWith(cacheNamePrefix) && key !== cacheName)
+        .filter(key => (key.startsWith(cacheNamePrefix) || key.startsWith('images-cache-'))
+            && key !== cacheName
+            && key !== 'images-cache-v1')
         .map(key => caches.delete(key)));
 }
 
 async function onFetch(event) {
     let cachedResponse = null;
     if (event.request.method === 'GET') {
+        const pathname = new URL(event.request.url).pathname;
+
+        // Stale-While-Revalidate for images — serve cached, update in background
+        if (pathname.startsWith('/api/images/')) {
+            const imagesCache = await caches.open('images-cache-v1');
+            const cached = await imagesCache.match(event.request);
+            if (cached) {
+                // Return cached immediately, refresh in background
+                fetch(event.request).then(response => {
+                    if (response.ok) imagesCache.put(event.request, response.clone());
+                }).catch(() => {});
+                return cached;
+            }
+            try {
+                const response = await fetch(event.request);
+                if (response.ok) imagesCache.put(event.request, response.clone());
+                return response;
+            } catch {
+                return new Response(null, { status: 503, statusText: 'Offline' });
+            }
+        }
+
+        // Network-Only for all API calls — writes must be online
+        if (pathname.startsWith('/api/')) {
+            return fetch(event.request);
+        }
+
         // For all navigation requests, try to serve index.html from cache,
         // unless that request is for an offline resource.
         // If you need some URLs to be server-rendered, edit the following check to exclude those URLs
