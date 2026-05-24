@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using BoxWise.Server.Models;
 using BoxWise.Server.Repositories;
+using BoxWise.Server.Services;
 using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Endpoints;
@@ -31,6 +32,13 @@ public static class ItemEndpoints
             .ProducesProblem(401)
             .WithTags("Items")
             .WithDescription("搜索/筛选/浏览物品（可选参数 q/locationId/tagId）");
+
+        group.MapDelete("/{id:int}", DeleteItemAsync)
+            .Produces(204)
+            .Produces(404)
+            .ProducesProblem(401)
+            .WithTags("Items")
+            .WithDescription("删除物品（级联删除图片文件）");
 
         return group;
     }
@@ -100,5 +108,17 @@ public static class ItemEndpoints
 
         httpContext.Response.Headers["X-Total-Count"] = dtos.Length.ToString();
         return TypedResults.Ok(dtos);
+    }
+
+    private static async Task<Results<NoContent, NotFound>>
+        DeleteItemAsync(int id, ItemRepository repo, ImageStorageService imageStorage)
+    {
+        var deleted = await repo.DeleteAsync(id);
+        if (!deleted) return TypedResults.NotFound();
+
+        try { imageStorage.DeleteItemFiles(id); }
+        catch { /* I/O 失败不阻止 DB 删除 */ }
+
+        return TypedResults.NoContent();
     }
 }

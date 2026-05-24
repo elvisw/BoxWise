@@ -36,4 +36,11 @@ public class ImageStorageService
 
     public string GetMediumPath(int itemId)
         => Path.Combine(_basePath, itemId.ToString(), "medium.jpg");
+
+    public void DeleteItemFiles(int itemId)
+    {
+        var dir = Path.Combine(_basePath, itemId.ToString());
+        if (Directory.Exists(dir))
+            Directory.Delete(dir, true);
+    }
 }

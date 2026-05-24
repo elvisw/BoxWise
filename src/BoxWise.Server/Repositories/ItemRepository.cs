@@ -60,6 +60,16 @@ public class ItemRepository
             .FirstOrDefaultAsync(i => i.Id == id);
     }
 
+    public async Task<bool> DeleteAsync(int id, CancellationToken ct = default)
+    {
+        var item = await _db.Items.FindAsync([id], ct);
+        if (item is null) return false;
+
+        _db.Items.Remove(item);
+        await _db.SaveChangesAsync(ct);
+        return true;
+    }
+
     public async Task<List<Item>> GetFilteredAsync(int? locationId, List<int>? tagIds, string? query)
     {
         IQueryable<Item> q = _db.Items
