@@ -15,6 +15,8 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<AuthenticationStateProvider, CookieAuthenticationStateProvider>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AppState>();
+builder.Services.AddScoped<LocationService>();
+builder.Services.AddScoped<TagService>();
 builder.Services.AddMudServices();
 
 builder.Services.AddScoped(sp => new HttpClient

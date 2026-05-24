@@ -51,7 +51,7 @@ development_status:
   2-1-location-entity-crud: review
   2-2-location-tree-api: review
   2-3-tag-system: review
-  2-4-location-tag-selector: backlog
+  2-4-location-tag-selector: review
   epic-2-retrospective: optional
   epic-3: backlog
   3-1-item-image-upload: backlog

@@ -1,0 +1,65 @@
+@using BoxWise.Shared.Dtos
+@inject LocationService LocationService
+
+@if (!_hasData)
+{
+    <MudText Typo="Typo.caption" Color="Color.Default">暂无位置，请先在管理后台创建</MudText>
+}
+else
+{
+    <MudTreeView T="LocationDto" Items="TreeItems"
+                 SelectedValue="_selectedValue"
+                 SelectedValueChanged="OnSelectedValueChanged">
+        <ItemTemplate Context="item">
+            <MudTreeViewItem Value="@item.Value" Items="@item.Children">
+                <BodyContent>
+                    <MudText>@(item.Value?.Name ?? "")</MudText>
+                </BodyContent>
+            </MudTreeViewItem>
+        </ItemTemplate>
+    </MudTreeView>
+}
+
+@code {
+    [Parameter] public int? SelectedLocationId { get; set; }
+    [Parameter] public EventCallback<int?> SelectedLocationIdChanged { get; set; }
+
+    private List<TreeItemData<LocationDto>> TreeItems = [];
+    private LocationDto? _selectedValue;
+    private bool _hasData;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var locations = await LocationService.GetAllAsync();
+            _hasData = locations.Count > 0;
+            TreeItems = BuildTree(locations, null);
+        }
+        catch
+        {
+            _hasData = false;
+        }
+    }
+
+    private async Task OnSelectedValueChanged(LocationDto? value)
+    {
+        _selectedValue = value;
+        SelectedLocationId = value?.Id;
+        await SelectedLocationIdChanged.InvokeAsync(SelectedLocationId);
+    }
+
+    private static List<TreeItemData<LocationDto>> BuildTree(List<LocationDto> locations, int? parentId)
+    {
+        return locations
+            .Where(l => l.ParentId == parentId)
+            .OrderBy(l => l.SortOrder)
+            .ThenBy(l => l.Name)
+            .Select(l => new TreeItemData<LocationDto>
+            {
+                Value = l,
+                Text = l.Name,
+                Children = BuildTree(locations, l.Id)
+            }).ToList();
+    }
+}

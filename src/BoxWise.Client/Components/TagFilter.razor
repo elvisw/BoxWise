@@ -1,0 +1,40 @@
+@using BoxWise.Shared.Dtos
+@inject TagService TagService
+
+@if (!_hasData)
+{
+    <MudText Typo="Typo.caption" Color="Color.Default">暂无标签，录入物品时可自动创建</MudText>
+}
+else
+{
+    <MudChipSet T="int" SelectionMode="SelectionMode.MultiSelection"
+                @bind-SelectedValues="SelectedTagIds">
+        @foreach (var tag in _tags)
+        {
+            <MudChip Value="@tag.Id" Color="Color.Primary" Variant="Variant.Outlined">
+                @tag.Name
+            </MudChip>
+        }
+    </MudChipSet>
+}
+
+@code {
+    [Parameter] public IReadOnlyCollection<int> SelectedTagIds { get; set; } = Array.Empty<int>();
+    [Parameter] public EventCallback<IReadOnlyCollection<int>> SelectedTagIdsChanged { get; set; }
+
+    private List<TagDto> _tags = [];
+    private bool _hasData;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _tags = await TagService.GetAllAsync();
+            _hasData = _tags.Count > 0;
+        }
+        catch
+        {
+            _hasData = false;
+        }
+    }
+}
