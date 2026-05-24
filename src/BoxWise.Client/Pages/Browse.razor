@@ -6,6 +6,23 @@
 
 <MudText Typo="Typo.h5" Class="mb-4">浏览物品</MudText>
 
+<!-- 筛选控件 -->
+<MudGrid Class="mb-2">
+    <MudItem xs="12" sm="6">
+        <MudText Typo="Typo.subtitle2" Class="mb-1">按位置</MudText>
+        <LocationTree SelectedLocationId="_locationId"
+                      SelectedLocationIdChanged="OnLocationChanged" />
+    </MudItem>
+    <MudItem xs="12" sm="6">
+        <MudText Typo="Typo.subtitle2" Class="mb-1">按标签</MudText>
+        <TagFilter SelectedTagIds="_tagIds"
+                   SelectedTagIdsChanged="OnTagsChanged" />
+    </MudItem>
+</MudGrid>
+
+<MudDivider Class="mb-4" />
+
+<!-- 结果区域 -->
 @if (_loading)
 {
     <div class="d-flex justify-center my-8">
@@ -24,12 +41,17 @@ else if (_items is { Count: 0 })
 {
     <div class="d-flex flex-column align-center justify-center my-8" style="color:#9E9E9E;">
         <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" />
-        <MudText Typo="Typo.body1" Class="mt-2">暂无物品</MudText>
-        <MudText Typo="Typo.caption">去录入第一个吧</MudText>
+        <MudText Typo="Typo.body1" Class="mt-2">
+            @(_hasFilter ? "没有匹配的物品" : "暂无物品")
+        </MudText>
+        <MudText Typo="Typo.caption">
+            @(_hasFilter ? "调整筛选条件试试" : "去录入第一个吧")
+        </MudText>
     </div>
 }
 else if (_items is not null)
 {
+    <MudText Typo="Typo.caption" Class="mb-2">找到 @_items.Count 件物品</MudText>
     <MudGrid>
         @foreach (var item in _items)
         {
@@ -45,8 +67,25 @@ else if (_items is not null)
     private bool _loading = true;
     private bool _error;
 
+    private int? _locationId;
+    private IReadOnlyCollection<int> _tagIds = Array.Empty<int>();
+
+    private bool _hasFilter => _locationId.HasValue || _tagIds.Count > 0;
+
     protected override async Task OnInitializedAsync()
     {
+        await LoadAsync();
+    }
+
+    private async Task OnLocationChanged(int? value)
+    {
+        _locationId = value;
+        await LoadAsync();
+    }
+
+    private async Task OnTagsChanged(IReadOnlyCollection<int> values)
+    {
+        _tagIds = values;
         await LoadAsync();
     }
 
@@ -58,7 +97,7 @@ else if (_items is not null)
 
         try
         {
-            _items = await ItemService.GetAllAsync();
+            _items = await ItemService.GetFilteredAsync(_locationId, _tagIds, null);
         }
         catch
         {

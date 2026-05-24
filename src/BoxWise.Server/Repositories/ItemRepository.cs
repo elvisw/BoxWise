@@ -60,34 +60,44 @@ public class ItemRepository
             .FirstOrDefaultAsync(i => i.Id == id);
     }
 
-    public async Task<List<Item>> GetAllAsync()
+    public async Task<List<Item>> GetFilteredAsync(int? locationId, List<int>? tagIds, string? query)
     {
-        return await _db.Items
+        IQueryable<Item> q = _db.Items
             .Include(i => i.Location)
             .Include(i => i.Tags)
+            .AsNoTracking();
+
+        if (locationId.HasValue)
+        {
+            var location = await _db.Locations.FindAsync(locationId.Value);
+            if (location is not null)
+            {
+                q = q.Where(i => i.Location != null && i.Location.Path.StartsWith(location.Path));
+            }
+        }
+
+        if (tagIds is { Count: > 0 })
+        {
+            foreach (var tagId in tagIds)
+            {
+                var id = tagId;
+                q = q.Where(i => i.Tags.Any(t => t.Id == id));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var keyword = query.Trim();
+            q = q.Where(i => i.Name.Contains(keyword)
+                          || (i.Note != null && i.Note.Contains(keyword))
+                          || i.Tags.Any(t => t.Name.Contains(keyword)));
+        }
+
+        return await q
             .OrderByDescending(i => i.CreatedAt)
             .Take(100)
             .AsSplitQuery()
             .ToListAsync();
     }
 
-    public async Task<List<Item>> SearchAsync(string query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-            return [];
-
-        var q = query.Trim();
-
-        return await _db.Items
-            .Include(i => i.Location)
-            .Include(i => i.Tags)
-            .Where(i => i.Name.Contains(q)
-                        || (i.Note != null && i.Note.Contains(q))
-                        || i.Tags.Any(t => t.Name.Contains(q)))
-            .OrderByDescending(i => i.Name.StartsWith(q))
-            .ThenBy(i => i.Name)
-            .Take(50)
-            .AsSplitQuery()
-            .ToListAsync();
-    }
 }

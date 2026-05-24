@@ -30,7 +30,7 @@ public static class ItemEndpoints
             .Produces<ItemSummaryDto[]>(200)
             .ProducesProblem(401)
             .WithTags("Items")
-            .WithDescription("搜索物品（关键词模糊匹配名称/备注/标签）");
+            .WithDescription("搜索/筛选/浏览物品（可选参数 q/locationId/tagId）");
 
         return group;
     }
@@ -83,11 +83,14 @@ public static class ItemEndpoints
     }
 
     private static async Task<Ok<ItemSummaryDto[]>>
-        SearchItemsAsync(string? q, ItemRepository repo, HttpContext httpContext)
+        SearchItemsAsync(string? q, int? locationId, string?[]? tagId,
+            ItemRepository repo, HttpContext httpContext)
     {
-        var items = string.IsNullOrWhiteSpace(q)
-            ? await repo.GetAllAsync()
-            : await repo.SearchAsync(q);
+        var tagIds = tagId is { Length: > 0 }
+            ? tagId.Where(s => s is not null && int.TryParse(s, out _)).Select(s => int.Parse(s!)).ToList()
+            : null;
+
+        var items = await repo.GetFilteredAsync(locationId, tagIds, q);
 
         var dtos = items.Select(i => new ItemSummaryDto(
             i.Id, i.Name, i.ThumbPath,
