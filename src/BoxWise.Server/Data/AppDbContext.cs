@@ -11,6 +11,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     }
 
     public DbSet<Location> Locations => Set<Location>();
+    public DbSet<Tag> Tags => Set<Tag>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

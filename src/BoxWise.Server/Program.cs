@@ -70,6 +70,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddScoped<LocationRepository>();
+builder.Services.AddScoped<TagRepository>();
 
 builder.Services.AddRazorPages();
 
@@ -122,6 +123,7 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapLocationEndpoints();
+app.MapTagEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
 app.MapFallbackToFile("index.html");
