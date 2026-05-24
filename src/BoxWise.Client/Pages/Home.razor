@@ -1,7 +1,176 @@
-﻿@page "/"
+@page "/"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
 
-<PageTitle>Home</PageTitle>
+@inject AppState AppState
+@inject NavigationManager Navigation
+@inject ItemService ItemService
 
-<h1>Hello, world!</h1>
+<MudText Typo="Typo.h4" Class="mb-4">箱知 · BoxWise</MudText>
 
-Welcome to your new app.
+@if (AppState.IsLoggedIn)
+{
+    <MudText Typo="Typo.body1" Class="mb-2">
+        欢迎，@AppState.CurrentUserName
+    </MudText>
+
+    <SearchBar SearchTextChanged="OnSearchTextChanged" />
+
+    <MudDivider Class="my-4" />
+
+    @if (_isSearching)
+    {
+        <div class="d-flex justify-center my-8">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(_query) && _results is not null)
+    {
+        if (_results.Count > 0)
+        {
+            <MudText Typo="Typo.caption" Class="mb-2">
+                找到 @_results.Count 件物品
+            </MudText>
+
+            <MudList T="ItemSummaryDto">
+                @foreach (var item in _results)
+                {
+                    <MudListItem T="ItemSummaryDto" OnClick='() => Navigation.NavigateTo($"/items/{item.Id}")' Class="pa-3">
+                        <div class="d-flex align-center" style="gap: 12px; width: 100%;">
+                            @if (!string.IsNullOrEmpty(item.ThumbPath))
+                            {
+                                <img src="api/images/@item.Id?type=thumb"
+                                     alt="@item.Name"
+                                     style="width: 72px; height: 72px; object-fit: cover; border-radius: 4px;" />
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Image"
+                                         Size="Size.Large"
+                                         Style="width: 72px; height: 72px; color: #BDBDBD;" />
+                            }
+                            <div class="flex-grow-1">
+                                <MudText Typo="Typo.h6">@item.Name</MudText>
+                                @if (!string.IsNullOrEmpty(item.LocationPath))
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Default">
+                                        @FormatLocationPath(item.LocationPath)
+                                    </MudText>
+                                }
+                                @if (item.TagNames.Count > 0)
+                                {
+                                    <div class="d-flex flex-wrap mt-1" style="gap: 4px;">
+                                        @foreach (var tag in item.TagNames)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@tag</MudChip>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        else
+        {
+            <div class="d-flex flex-column align-center justify-center my-8" style="color: #9E9E9E;">
+                <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" />
+                <MudText Typo="Typo.body1" Class="mt-2">未找到匹配的物品</MudText>
+                <MudText Typo="Typo.caption">试试其他关键词</MudText>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="d-flex flex-column align-center justify-center my-8" style="color: #9E9E9E;">
+            <MudIcon Icon="@Icons.Material.Filled.ManageSearch" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-2">输入关键词搜索物品</MudText>
+            <MudText Typo="Typo.caption">按名称、备注或标签模糊匹配</MudText>
+        </div>
+    }
+
+    <MudGrid Class="mt-4">
+        <MudItem xs="6">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick='() => Navigation.NavigateTo("/entry")'
+                       FullWidth="true" Class="pa-8">
+                <MudStack>
+                    <MudIcon Icon="@Icons.Material.Filled.AddBox" Size="Size.Large" />
+                    <MudText Typo="Typo.h6">录入物品</MudText>
+                </MudStack>
+            </MudButton>
+        </MudItem>
+        <MudItem xs="6">
+            <MudPaper Elevation="2" Class="pa-8 text-center" Style="background:#E0E0E0">
+                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Large" Color="Color.Default" />
+                <MudText Typo="Typo.h6">浏览物品</MudText>
+                <MudText Typo="Typo.caption">即将推出</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @if (AppState.IsAdmin)
+    {
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   Href="/admin" Class="mt-4" FullWidth="true">
+            管理后台
+        </MudButton>
+    }
+}
+else
+{
+    <MudText Typo="Typo.body1" Class="mb-4">
+        请登录以管理您的物品库
+    </MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               OnClick='() => Navigation.NavigateTo("/login")'>
+        前往登录
+    </MudButton>
+}
+
+@code {
+    private string _query = "";
+    private List<ItemSummaryDto>? _results;
+    private bool _isSearching;
+    private CancellationTokenSource? _searchCts;
+
+    private async Task OnSearchTextChanged(string query)
+    {
+        _query = query ?? "";
+
+        if (string.IsNullOrWhiteSpace(_query))
+        {
+            _searchCts?.Cancel();
+            _results = null;
+            _isSearching = false;
+            return;
+        }
+
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+
+        _isSearching = true;
+        StateHasChanged();
+
+        try
+        {
+            _results = await ItemService.SearchAsync(_query, ct);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        _isSearching = false;
+        StateHasChanged();
+    }
+
+    private static string FormatLocationPath(string? path)
+    {
+        if (string.IsNullOrEmpty(path)) return "";
+        return string.Join(" → ", path.Split('/', StringSplitOptions.RemoveEmptyEntries));
+    }
+}

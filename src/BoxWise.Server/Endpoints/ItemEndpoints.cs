@@ -26,6 +26,12 @@ public static class ItemEndpoints
             .WithTags("Items")
             .WithDescription("获取物品详情");
 
+        group.MapGet("/", SearchItemsAsync)
+            .Produces<ItemSummaryDto[]>(200)
+            .ProducesProblem(401)
+            .WithTags("Items")
+            .WithDescription("搜索物品（关键词模糊匹配名称/备注/标签）");
+
         return group;
     }
 
@@ -74,5 +80,22 @@ public static class ItemEndpoints
             item.CreatedAt);
 
         return TypedResults.Ok(dto);
+    }
+
+    private static async Task<Ok<ItemSummaryDto[]>>
+        SearchItemsAsync(string? q, ItemRepository repo, HttpContext httpContext)
+    {
+        var items = string.IsNullOrWhiteSpace(q)
+            ? []
+            : await repo.SearchAsync(q);
+
+        var dtos = items.Select(i => new ItemSummaryDto(
+            i.Id, i.Name, i.ThumbPath,
+            i.Location?.Path,
+            i.Tags.Select(t => t.Name).ToList(),
+            i.CreatedAt)).ToArray();
+
+        httpContext.Response.Headers["X-Total-Count"] = dtos.Length.ToString();
+        return TypedResults.Ok(dtos);
     }
 }

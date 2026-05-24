@@ -1,0 +1,44 @@
+@implements IDisposable
+
+<MudTextField T="string" Value="_searchText"
+              ValueChanged="OnValueChanged"
+              Placeholder="搜索物品..."
+              Adornment="Adornment.Start"
+              AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true"
+              Variant="Variant.Outlined"
+              FullWidth="true" />
+
+@code {
+    [Parameter]
+    public EventCallback<string> SearchTextChanged { get; set; }
+
+    private string _searchText = "";
+    private System.Threading.Timer? _debounceTimer;
+
+    protected override void OnInitialized()
+    {
+        _debounceTimer = new System.Threading.Timer(_ =>
+        {
+            try
+            {
+                InvokeAsync(() => SearchTextChanged.InvokeAsync(_searchText));
+            }
+            catch
+            {
+                // Component may have been disposed
+            }
+        }, null, Timeout.Infinite, Timeout.Infinite);
+    }
+
+    private void OnValueChanged(string value)
+    {
+        _searchText = value;
+        _debounceTimer?.Change(300, Timeout.Infinite);
+    }
+
+    public void Dispose()
+    {
+        _debounceTimer?.Dispose();
+    }
+}

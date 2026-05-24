@@ -59,9 +59,9 @@ development_status:
   3-3-ai-recognition: review
   3-4-item-entry-ui: review
   3-5-item-detail: review
-  epic-3-retrospective: optional
-  epic-4: backlog
-  4-1-search-functionality: backlog
+  epic-3-retrospective: done
+  epic-4: in-progress
+  4-1-search-functionality: review
   4-2-thumbnail-grid-browse: backlog
   4-3-location-tag-filter: backlog
   4-4-item-detail-delete: backlog

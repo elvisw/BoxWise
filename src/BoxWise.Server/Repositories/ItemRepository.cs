@@ -59,4 +59,24 @@ public class ItemRepository
             .Include(i => i.Location)
             .FirstOrDefaultAsync(i => i.Id == id);
     }
+
+    public async Task<List<Item>> SearchAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return [];
+
+        var q = query.Trim();
+
+        return await _db.Items
+            .Include(i => i.Location)
+            .Include(i => i.Tags)
+            .Where(i => i.Name.Contains(q)
+                        || (i.Note != null && i.Note.Contains(q))
+                        || i.Tags.Any(t => t.Name.Contains(q)))
+            .OrderByDescending(i => i.Name.StartsWith(q))
+            .ThenBy(i => i.Name)
+            .Take(50)
+            .AsSplitQuery()
+            .ToListAsync();
+    }
 }
