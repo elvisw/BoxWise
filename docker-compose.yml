@@ -1,0 +1,24 @@
+services:
+  boxwise:
+    build: .
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+      - DataDirectory=/app/data
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/boxwise.db
+    volumes:
+      - ./data:/app/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./data/caddy:/data
+    depends_on:
+      boxwise:
+        condition: service_started
