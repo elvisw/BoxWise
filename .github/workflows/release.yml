@@ -1,0 +1,59 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore BoxWise.slnx
+
+      - name: Build
+        run: dotnet build BoxWise.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test BoxWise.slnx -c Release --no-build
+
+  publish:
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish
+        run: >
+          dotnet publish src/BoxWise.Server
+          -c Release
+          -r linux-x64
+          --self-contained false
+          -o publish/boxwise
+
+      - name: Create archive
+        run: tar -czf boxwise.tar.gz -C publish boxwise
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: boxwise.tar.gz
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

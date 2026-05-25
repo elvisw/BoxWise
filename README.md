@@ -100,20 +100,29 @@ cd src/BoxWise.Client && dotnet run
 
 ### 二进制部署（Linux VPS）
 
-适合无 Docker 环境，通过 systemd 管理进程。
+适合无 Docker 环境，通过 systemd 管理进程。**CI 已自动构建，直接从 GitHub 下载即可。**
 
-**前置条件：** .NET 10 Runtime（`apt install dotnet-runtime-10.0`）、Caddy 或 Nginx。
+**前置条件：** .NET 10 Runtime + Caddy 或 Nginx。
 
 ```bash
-# 1. 发布（在开发机上执行）
-dotnet publish src/BoxWise.Server -c Release -o publish
+# 1. 下载最新版本（从 GitHub Releases）
+curl -L https://github.com/elvisw/BoxWise/releases/latest/download/boxwise.tar.gz -o boxwise.tar.gz
 
-# 2. 上传到服务器
-scp -r publish/* user@server:/opt/boxwise/
+# 2. 解压到服务器
+sudo mkdir -p /opt/boxwise
+sudo tar -xzf boxwise.tar.gz -C /opt/boxwise
 mkdir -p /opt/boxwise/data/images
 
-# 3. 创建生产配置（AI 可选，不做 AI 可跳过）
-cat > /opt/boxwise/appsettings.Production.json << 'EOF'
+# 3. 安装 .NET Runtime（如未安装）
+# Ubuntu/Debian:
+wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+chmod +x dotnet-install.sh
+./dotnet-install.sh --channel 10.0 --runtime aspnetcore
+# Fedora/CentOS:
+sudo dnf install dotnet-runtime-10.0
+
+# 4. 创建生产配置（AI 可选，不做 AI 可跳过）
+sudo cat > /opt/boxwise/appsettings.Production.json << 'EOF'
 {
   "Llm": {
     "BaseUrl": "https://api.openai.com/v1",
@@ -123,7 +132,7 @@ cat > /opt/boxwise/appsettings.Production.json << 'EOF'
 }
 EOF
 
-# 4. 安装 systemd 服务
+# 5. 安装 systemd 服务
 sudo cat > /etc/systemd/system/boxwise.service << 'EOF'
 [Unit]
 Description=BoxWise Server
@@ -255,6 +264,10 @@ BoxWise/
 ## 维护
 
 ```bash
+# 发布新版本（打 tag 后 GitHub Actions 自动构建并发布到 Releases）
+git tag v1.0.1
+git push origin v1.0.1
+
 # EF Core 迁移
 cd src/BoxWise.Server
 dotnet ef migrations add <MigrationName>
