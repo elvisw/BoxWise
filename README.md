@@ -83,20 +83,29 @@ API 调用超时 15s，失败时静默降级为手动输入。
 dotnet build BoxWise.slnx
 dotnet test BoxWise.slnx
 
-# 启动 Server（同时提供 API + WASM 静态文件回退）
+# 启动 Server（API + Admin 后台 + Blazor WASM 静态回退）
 cd src/BoxWise.Server && dotnet run
 # → https://localhost:5000
-# 登录: admin / admin123
 
-# （可选）启动 Client 开发服务器（热重载）
+# （推荐）启动 Client 开发服务器（Blazor WASM 热重载）
 cd src/BoxWise.Client && dotnet run
 # → https://localhost:5001
 ```
 
-| 地址 | 说明 |
-|------|------|
-| `https://localhost:5000` | Server，同时提供 API + WASM 静态文件 |
-| `https://localhost:5001` | Client 开发服务器（热重载） |
+**开发入口选择：**
+
+| 地址 | 提供内容 | 热重载 | 推荐场景 |
+|------|---------|--------|---------|
+| `https://localhost:5001` | Blazor WASM 页面 | 有 | **日常 UI 开发（推荐）** |
+| `https://localhost:5000` | API + Admin + WASM 静态回退 | 无 | 测试 Admin / 集成测试 |
+
+> **日常开发用 `https://localhost:5001`。** API 请求通过 `wwwroot/appsettings.Development.json` 中的 `ApiBaseUrl` 配置自动跨源发送到 5000 端口。Admin 后台（`/admin`）是 Server 端 Razor Pages，在 5001 点击"管理后台"按钮自动跳转到 5000。
+>
+> **仅需一个端口时**，只启动 Server，访问 `https://localhost:5000` 即可同时使用页面 + API + Admin。
+>
+> **生产环境无需配置 `ApiBaseUrl`** — 不配置时 `Http.BaseAddress` 为 null，所有请求走同源，Admin 链接走 `/admin`。
+
+登录: `admin` / `admin123`
 
 ### 二进制部署（Linux VPS）
 
@@ -285,4 +294,4 @@ docker compose logs -f
 
 ## 许可证
 
-MIT
+GNU General Public License v3.0

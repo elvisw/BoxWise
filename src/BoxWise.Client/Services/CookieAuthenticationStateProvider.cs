@@ -7,10 +7,12 @@ namespace BoxWise.Client.Services;
 public class CookieAuthenticationStateProvider : AuthenticationStateProvider
 {
     private readonly HttpClient _http;
+    private readonly AppState _appState;
 
-    public CookieAuthenticationStateProvider(HttpClient http)
+    public CookieAuthenticationStateProvider(HttpClient http, AppState appState)
     {
         _http = http;
+        _appState = appState;
     }
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
@@ -23,6 +25,9 @@ public class CookieAuthenticationStateProvider : AuthenticationStateProvider
                 var user = await response.Content.ReadFromJsonAsync<AuthUser>();
                 if (user is { UserName: not null and not "" })
                 {
+                    if (_appState.CurrentUserName != user.UserName)
+                        _appState.SetUser(user.UserName, user.IsAdmin);
+
                     var identity = new ClaimsIdentity(
                         claims: new[]
                         {

@@ -8,8 +8,8 @@
     <base href="/" />
     <link rel="preload" id="webassembly" />
     <link rel="stylesheet" href="css/app.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet" />
     <!-- If you add any scoped CSS files, uncomment the following to load them
     <link href="BoxWise.Client.styles.css" rel="stylesheet" /> -->
     <link href="manifest.webmanifest" rel="manifest" />
@@ -34,7 +34,7 @@
     </div>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
     <script src="_content/MudBlazor/MudBlazor.min.js"></script>
-    <script>navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' });</script>
+    <!-- Service Worker disabled in dev; enable for production via service-worker.published.js -->
 </body>
 
 </html>

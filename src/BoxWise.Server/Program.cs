@@ -172,7 +172,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+app.MapStaticAssets().AllowAnonymous();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -184,6 +184,6 @@ app.MapItemEndpoints();
 app.MapTagEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
-app.MapFallbackToFile("index.html");
+app.MapFallbackToFile("index.html").AllowAnonymous();
 
 app.Run();

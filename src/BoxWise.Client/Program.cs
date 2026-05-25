@@ -10,11 +10,17 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:5000/";
-builder.Services.AddScoped(sp => new HttpClient
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "";
+builder.Services.AddScoped(sp => new HttpClient(new CookieHandler())
 {
-    BaseAddress = new Uri(apiBaseUrl)
+    BaseAddress = TryCreateUri(apiBaseUrl)
 });
+
+static Uri? TryCreateUri(string url)
+{
+    if (string.IsNullOrEmpty(url)) return null;
+    return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null;
+}
 
 builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();

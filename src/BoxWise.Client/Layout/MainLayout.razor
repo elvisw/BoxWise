@@ -1,3 +1,45 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject AuthService AuthService
+@inject AppState AppState
+@inject NavigationManager Navigation
 
-@Body
+<MudThemeProvider/>
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+
+<MudLayout>
+    <MudAppBar Elevation="1" Class="px-4">
+        <MudText Typo="Typo.h6" Class="flex-grow-1">箱知 · BoxWise</MudText>
+        @if (AppState.IsLoggedIn)
+        {
+            <MudText Typo="Typo.body2" Class="mr-2 d-none d-sm-block">
+                @AppState.CurrentUserName
+            </MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                           Size="Size.Small"
+                           aria-label="退出登录"
+                           OnClick="LogoutAsync" />
+        }
+    </MudAppBar>
+    <MudMainContent Class="pa-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        try
+        {
+            await AuthService.LogoutAsync();
+        }
+        catch
+        {
+            // 即使服务端登出失败，仍执行客户端清理
+        }
+        finally
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+    }
+}

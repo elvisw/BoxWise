@@ -5,6 +5,7 @@
 @inject AppState AppState
 @inject NavigationManager Navigation
 @inject ItemService ItemService
+@inject HttpClient Http
 
 <MudText Typo="Typo.h4" Class="mb-4">箱知 · BoxWise</MudText>
 
@@ -117,7 +118,7 @@
     @if (AppState.IsAdmin)
     {
         <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                   Href="/admin" Class="mt-4" FullWidth="true">
+                   Href="@AdminUrl" Class="mt-4" FullWidth="true">
             管理后台
         </MudButton>
     }
@@ -138,6 +139,10 @@ else
     private List<ItemSummaryDto>? _results;
     private bool _isSearching;
     private CancellationTokenSource? _searchCts;
+
+    private string AdminUrl => Http.BaseAddress is not null
+        ? new Uri(Http.BaseAddress, "admin").ToString()
+        : "/admin";
 
     private async Task OnSearchTextChanged(string query)
     {

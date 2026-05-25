@@ -20,7 +20,16 @@ dotnet ef migrations add <MigrationName>
 dotnet ef database update
 ```
 
-Server 开发环境监听 `https://localhost:5000`，Client 开发服务器监听 `https://localhost:5001`。开发时需**同时运行两个项目**（或仅启动 Server，它同时提供 API 和 Client 静态文件回退）。
+**端口与开发入口：**
+
+| 地址 | 提供内容 | 热重载 | 推荐场景 |
+|------|---------|--------|---------|
+| `https://localhost:5001` | Blazor WASM 页面（Client 开发服务器） | 有 | **日常 UI 开发（推荐入口）** |
+| `https://localhost:5000` | API + Admin 后台 + Blazor WASM 静态回退 | 无 | 测试 Admin / 完整集成测试 |
+
+- **日常开发推荐 `https://localhost:5001`** — Blazor WASM 热重载，改 UI 秒级生效。API 请求通过 `CookieHandler` 跨源发送到 5000 端口，无需手动处理。
+- **Admin 后台（`/admin`）是 Server 端 Razor Pages**，不走 Blazor WASM。在 5001 端口点击"管理后台"按钮自动跳转到 5000 端口。
+- **仅需一个端口时**，只启动 Server（`dotnet run` in Server），访问 `https://localhost:5000` 即可同时使用页面 + API + Admin，代价是没有热重载。
 
 ## 测试
 
@@ -128,14 +137,24 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredServ
 
 ## 端口配置
 
-| 组件 | 端口 |
-|------|------|
-| Server HTTPS | `5000` |
-| Client HTTPS | `5001` |
-| Client BaseAddress | `https://localhost:5000/`（从 `IConfiguration["ApiBaseUrl"]` 读取） |
-| CORS 允许源 | `https://localhost:5001` |
+| 组件 | 端口 | 说明 |
+|------|------|------|
+| Server HTTPS | `5000` | API + Admin Razor Pages + Blazor WASM 静态回退 |
+| Client HTTPS | `5001` | Blazor WASM 开发服务器（热重载） |
+| CORS 允许源 | `https://localhost:5001` | Server 允许 Client 开发端口跨源 |
 
-**端口不匹配排查：** 如遇 `ERR_CONNECTION_REFUSED`，检查 `Properties/launchSettings.json` 与 `Program.cs` 中的端口是否一致。
+**ApiBaseUrl 配置机制：**
+
+| 环境 | ApiBaseUrl | Http.BaseAddress | API 请求目标 | Admin 链接 |
+|------|-----------|-----------------|-------------|-----------|
+| 开发 | `"https://localhost:5000/"` (appsettings.Development.json) | `https://localhost:5000/` | 跨源到 5000 | `https://localhost:5000/admin` |
+| 生产 | 空（未配置） | null | 同源 | `/admin` |
+
+- 开发环境通过 `src/BoxWise.Client/wwwroot/appsettings.Development.json` 配置
+- 生产环境不配置 → `Program.cs` 默认空字符串 → `BaseAddress` 为 null → 所有请求走同源，无需跨端口
+- 端口不匹配排查：如遇 `ERR_CONNECTION_REFUSED`，检查 `Properties/launchSettings.json` 与 `Program.cs` 中的端口是否一致
+
+**Admin 跨端口访问：** Admin 后台是 Server 端 Razor Pages，仅在 5000 端口可用。Home.razor 的"管理后台"按钮通过 `Http.BaseAddress` 判断环境：有值时拼绝对路径指向 Server，无值时（生产同源）走根路径 `/admin`。
 
 ## MudBlazor 9.x API 参考
 
