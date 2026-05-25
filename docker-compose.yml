@@ -7,6 +7,9 @@ services:
       - ASPNETCORE_URLS=http://+:5000
       - DataDirectory=/app/data
       - ConnectionStrings__DefaultConnection=Data Source=/app/data/boxwise.db
+      # 管理员账户：首次启动时创建。修改密码后重启即生效。
+      - Admin__Username=admin
+      - Admin__Password=请替换为强密码
     volumes:
       - ./data:/app/data
 

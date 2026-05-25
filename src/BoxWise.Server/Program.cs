@@ -91,27 +91,17 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseCors("Dev");
+}
 
-    // 种子数据：确保数据库已创建并初始化测试用户
+// 数据库迁移 + 管理员种子数据（所有环境）
+{
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
 
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-
-    // 确保 admin 用户存在（独立检查，避免被删除后无法恢复）
-    var adminUser = await userManager.FindByNameAsync("admin");
-    if (adminUser is null)
-    {
-        adminUser = new AppUser { UserName = "admin" };
-        var result = await userManager.CreateAsync(adminUser, "admin123");
-        if (!result.Succeeded)
-        {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            app.Logger.LogWarning("Failed to create seed user: {Errors}", errors);
-        }
-    }
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
     // 确保 Admin 角色存在
     if (!await roleManager.RoleExistsAsync("Admin"))
@@ -119,10 +109,65 @@ if (app.Environment.IsDevelopment())
         await roleManager.CreateAsync(new IdentityRole("Admin"));
     }
 
-    // 分配 Admin 角色给 admin 用户
-    if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+    // 仅当配置了 Admin__Password 环境变量时才创建/更新管理员账户
+    var adminPassword = config["Admin:Password"];
+    if (!string.IsNullOrWhiteSpace(adminPassword))
     {
-        await userManager.AddToRoleAsync(adminUser, "Admin");
+        var adminUsername = config["Admin:Username"] ?? "admin";
+        var adminUser = await userManager.FindByNameAsync(adminUsername);
+
+        if (adminUser is null)
+        {
+            adminUser = new AppUser { UserName = adminUsername };
+            var result = await userManager.CreateAsync(adminUser, adminPassword);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                app.Logger.LogWarning("Failed to create admin user: {Errors}", errors);
+                adminUser = null; // 未持久化，跳过后续角色分配
+            }
+            else
+            {
+                app.Logger.LogInformation("Admin user '{Username}' created", adminUsername);
+            }
+        }
+        else
+        {
+            // 密码变更：仅当哈希不同时才重置
+            var passwordChanged = userManager.PasswordHasher.VerifyHashedPassword(
+                adminUser, adminUser.PasswordHash ?? "", adminPassword)
+                != PasswordVerificationResult.Success;
+            if (passwordChanged)
+            {
+                var token = await userManager.GeneratePasswordResetTokenAsync(adminUser);
+                var resetResult = await userManager.ResetPasswordAsync(adminUser, token, adminPassword);
+                if (resetResult.Succeeded)
+                    app.Logger.LogInformation("Admin password updated for '{Username}'", adminUsername);
+                else
+                {
+                    var errors = string.Join(", ", resetResult.Errors.Select(e => e.Description));
+                    app.Logger.LogWarning("Failed to reset admin password: {Errors}", errors);
+                }
+            }
+        }
+
+        // 分配 Admin 角色
+        if (adminUser is not null
+            && !await userManager.IsInRoleAsync(adminUser, "Admin"))
+        {
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+            app.Logger.LogInformation("Admin role assigned to '{Username}'", adminUsername);
+        }
+    }
+    else
+    {
+        var hasAdmin = await userManager.GetUsersInRoleAsync("Admin");
+        if (hasAdmin.Count == 0)
+        {
+            app.Logger.LogWarning(
+                "No admin account found and Admin:Password not configured. "
+                + "Set the Admin__Password environment variable to create the admin account.");
+        }
     }
 }
 

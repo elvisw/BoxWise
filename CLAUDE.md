@@ -37,6 +37,34 @@ dotnet test src/BoxWise.Server.Tests --filter "FullyQualifiedName~LocationReposi
 
 **测试框架:** xUnit + EF Core InMemory Database。测试项目 `src/BoxWise.Server.Tests/` 引用 `BoxWise.Server`，使用 `TestDbContextFactory.Create()` 创建隔离的 InMemory DbContext。
 
+## 部署
+
+### 二进制部署
+
+```bash
+dotnet publish src/BoxWise.Server -c Release -o publish
+# 上传 publish/ 到服务器 /opt/boxwise/
+# 反向代理: Caddy/Nginx → localhost:5000
+# systemd 服务见 README.md
+```
+
+### Docker 部署
+
+```bash
+cat > src/BoxWise.Server/appsettings.Production.json << 'EOF'
+{ "LlmClient": { "BaseUrl": "https://api.openai.com/v1", "ApiKey": "sk-xxx", "Model": "gpt-4o-mini" } }
+EOF
+docker compose up -d
+```
+
+**服务架构:** Caddy (443→80) → boxwise:5000（ASP.NET Core）<br>
+**持久化:** `./data:/app/data`（SQLite + 图片），`./data/caddy:/data`（Caddy 证书）<br>
+**环境变量注入:** `ASPNETCORE_URLS`、`DataDirectory`、`ConnectionStrings__DefaultConnection`<br>
+**首次启动:** 通过 `Admin__Password` 环境变量创建管理员，登录后访问 `/admin` 创建家庭成员账户<br>
+**AI 配置:** 通过 `appsettings.Production.json` 或环境变量注入 `Llm__ApiKey` 等。未配置时 AI 静默降级为手动输入。<br>
+**Admin UI:** Server 端独立 Razor Pages（`Pages/Admin/`），`AdminOnly` 策略保护，不走 Blazor WASM。<br>
+**AppUser:** Identity 实体扩展，`IsInRoleAsync(user, "Admin")` 判断管理员
+
 **测试模式:** Repository 层单元测试，每个测试独立创建 DbContext（GUID 命名），覆盖正常路径 + 边界条件（空值、超长、不存在 ID、重复创建、业务规则违反）。
 
 ## 项目架构
@@ -45,14 +73,16 @@ dotnet test src/BoxWise.Server.Tests --filter "FullyQualifiedName~LocationReposi
 BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 ├── src/
 │   ├── BoxWise.Client/             # Blazor WASM (PWA) - UI 层
-│   │   ├── Pages/                  # Razor 页面组件（Home, Login, NotFound）
+│   │   ├── Pages/                  # Razor 页面组件（Home, Login, NotFound, ItemEntry, ItemDetail）
 │   │   ├── Layout/                 # MainLayout.razor
-│   │   ├── Components/             # 可复用 Blazor 组件（LocationTree, TagFilter）
-│   │   └── Services/               # AuthService, AppState, LocationService, TagService
+│   │   ├── Components/             # 可复用 Blazor 组件（LocationTree, TagFilter, ImageUploader, ContinuityBanner）
+│   │   └── Services/               # AuthService, AppState, LocationService, TagService, ItemEntryService, ItemService
 │   ├── BoxWise.Server/             # ASP.NET Core Web API - 后端
 │   │   ├── Endpoints/              # Minimal API 路由组（RouteGroupBuilder 模式）
 │   │   ├── Data/                   # AppDbContext + EF Configurations
-│   │   ├── Models/                 # Identity 实体（AppUser）
+│   │   ├── Models/                 # Identity 实体（AppUser）+ Location, Tag, Item
+│   │   ├── Repositories/           # LocationRepository, TagRepository, ItemRepository
+│   │   ├── Services/               # ImageStorageService, ThumbnailService (SkiaSharp), LlmClient
 │   │   └── Migrations/             # EF Core 迁移
 │   └── BoxWise.Shared/             # 共享 DTO（record 类型）
 │       └── Dtos/
@@ -65,13 +95,17 @@ BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 
 ## 关键技术决策
 
-- **API 风格：** Minimal API + `RouteGroupBuilder` 静态扩展方法组织端点（参见 `AuthEndpoints.cs` 模式）
-- **返回类型：** `TypedResults`（`TypedResults.Ok()`、`TypedResults.ValidationProblem()`）+ `ProblemDetails`
+- **API 风格：** Minimal API + `RouteGroupBuilder` 静态扩展方法组织端点
+- **返回类型：** `TypedResults`（`TypedResults.Ok()`、`TypedResults.Problem()`）+ `ProblemDetails`
+- **错误返回：** 使用 `TypedResults.Problem()` 直接返回，**不要**嵌套在 `TypedResults.BadRequest()` 里
+- **所有端点加 `.ProducesProblem(401)`** 注解
 - **认证：** ASP.NET Core Identity + Cookie 认证 + Blazor WASM 侧自定义 `CookieAuthenticationStateProvider`
 - **授权：** 全局 `FallbackPolicy` 要求认证，匿名端点显式标记 `.AllowAnonymous()`
 - **UI 框架：** MudBlazor 9.4 — 见下方 [MudBlazor 9.x API 参考](#mudblazor-9x-api-参考)
 - **数据库：** SQLite + EF Core，使用 CPM 管理包版本
 - **Admin UI：** 独立的 Server 端 Razor Pages 区域（`Pages/Admin/`），不走 Blazor WASM
+- **图片处理：** SkiaSharp 3.119.2（MIT 许可证），300px + 1200px 两级缩略图，后台异步生成
+- **AI 集成：** OpenAI 兼容 API，`LlmClient` 通过 `AddHttpClient<T>()` 注册，15s 超时静默降级
 
 ## 认证流程
 
@@ -79,6 +113,29 @@ BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 2. 登录 → `POST /api/auth/login` → Cookie 签发 → `AppState.SetUser()` 更新客户端状态
 3. Server `Program.cs` 中 FallbackPolicy = `RequireAuthenticatedUser()`，所有端点默认受保护
 4. `"Admin"` 角色通过 `userManager.IsInRoleAsync(user, "Admin")` 检查，结果通过 `AuthUserDto.IsAdmin` 传递到客户端
+
+## Client DI 注册注意事项
+
+**`HttpClient` 必须最先注册**（在所有依赖它的 Service 之前），否则 `WebAssemblyHostBuilder` 验证 DI 图时报 `CannotResolveService`。
+
+**`CookieAuthenticationStateProvider` 同时需要两种注册方式：**
+```csharp
+// 1. 具体类型（AuthService 构造函数注入）
+builder.Services.AddScoped<CookieAuthenticationStateProvider>();
+// 2. 抽象→具体转发（AuthorizeRouteView 需要 AuthenticationStateProvider）
+builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CookieAuthenticationStateProvider>());
+```
+
+## 端口配置
+
+| 组件 | 端口 |
+|------|------|
+| Server HTTPS | `5000` |
+| Client HTTPS | `5001` |
+| Client BaseAddress | `https://localhost:5000/`（从 `IConfiguration["ApiBaseUrl"]` 读取） |
+| CORS 允许源 | `https://localhost:5001` |
+
+**端口不匹配排查：** 如遇 `ERR_CONNECTION_REFUSED`，检查 `Properties/launchSettings.json` 与 `Program.cs` 中的端口是否一致。
 
 ## MudBlazor 9.x API 参考
 
@@ -158,8 +215,12 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 
 ## 端点开发规范
 
-- **种子数据缺陷：** `Program.cs` 中的种子数据创建了 `admin` 用户但**未创建 `"Admin"` 角色也未分配**，导致 `IsInRoleAsync` 始终返回 `false`。Story 1.3 需要修复此问题。
-- **AuthService.cs 中的重复 DTO：** `AuthService.cs` 内部定义了 `private record AuthUserDto`，与 `BoxWise.Shared.Dtos.AuthUserDto` 重复但字段相同——这是客户端私有副本，不影响功能。
+- **Repository 模式：** 返回 Entity，端点负责 Entity→DTO 映射。Scoped DI。
+- **异常处理：** `ArgumentException` → `TypedResults.Problem(msg, 400)`；`KeyNotFoundException` → `TypedResults.NotFound()`
+- **所有端点加 `.ProducesProblem(401)`** — 架构文档要求
+- **DTO 用 positional record**，放在 `BoxWise.Shared.Dtos`
+- **名称处理统一** — `Trim()` + `Length > N` 校验
+- **并发安全** — `DbUpdateException` 捕获兜底
 
 ## Epic 2 技术债务清理记录 (2026-05-24)
 
@@ -168,11 +229,11 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 | HttpClient BaseAddress 硬编码 | ✅ 已清理 | `Program.cs` 从 `IConfiguration["ApiBaseUrl"]` 读取，默认 `https://localhost:5000/` |
 | 缺少 CancellationToken | ✅ 已清理 | `LocationService.GetAllAsync` / `TagService.GetAllAsync` 添加 `CancellationToken` 参数 |
 | SortOrder 未在 CreateAsync 赋值 | ✅ 已清理 | `LocationRepository.CreateAsync` 接受 `sortOrder` 参数并赋值 |
-| 缺少单元测试框架 | ⏳ Epic 3 规划 | 需新建测试项目 + 配置 |
+| 缺少单元测试框架 | ✅ 已清理 | `src/BoxWise.Server.Tests/` xUnit 项目，22 个测试全部通过 |
 
 ## BMad 工作流上下文
 
 - **BMad 版本：** v6.7.1（bmm + core 模块）
 - **规划工件：** `_bmad-output/planning-artifacts/`
 - **实施工件：** `_bmad-output/implementation-artifacts/`
-- **当前进度：** Epic 1 ✅ | Epic 2 ✅（2.1/2.2/2.3/2.4 全部完成）| Epic 3 backlog | Epic 4 backlog
+- **当前进度：** Epic 1 ✅ | Epic 2 ✅ | Epic 3 ✅ | Epic 4 ✅ — MVP 全部完成

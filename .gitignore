@@ -493,3 +493,14 @@ appsettings.*.local.json
 *.db-shm
 *.db-wal
 .claude/settings.local.json
+
+# 证书和密钥
+*.pfx
+*.pem
+*.key
+*.crt
+*.cer
+
+# 用户机密（应通过环境变量注入）
+**/secrets.*
+*.env.local
