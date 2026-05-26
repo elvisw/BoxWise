@@ -1,6 +1,6 @@
 # Story 4.2: 缩略图网格浏览
 
-Status: review
+Status: done
 
 ## Story
 
@@ -291,3 +291,9 @@ deepseek-v4-pro
 - `src/BoxWise.Server/Endpoints/ItemEndpoints.cs` (modified — GET / 端点双模式)
 - `src/BoxWise.Client/Services/ItemService.cs` (modified — 添加 GetAllAsync)
 - `src/BoxWise.Client/Pages/Home.razor` (modified — 浏览物品按钮导航)
+
+### Review Findings (2026-05-26 — 位置路径显示修复)
+
+- [x] [Review][Patch] **ItemCard 空位置路径显示空白** [ItemCard.razor:34] — 已修复：`string.IsNullOrWhiteSpace` 替代 `string.IsNullOrEmpty`，空值显示"未分配"
+- [x] [Review][Defer] **位置名称路径批量解析性能** [ItemEndpoints.cs:113] — 浏览请求每次全量加载位置表，当前数据量可接受
+- [x] [Review][Defer] **已删除位置的 ID 可能出现在卡片路径中** — 降级逻辑保留，需级联删除功能

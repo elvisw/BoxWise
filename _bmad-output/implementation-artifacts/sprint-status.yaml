@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-23
-last_updated: 2026-05-26
+last_updated: 2026-05-27
 project: BoxWise
 project_key: NOKEY
 tracking_system: file-system
@@ -58,11 +58,11 @@ development_status:
   3-2-item-entry-api: review
   3-3-ai-recognition: done
   3-4-item-entry-ui: review
-  3-5-item-detail: review
+  3-5-item-detail: done
   epic-3-retrospective: done
   epic-4: done
   4-1-search-functionality: review
-  4-2-thumbnail-grid-browse: review
+  4-2-thumbnail-grid-browse: done
   4-3-location-tag-filter: review
   4-4-item-detail-delete: review
   4-5-pwa-offline: review

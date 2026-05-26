@@ -48,6 +48,7 @@ public class ItemRepository
         _db.Items.Add(item);
         await _db.SaveChangesAsync();
         await _db.Entry(item).Reference(i => i.CreatedByUser).LoadAsync();
+        await _db.Entry(item).Reference(i => i.Location).LoadAsync();
 
         return item;
     }
@@ -57,6 +58,7 @@ public class ItemRepository
         return await _db.Items
             .Include(i => i.CreatedByUser)
             .Include(i => i.Location)
+            .Include(i => i.Tags)
             .FirstOrDefaultAsync(i => i.Id == id);
     }
 

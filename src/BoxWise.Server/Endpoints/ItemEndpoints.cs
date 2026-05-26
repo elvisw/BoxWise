@@ -45,7 +45,8 @@ public static class ItemEndpoints
 
     private static async Task<Results<Created<ItemDto>, ProblemHttpResult>>
         CreateItemAsync(CreateItemRequest request, ItemRepository repo,
-            UserManager<AppUser> userManager, HttpContext httpContext)
+            UserManager<AppUser> userManager, HttpContext httpContext,
+            LocationRepository locationRepo)
     {
         try
         {
@@ -55,10 +56,15 @@ public static class ItemEndpoints
 
             var item = await repo.CreateAsync(request.Name, request.LocationId, request.TagIds, request.Note, userId);
 
+            var locationPath = item.Location?.Path is not null
+                ? await locationRepo.ResolvePathNamesAsync(item.Location.Path)
+                : null;
+
             var dto = new ItemDto(
                 item.Id, item.Name, item.Note,
                 item.PhotoPath, item.ThumbPath, item.MediumPath,
-                item.LocationId, null,
+                item.LocationId, item.Location?.Name, locationPath,
+                item.Tags.Select(t => t.Name).ToList(),
                 item.CreatedByUser?.UserName ?? "",
                 item.CreatedAt);
 
@@ -75,15 +81,20 @@ public static class ItemEndpoints
     }
 
     private static async Task<Results<Ok<ItemDto>, NotFound>>
-        GetItemByIdAsync(int id, ItemRepository repo)
+        GetItemByIdAsync(int id, ItemRepository repo, LocationRepository locationRepo)
     {
         var item = await repo.GetByIdAsync(id);
         if (item is null) return TypedResults.NotFound();
 
+        var locationPath = item.Location?.Path is not null
+            ? await locationRepo.ResolvePathNamesAsync(item.Location.Path)
+            : null;
+
         var dto = new ItemDto(
             item.Id, item.Name, item.Note,
             item.PhotoPath, item.ThumbPath, item.MediumPath,
-            item.LocationId, item.Location?.Name,
+            item.LocationId, item.Location?.Name, locationPath,
+            item.Tags.Select(t => t.Name).ToList(),
             item.CreatedByUser?.UserName ?? "",
             item.CreatedAt);
 
@@ -92,7 +103,8 @@ public static class ItemEndpoints
 
     private static async Task<Ok<ItemSummaryDto[]>>
         SearchItemsAsync(string? q, int? locationId, string?[]? tagId,
-            ItemRepository repo, HttpContext httpContext)
+            ItemRepository repo, LocationRepository locationRepo,
+            HttpContext httpContext)
     {
         var tagIds = tagId is { Length: > 0 }
             ? tagId.Where(s => s is not null && int.TryParse(s, out _)).Select(s => int.Parse(s!)).ToList()
@@ -100,11 +112,18 @@ public static class ItemEndpoints
 
         var items = await repo.GetFilteredAsync(locationId, tagIds, q);
 
-        var dtos = items.Select(i => new ItemSummaryDto(
-            i.Id, i.Name, i.ThumbPath,
-            i.Location?.Path,
-            i.Tags.Select(t => t.Name).ToList(),
-            i.CreatedAt)).ToArray();
+        var allLocations = await locationRepo.GetAllAsync();
+        var nameDict = allLocations.ToDictionary(l => l.Id, l => l.Name);
+
+        var dtos = items.Select(i =>
+        {
+            var namePath = LocationRepository.ResolvePathNames(i.Location?.Path, nameDict);
+            return new ItemSummaryDto(
+                i.Id, i.Name, i.ThumbPath,
+                namePath,
+                i.Tags.Select(t => t.Name).ToList(),
+                i.CreatedAt);
+        }).ToArray();
 
         httpContext.Response.Headers["X-Total-Count"] = dtos.Length.ToString();
         return TypedResults.Ok(dtos);

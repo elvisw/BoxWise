@@ -94,6 +94,33 @@ public class LocationRepository
             .ToListAsync();
     }
 
+    public async Task<string?> ResolvePathNamesAsync(string idPath)
+    {
+        if (string.IsNullOrEmpty(idPath)) return null;
+
+        var ids = idPath.Trim('/').Split('/')
+            .Select(s => int.TryParse(s, out var id) ? id : (int?)null)
+            .ToList();
+
+        var validIds = ids.Where(id => id.HasValue).Select(id => id!.Value).ToList();
+        if (validIds.Count == 0) return null;
+
+        var names = await _db.Locations
+            .Where(l => validIds.Contains(l.Id))
+            .ToDictionaryAsync(l => l.Id, l => l.Name);
+
+        return string.Join("/", ids.Select(id =>
+            id.HasValue && names.TryGetValue(id.Value, out var n) ? n : id?.ToString() ?? "?"));
+    }
+
+    internal static string? ResolvePathNames(string? idPath, Dictionary<int, string> nameDict)
+    {
+        if (string.IsNullOrEmpty(idPath)) return null;
+        var ids = idPath.Trim('/').Split('/');
+        var names = ids.Select(id => int.TryParse(id, out var i) && nameDict.TryGetValue(i, out var n) ? n : "?");
+        return string.Join("/", names);
+    }
+
     public async Task<List<Location>> GetChildrenAsync(int id)
     {
         var location = await _db.Locations.FindAsync(id);

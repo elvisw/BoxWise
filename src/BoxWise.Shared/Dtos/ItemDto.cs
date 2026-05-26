@@ -9,5 +9,7 @@ public record ItemDto(
     string? MediumPath,
     int? LocationId,
     string? LocationName,
+    string? LocationPath,
+    IReadOnlyList<string> TagNames,
     string CreatedByUserName,
     DateTime CreatedAt);

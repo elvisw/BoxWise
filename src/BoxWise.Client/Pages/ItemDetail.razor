@@ -32,8 +32,19 @@ else if (_item is not null)
     <MudText Typo="Typo.h5" Class="mt-3">@_item.Name</MudText>
 
     <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-2">
-        <strong>位置:</strong> @(_item.LocationName ?? _item.LocationId?.ToString() ?? "未分配")
+        <strong>位置:</strong> @FormatLocationPath(_item.LocationPath, _item.LocationName, _item.LocationId)
     </MudText>
+
+    @if (_item.TagNames is { Count: > 0 })
+    {
+        <div class="mt-1 d-flex flex-wrap" style="gap:4px;">
+            <MudText Typo="Typo.body2"><strong>标签:</strong></MudText>
+            @foreach (var tag in _item.TagNames)
+            {
+                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">@tag</MudChip>
+            }
+        </div>
+    }
 
     @if (_item.Note is not null)
     {
@@ -85,6 +96,19 @@ else if (_item is not null)
         {
             _loading = false;
         }
+    }
+
+    private static string FormatLocationPath(string? path, string? locationName, int? locationId)
+    {
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length > 0)
+                return string.Join(" → ", segments);
+        }
+        if (!string.IsNullOrWhiteSpace(locationName))
+            return locationName;
+        return locationId?.ToString() ?? "未分配";
     }
 
     private async Task OpenDeleteDialogAsync()

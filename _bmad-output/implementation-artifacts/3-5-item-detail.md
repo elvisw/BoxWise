@@ -1,6 +1,6 @@
 # Story 3.5: 物品详情展示 + 录入者标识
 
-Status: review
+Status: done
 
 ## Story
 
@@ -164,3 +164,14 @@ deepseek-v4-pro
 - `src/BoxWise.Server/Repositories/ItemRepository.cs` (modified)
 - `src/BoxWise.Server/Endpoints/ItemEndpoints.cs` (modified)
 - `src/BoxWise.Client/Program.cs` (modified)
+
+### Review Findings (2026-05-26 — 位置路径显示修复)
+
+- [x] [Review][Decision] **CreateItemAsync 返回的 LocationPath 不完整** — 已选择选项 B：`ItemRepository.CreateAsync` 加载 Location 导航属性，`CreateItemAsync` 使用 `item.Location.Path` 解析完整路径
+- [x] [Review][Patch] **`int.Parse` 无异常保护** [LocationRepository.cs:97] — 已改用 `int.TryParse`，格式损坏时优雅降级跳过无效段
+- [x] [Review][Patch] **空路径返回语义不一致** — `ResolvePathNamesAsync` 和 `ResolvePathNames` 统一返回 `null`
+- [x] [Review][Defer] **SearchItemsAsync 每次请求全量加载位置表** [ItemEndpoints.cs:113] — 位置表通常 <100 行，当前可接受
+- [x] [Review][Defer] **重复的路径解析逻辑** — ✅ 已修复：提取 `LocationRepository.ResolvePathNames` 内部静态方法共享逻辑，`ItemEndpoints` 移除重复代码
+- [x] [Review][Defer] **已删除位置的 ID 泄露到 UI** — 保留降级逻辑，需要级联删除功能（独立特性）
+- [x] [Review][Defer] **GET /api/items/{id} 缺少标签字段** — ✅ 已修复：`ItemDto` 新增 `TagNames` 字段，`GetByIdAsync` 添加 `.Include(i => i.Tags)`，两个端点均填充标签
+- [x] [Review][Defer] **ResolvePathNames 不可单独测试** — ✅ 已修复：提取为 `internal static` 后可独立测试

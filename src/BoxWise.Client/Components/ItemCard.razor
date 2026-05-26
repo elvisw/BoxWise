@@ -33,7 +33,9 @@
 
     private static string FormatLocationPath(string? path)
     {
-        if (string.IsNullOrEmpty(path)) return "";
-        return string.Join(" → ", path.Split('/', StringSplitOptions.RemoveEmptyEntries));
+        if (string.IsNullOrWhiteSpace(path)) return "未分配";
+        var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0) return "未分配";
+        return string.Join(" → ", segments);
     }
 }
