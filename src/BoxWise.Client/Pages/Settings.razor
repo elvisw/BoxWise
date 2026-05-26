@@ -1,0 +1,84 @@
+@page "/settings"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+
+<MudText Typo="Typo.h5" Class="mb-4">设置</MudText>
+
+<div class="bw-settings-list">
+
+    <div class="pa-4 mb-1 bw-settings-item" @onclick="OpenLocationManageDialog">
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Style="font-weight:500;">位置管理</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">管理收纳位置层级</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </div>
+    </div>
+
+    <div class="pa-4 mb-1 bw-settings-item" @onclick="OpenTagManageDialog">
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Label" Size="Size.Medium" Class="mr-3" Color="Color.Secondary" />
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Style="font-weight:500;">标签管理</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">管理物品分类标签</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </div>
+    </div>
+
+    <MudDivider Class="my-3" />
+
+    <div class="pa-4 mb-1 bw-settings-item" @onclick="LogoutAsync">
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Medium" Class="mr-3" Color="Color.Error" />
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Color="Color.Error" Style="font-weight:500;">退出登录</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">切换到其他账户</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </div>
+    </div>
+
+    <MudDivider Class="my-3" />
+
+    <MudText Typo="Typo.caption" Color="Color.Default" Class="mb-2 ml-2">以下功能将在后续版本提供</MudText>
+
+    <MudPaper Class="pa-4 bw-settings-item bw-settings-disabled" Elevation="0">
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Medium" Class="mr-3" Color="Color.Default" />
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Color="Color.Default" Style="font-weight:500;">账户信息</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">查看当前账户详情</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </div>
+    </MudPaper>
+
+</div>
+
+@code {
+    private async Task OpenLocationManageDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        await DialogService.ShowAsync<LocationManageDialog>("管理位置", options);
+    }
+
+    private async Task OpenTagManageDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        await DialogService.ShowAsync<TagManageDialog>("管理标签", options);
+    }
+
+    private async Task LogoutAsync()
+    {
+        try { await AuthService.LogoutAsync(); }
+        catch { }
+        finally { Navigation.NavigateTo("/", forceLoad: true); }
+    }
+}

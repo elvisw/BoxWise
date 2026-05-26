@@ -124,3 +124,16 @@ code {
 .bw-nav-item:hover {
     color: var(--mud-palette-primary);
 }
+
+/* Settings page */
+.bw-settings-item {
+    border-radius: 8px;
+    transition: background-color 0.15s;
+}
+.bw-settings-item:hover {
+    background-color: rgba(0,0,0,0.04);
+}
+.bw-settings-disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}

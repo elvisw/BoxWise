@@ -18,4 +18,24 @@ public class TagService
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<List<TagDto>>(cancellationToken) ?? [];
     }
+
+    public async Task<TagDto?> CreateAsync(CreateTagRequest request)
+    {
+        var response = await _http.PostAsJsonAsync("api/tags", request);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<TagDto>();
+    }
+
+    public async Task<TagDto?> RenameAsync(int id, RenameTagRequest request)
+    {
+        var response = await _http.PutAsJsonAsync($"api/tags/{id}", request);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<TagDto>();
+    }
+
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var response = await _http.DeleteAsync($"api/tags/{id}");
+        return response.IsSuccessStatusCode;
+    }
 }

@@ -1,0 +1,218 @@
+@namespace BoxWise.Client.Components
+@using BoxWise.Shared.Dtos
+@inject TagService TagService
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">管理标签</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudText Color="Color.Error" Class="mb-2">@_error</MudText>
+        }
+
+        @if (_isCreating)
+        {
+            <div class="d-flex align-center gap-2 mb-3">
+                <MudTextField @bind-Value="_createName" Label="标签名称"
+                              Variant="Variant.Outlined" Immediate="true" Class="flex-grow-1" />
+                <MudButton OnClick="SaveCreateAsync" Color="Color.Primary"
+                           Variant="Variant.Filled" Disabled="@(_saving)">添加</MudButton>
+                <MudButton OnClick="CancelEdit">取消</MudButton>
+            </div>
+        }
+        else
+        {
+            <MudButton OnClick="StartCreate" Variant="Variant.Filled"
+                       Color="Color.Primary" Class="mb-3" StartIcon="@Icons.Material.Filled.Add">
+                添加标签
+            </MudButton>
+        }
+
+        @if (_tags.Count == 0 && !_isCreating)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Default">暂无标签，录入物品时可自动创建</MudText>
+        }
+
+        @foreach (var tag in _tags)
+        {
+            <div class="d-flex align-center py-1">
+                @if (_renamingId == tag.Id)
+                {
+                    <MudTextField @bind-Value="_renameName" Label="新名称"
+                                  Variant="Variant.Outlined" Immediate="true" Class="flex-grow-1" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small"
+                                   Color="Color.Success" OnClick="() => SaveRenameAsync(tag.Id)" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                   OnClick="CancelEdit" />
+                }
+                else if (_deletingId == tag.Id)
+                {
+                    <MudText Class="flex-grow-1">确认删除标签 <strong>@tag.Name</strong>？（将解除所有物品关联）</MudText>
+                    <MudButton OnClick="() => ConfirmDeleteAsync(tag.Id)"
+                               Color="Color.Error" Variant="Variant.Filled"
+                               Size="Size.Small" Class="mr-2">删除</MudButton>
+                    <MudButton OnClick="CancelEdit" Size="Size.Small">取消</MudButton>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Label" Size="Size.Small" Class="mr-2" Color="Color.Secondary" />
+                    <MudText Class="flex-grow-1">@tag.Name</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Default" Class="mr-2">@tag.ItemCount 件</MudText>
+                    @if (!_isCreating && _renamingId is null && _deletingId is null)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="() => StartRename(tag)" title="重命名" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                       OnClick="() => StartDelete(tag)" Color="Color.Error" title="删除" />
+                    }
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">完成</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private List<TagDto> _tags = [];
+    private string? _error;
+    private bool _saving;
+    private bool _isCreating;
+
+    private string _createName = "";
+    private int? _renamingId;
+    private string _renameName = "";
+    private int? _deletingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _tags = await TagService.GetAllAsync();
+    }
+
+    private void StartCreate()
+    {
+        _error = null;
+        _createName = "";
+        _isCreating = true;
+    }
+
+    private async Task SaveCreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_createName)) return;
+
+        _error = null;
+        _saving = true;
+        try
+        {
+            var request = new CreateTagRequest(_createName.Trim());
+            var result = await TagService.CreateAsync(request);
+            if (result is not null)
+            {
+                CancelEdit();
+                _hasChanges = true;
+                await LoadAsync();
+            }
+            else
+            {
+                _error = "创建失败，标签可能已存在";
+            }
+        }
+        catch
+        {
+            _error = "创建失败";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void StartRename(TagDto tag)
+    {
+        _error = null;
+        _renamingId = tag.Id;
+        _renameName = tag.Name;
+    }
+
+    private async Task SaveRenameAsync(int id)
+    {
+        if (string.IsNullOrWhiteSpace(_renameName)) return;
+
+        _error = null;
+        try
+        {
+            var request = new RenameTagRequest(_renameName.Trim());
+            var result = await TagService.RenameAsync(id, request);
+            if (result is not null)
+            {
+                CancelEdit();
+                _hasChanges = true;
+                await LoadAsync();
+            }
+            else
+            {
+                _error = "重命名失败，名称可能已存在";
+            }
+        }
+        catch
+        {
+            _error = "重命名失败";
+        }
+    }
+
+    private void StartDelete(TagDto tag)
+    {
+        _error = null;
+        _deletingId = tag.Id;
+    }
+
+    private async Task ConfirmDeleteAsync(int id)
+    {
+        _error = null;
+        try
+        {
+            var ok = await TagService.DeleteAsync(id);
+            if (ok)
+            {
+                CancelEdit();
+                _hasChanges = true;
+                await LoadAsync();
+            }
+            else
+            {
+                _error = "删除失败";
+            }
+        }
+        catch
+        {
+            _error = "删除失败";
+        }
+    }
+
+    private void CancelEdit()
+    {
+        _isCreating = false;
+        _renamingId = null;
+        _deletingId = null;
+        _createName = "";
+        _error = null;
+    }
+
+    private bool _hasChanges;
+
+    private void Close()
+    {
+        MudDialog.Close(DialogResult.Ok(_hasChanges));
+    }
+}
