@@ -57,7 +57,8 @@
                                   Variant="Variant.Outlined" Immediate="true"
                                   Class="flex-grow-1" />
                     <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small"
-                                   Color="Color.Success" OnClick="() => SaveRenameAsync(node.Id)" />
+                                   Color="Color.Success" OnClick="() => SaveRenameAsync(node.Id)"
+                                   Disabled="@(_saving)" />
                     <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
                                    OnClick="CancelEdit" />
                 }
@@ -66,7 +67,7 @@
                     <MudText Class="flex-grow-1">确认删除 <strong>@node.Name</strong>？</MudText>
                     <MudButton OnClick="() => ConfirmDeleteAsync(node.Id)"
                                Color="Color.Error" Variant="Variant.Filled"
-                               Size="Size.Small" Class="mr-2">删除</MudButton>
+                               Size="Size.Small" Class="mr-2" Disabled="@(_saving)">删除</MudButton>
                     <MudButton OnClick="CancelEdit" Size="Size.Small">取消</MudButton>
                 }
                 else
@@ -129,19 +130,12 @@
 
     private Dictionary<int, string> BuildDisplayNames()
     {
+        var idToName = _allLocations.ToDictionary(l => l.Id, l => l.Name);
         var result = new Dictionary<int, string>();
         foreach (var loc in _allLocations.OrderBy(l => l.SortOrder).ThenBy(l => l.Name))
         {
-            var ids = loc.Path.Trim('/').Split('/');
-            var names = new List<string>();
-            foreach (var idStr in ids)
-            {
-                if (int.TryParse(idStr, out var id))
-                {
-                    var match = _allLocations.FirstOrDefault(l => l.Id == id);
-                    if (match is not null) names.Add(match.Name);
-                }
-            }
+            var names = loc.Path.Trim('/').Split('/')
+                .Select(s => int.TryParse(s, out var id) && idToName.TryGetValue(id, out var n) ? n : "?");
             result[loc.Id] = string.Join(" > ", names);
         }
         return result;
@@ -201,7 +195,8 @@
 
         try
         {
-            var request = new CreateLocationRequest(_createName.Trim(), _createParentId, 0);
+            var sortOrder = _allLocations.Count(l => l.ParentId == _createParentId);
+            var request = new CreateLocationRequest(_createName.Trim(), _createParentId, sortOrder);
             var result = await LocationService.CreateAsync(request);
             if (result is not null)
             {
@@ -237,6 +232,7 @@
         if (string.IsNullOrWhiteSpace(_renameName)) return;
 
         _error = null;
+        _saving = true;
         try
         {
             var request = new RenameLocationRequest(_renameName.Trim());
@@ -256,6 +252,10 @@
         {
             _error = $"重命名失败：{ex.Message}";
         }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private void StartDelete(FlatNode node)
@@ -268,6 +268,7 @@
     private async Task ConfirmDeleteAsync(int id)
     {
         _error = null;
+        _saving = true;
         try
         {
             var ok = await LocationService.DeleteAsync(id);
@@ -285,6 +286,10 @@
         catch (Exception ex)
         {
             _error = $"删除失败：{ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
         }
     }
 

@@ -43,7 +43,8 @@
                     <MudTextField @bind-Value="_renameName" Label="新名称"
                                   Variant="Variant.Outlined" Immediate="true" Class="flex-grow-1" />
                     <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small"
-                                   Color="Color.Success" OnClick="() => SaveRenameAsync(tag.Id)" />
+                                   Color="Color.Success" OnClick="() => SaveRenameAsync(tag.Id)"
+                                   Disabled="@(_saving)" />
                     <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
                                    OnClick="CancelEdit" />
                 }
@@ -52,7 +53,7 @@
                     <MudText Class="flex-grow-1">确认删除标签 <strong>@tag.Name</strong>？（将解除所有物品关联）</MudText>
                     <MudButton OnClick="() => ConfirmDeleteAsync(tag.Id)"
                                Color="Color.Error" Variant="Variant.Filled"
-                               Size="Size.Small" Class="mr-2">删除</MudButton>
+                               Size="Size.Small" Class="mr-2" Disabled="@(_saving)">删除</MudButton>
                     <MudButton OnClick="CancelEdit" Size="Size.Small">取消</MudButton>
                 }
                 else
@@ -150,6 +151,7 @@
         if (string.IsNullOrWhiteSpace(_renameName)) return;
 
         _error = null;
+        _saving = true;
         try
         {
             var request = new RenameTagRequest(_renameName.Trim());
@@ -169,6 +171,10 @@
         {
             _error = "重命名失败";
         }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private void StartDelete(TagDto tag)
@@ -180,6 +186,7 @@
     private async Task ConfirmDeleteAsync(int id)
     {
         _error = null;
+        _saving = true;
         try
         {
             var ok = await TagService.DeleteAsync(id);
@@ -197,6 +204,10 @@
         catch
         {
             _error = "删除失败";
+        }
+        finally
+        {
+            _saving = false;
         }
     }
 

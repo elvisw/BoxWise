@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
 using BoxWise.Server.Models;
+using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Repositories;
 
@@ -13,11 +14,11 @@ public class TagRepository
         _db = db;
     }
 
-    public async Task<List<Tag>> GetAllAsync()
+    public async Task<List<TagDto>> GetAllAsync()
     {
         return await _db.Tags
-            .Include(t => t.Items)
             .OrderBy(t => t.Name)
+            .Select(t => new TagDto(t.Id, t.Name, t.Items.Count))
             .ToListAsync();
     }
 
@@ -57,7 +58,9 @@ public class TagRepository
         if (name.Length > 50)
             throw new ArgumentException("标签名称不能超过 50 个字符");
 
-        var tag = await _db.Tags.FindAsync(id)
+        var tag = await _db.Tags
+            .Include(t => t.Items)
+            .FirstOrDefaultAsync(t => t.Id == id)
             ?? throw new KeyNotFoundException("标签不存在");
 
         var exists = await _db.Tags.AnyAsync(t => t.Name == name && t.Id != id);

@@ -1,3 +1,4 @@
+using BoxWise.Server.Models;
 using BoxWise.Server.Repositories;
 
 namespace BoxWise.Server.Tests.Repositories;
@@ -66,8 +67,30 @@ public class TagRepositoryTests
         Assert.Contains(tags, t => t.Name == "工具");
         Assert.Contains(tags, t => t.Name == "电子配件");
         Assert.Contains(tags, t => t.Name == "证件");
-        // Note: SQLite ORDER BY Name produces correct alphabetical order;
-        // InMemory provider may differ in ordering behavior.
+        Assert.All(tags, t => Assert.Equal(0, t.ItemCount));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithItems_CascadeDeletesItemTag()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+        var tag = await repo.CreateAsync("测试标签");
+
+        var item = new Item
+        {
+            Name = "测试物品",
+            CreatedByUserId = "user1",
+            CreatedAt = DateTime.UtcNow
+        };
+        item.Tags.Add(tag);
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+
+        await repo.DeleteAsync(tag.Id);
+
+        Assert.False(db.Tags.Any(t => t.Id == tag.Id));
+        Assert.True(db.Items.Any(i => i.Id == item.Id));
     }
 
     [Fact]

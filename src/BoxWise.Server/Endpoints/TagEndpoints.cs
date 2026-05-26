@@ -46,8 +46,7 @@ public static class TagEndpoints
     private static async Task<Ok<List<TagDto>>>
         GetAllTagsAsync(TagRepository repo)
     {
-        var tags = await repo.GetAllAsync();
-        var dtos = tags.Select(t => new TagDto(t.Id, t.Name, t.Items.Count)).ToList();
+        var dtos = await repo.GetAllAsync();
         return TypedResults.Ok(dtos);
     }
 
