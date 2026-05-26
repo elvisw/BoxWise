@@ -6,7 +6,7 @@ public class ImageStorageService
 
     public ImageStorageService(IConfiguration configuration)
     {
-        _basePath = configuration["DataDirectory"] ?? "../data/images";
+        _basePath = Path.GetFullPath(configuration["DataDirectory"] ?? "../data/images");
         Directory.CreateDirectory(_basePath);
     }
 
