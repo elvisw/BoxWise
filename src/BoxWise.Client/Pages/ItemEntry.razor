@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject ItemEntryService ItemService
 @inject AppState AppState
+@inject HttpClient Http
 
 <MudText Typo="Typo.h5" Class="mb-4">录入物品</MudText>
 
@@ -15,65 +16,37 @@
     </MudPaper>
 }
 
-@if (_step == EntryStep.Initial)
-{
-    <MudStack Row="true" Justify="Justify.Center" Class="my-8">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   OnClick="() => _step = EntryStep.TakingPhoto">
-            拍照
-        </MudButton>
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                   OnClick="() => _step = EntryStep.FillingForm">
-            跳过拍照
-        </MudButton>
-    </MudStack>
-}
-else
-{
-    @if (_step == EntryStep.TakingPhoto)
-    {
-        <ImageUploader OnFileUploaded="OnFileUploaded" />
-        @if (_uploading)
-        {
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
-        }
-    }
+<MudText Typo="Typo.subtitle2" Class="mb-2">照片（可选）</MudText>
+<ImageUploader OnFileUploaded="OnFileUploaded" />
 
-    @if (_step is EntryStep.FillingForm or EntryStep.TakingPhoto)
-    {
-        <MudTextField @bind-Value="_name" Label="物品名称" Variant="Variant.Outlined" Class="mb-3" />
-        <MudTextField @bind-Value="_note" Label="备注" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
+<MudTextField @bind-Value="_name" Label="物品名称" Variant="Variant.Outlined" Class="mb-3 mt-3" />
+<MudTextField @bind-Value="_note" Label="备注" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
 
-        <MudText Typo="Typo.subtitle2" Class="mb-2">选择位置</MudText>
-        <LocationTree SelectedLocationId="_selectedLocationId"
-                      SelectedLocationIdChanged="OnSelectedLocationChanged" />
-        <MudDivider Class="my-3" />
+<MudText Typo="Typo.subtitle2" Class="mb-2">选择位置</MudText>
+<LocationTree SelectedLocationId="_selectedLocationId"
+              SelectedLocationIdChanged="OnSelectedLocationChanged" />
+<MudDivider Class="my-3" />
 
-        <MudText Typo="Typo.subtitle2" Class="mb-2">选择标签</MudText>
-        <TagFilter SelectedTagIds="_selectedTagIds"
-                   SelectedTagIdsChanged="OnSelectedTagsChanged" />
+<MudText Typo="Typo.subtitle2" Class="mb-2">选择标签</MudText>
+<TagFilter SelectedTagIds="_selectedTagIds"
+           SelectedTagIdsChanged="OnSelectedTagsChanged" />
 
-        <MudDivider Class="my-3" />
-        <ContinuityBanner />
+<MudDivider Class="my-3" />
+<ContinuityBanner />
 
-        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   FullWidth="true" OnClick="OnSaveAsync"
-                   Disabled="@(_saving || string.IsNullOrWhiteSpace(_name) || _selectedLocationId is null)">
-            保存
-        </MudButton>
-    }
-}
+<MudButton Variant="Variant.Filled" Color="Color.Primary"
+           FullWidth="true" OnClick="OnSaveAsync"
+           Disabled="@(_saving || string.IsNullOrWhiteSpace(_name) || _selectedLocationId is null)">
+    @(_saving ? "保存中..." : "保存")
+</MudButton>
 
 @code {
-    private enum EntryStep { Initial, TakingPhoto, FillingForm }
-
-    private EntryStep _step = EntryStep.Initial;
     private string _name = "";
     private string _note = "";
     private int? _selectedLocationId;
     private string? _selectedLocationName;
     private IReadOnlyCollection<int> _selectedTagIds = Array.Empty<int>();
-    private bool _uploading;
+    private IBrowserFile? _photoFile;
     private bool _saving;
     private string? _errorMessage;
 
@@ -83,24 +56,19 @@ else
         {
             _selectedLocationId = AppState.ContinuousLocationId;
             _selectedLocationName = AppState.ContinuousLocationName;
-            _step = EntryStep.FillingForm;
         }
     }
 
-    private async Task OnFileUploaded(IBrowserFile file)
+    private Task OnFileUploaded(IBrowserFile file)
     {
-        _uploading = true;
-        StateHasChanged();
-
-        await Task.Delay(500);
-        _uploading = false;
-        _step = EntryStep.FillingForm;
+        _photoFile = file;
+        return Task.CompletedTask;
     }
 
     private Task OnSelectedLocationChanged(int? value)
     {
         _selectedLocationId = value;
-        _selectedLocationName = null; // Will be updated from LocationTree's internal state
+        _selectedLocationName = null;
         return Task.CompletedTask;
     }
 
@@ -116,19 +84,54 @@ else
 
         _errorMessage = null;
         _saving = true;
-        var tagIds = _selectedTagIds.ToList();
-        var request = new CreateItemRequest(_name.Trim(), _selectedLocationId.Value, tagIds, _note.Trim());
-        var itemId = await ItemService.CreateItemAsync(request);
 
-        if (itemId is not null)
+        try
         {
-            var locationLabel = _selectedLocationName ?? $"位置 #{_selectedLocationId}";
-            AppState.SetContinuousLocation(_selectedLocationId.Value, locationLabel);
-            Navigation.NavigateTo("/");
-            return;
-        }
+            var tagIds = _selectedTagIds.ToList();
+            var request = new CreateItemRequest(_name.Trim(), _selectedLocationId.Value, tagIds, _note.Trim());
+            var itemId = await ItemService.CreateItemAsync(request);
 
-        _saving = false;
-        _errorMessage = "保存失败，请检查输入后重试";
+            if (itemId is not null)
+            {
+                if (_photoFile is not null)
+                {
+                    await UploadPhotoAsync(itemId.Value, _photoFile);
+                }
+
+                var locationLabel = _selectedLocationName ?? $"位置 #{_selectedLocationId}";
+                AppState.SetContinuousLocation(_selectedLocationId.Value, locationLabel);
+                Navigation.NavigateTo("/");
+                return;
+            }
+
+            _errorMessage = "保存失败，请检查输入后重试";
+        }
+        catch
+        {
+            _errorMessage = "保存时发生错误，请稍后重试";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task UploadPhotoAsync(int itemId, IBrowserFile file)
+    {
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = file.OpenReadStream(10 * 1024 * 1024);
+            using var streamContent = new StreamContent(stream);
+            streamContent.Headers.ContentType = new(file.ContentType);
+            content.Add(streamContent, "\"file\"", file.Name);
+            content.Add(new StringContent(itemId.ToString()), "\"itemId\"");
+
+            await Http.PostAsync("api/images/upload", content);
+        }
+        catch
+        {
+            // 照片上传失败不阻断保存流程
+        }
     }
 }

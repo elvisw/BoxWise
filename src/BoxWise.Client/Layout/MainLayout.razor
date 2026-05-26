@@ -1,32 +1,147 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject AuthService AuthService
 @inject AppState AppState
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<MudThemeProvider/>
-<MudDialogProvider/>
-<MudSnackbarProvider/>
+<MudThemeProvider Theme="_theme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
 <MudLayout>
     <MudAppBar Elevation="1" Class="px-4">
-        <MudText Typo="Typo.h6" Class="flex-grow-1">箱知 · BoxWise</MudText>
-        @if (AppState.IsLoggedIn)
-        {
-            <MudText Typo="Typo.body2" Class="mr-2 d-none d-sm-block">
-                @AppState.CurrentUserName
-            </MudText>
-            <MudIconButton Icon="@Icons.Material.Filled.Logout"
-                           Size="Size.Small"
-                           aria-label="退出登录"
-                           OnClick="LogoutAsync" />
-        }
+        <MudStack Row="true" AlignItems="AlignItems.Center" Class="flex-grow-1" Style="width:100%;">
+            @if (AppState.IsLoggedIn && !_isHomePage)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                               Size="Size.Medium"
+                               Color="Color.Inherit"
+                               aria-label="返回"
+                               OnClick="GoBack"
+                               Class="mr-2" />
+            }
+            <MudText Typo="Typo.h6" Class="flex-grow-1">📦 箱知 · BoxWise</MudText>
+            @if (AppState.IsLoggedIn)
+            {
+                <MudText Typo="Typo.subtitle1" Class="d-none d-sm-block mr-2" Style="color:inherit;">
+                    @AppState.CurrentUserName
+                </MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Logout"
+                               Size="Size.Medium"
+                               Color="Color.Inherit"
+                               aria-label="退出登录"
+                               OnClick="LogoutAsync" />
+            }
+        </MudStack>
     </MudAppBar>
-    <MudMainContent Class="pa-4">
+    <MudMainContent Class="px-4 pb-20 pt-16">
         @Body
     </MudMainContent>
 </MudLayout>
 
+@if (_showBottomNav)
+{
+    <MudPaper Elevation="3" Class="bw-bottom-nav">
+        <div class="bw-nav-item @IsActive("/")" role="button" tabindex="0"
+             @onclick="GoHome" @onkeydown="HandleHomeKey" @onkeydown:preventDefault>
+            <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Large" />
+            <MudText Typo="Typo.caption">首页</MudText>
+        </div>
+        <div class="bw-nav-item @IsActive("/entry")" role="button" tabindex="0"
+             @onclick="GoEntry" @onkeydown="HandleEntryKey" @onkeydown:preventDefault>
+            <MudIcon Icon="@Icons.Material.Filled.AddCircleOutline" Size="Size.Large" />
+            <MudText Typo="Typo.caption">录入</MudText>
+        </div>
+        <div class="bw-nav-item @IsActive("/browse")" role="button" tabindex="0"
+             @onclick="GoBrowse" @onkeydown="HandleBrowseKey" @onkeydown:preventDefault>
+            <MudIcon Icon="@Icons.Material.Filled.GridView" Size="Size.Large" />
+            <MudText Typo="Typo.caption">浏览</MudText>
+        </div>
+    </MudPaper>
+}
+
 @code {
+    private bool _showBottomNav;
+    private bool _isHomePage = true;
+    private string _currentPath = "/";
+
+    private MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#546E7A",
+            Secondary = "#80CBC4",
+            Tertiary = "#7E57C2",
+            Success = "#66BB6A",
+            Error = "#EF5350",
+            Background = "#FAFAFA",
+            Surface = "#FFFFFF",
+            DrawerBackground = "#FAFAFA",
+            AppbarBackground = "#546E7A",
+            AppbarText = "#FFFFFF"
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "4px"
+        }
+    };
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        AppState.StateChanged += OnAppStateChanged;
+        UpdateNavState(new Uri(Navigation.Uri).AbsolutePath);
+    }
+
+    private void OnAppStateChanged()
+    {
+        UpdateNavState(_currentPath);
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        UpdateNavState(new Uri(e.Location).AbsolutePath);
+    }
+
+    private void UpdateNavState(string path)
+    {
+        _currentPath = path;
+        _isHomePage = path == "/";
+        _showBottomNav = AppState.IsLoggedIn
+            && path != "/login"
+            && !path.StartsWith("/not-found");
+        StateHasChanged();
+    }
+
+    private void GoHome() => NavigateTo("/");
+    private void GoEntry() => NavigateTo("/entry");
+    private void GoBrowse() => NavigateTo("/browse");
+    private async void GoBack() => await JS.InvokeVoidAsync("history.back");
+
+    private string IsActive(string path) => _currentPath == path ? "bw-nav-active" : "";
+
+    private void HandleHomeKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") GoHome();
+    }
+
+    private void HandleEntryKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") GoEntry();
+    }
+
+    private void HandleBrowseKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") GoBrowse();
+    }
+
+    private void NavigateTo(string path)
+    {
+        if (_currentPath != path)
+            Navigation.NavigateTo(path);
+    }
+
     private async Task LogoutAsync()
     {
         try
@@ -41,5 +156,13 @@
         {
             Navigation.NavigateTo("/", forceLoad: true);
         }
+    }
+
+    public void Dispose()
+    {
+        if (Navigation is not null)
+            Navigation.LocationChanged -= OnLocationChanged;
+        if (AppState is not null)
+            AppState.StateChanged -= OnAppStateChanged;
     }
 }

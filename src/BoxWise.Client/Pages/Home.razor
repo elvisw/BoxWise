@@ -2,183 +2,143 @@
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
 
-@inject AppState AppState
-@inject NavigationManager Navigation
 @inject ItemService ItemService
+@inject NavigationManager Navigation
+@inject AppState AppState
 @inject HttpClient Http
 
-<MudText Typo="Typo.h4" Class="mb-4">箱知 · BoxWise</MudText>
+<MudTextField @bind-Value="_query"
+              Placeholder="搜索物品名称、备注或标签..."
+              Adornment="Adornment.Start"
+              AdornmentIcon="@Icons.Material.Filled.Search"
+              Immediate="true"
+              Variant="Variant.Outlined"
+              Class="mb-4"
+              FullWidth="true" />
 
-@if (AppState.IsLoggedIn)
+@if (_loading)
 {
-    <MudText Typo="Typo.body1" Class="mb-2">
-        欢迎，@AppState.CurrentUserName
-    </MudText>
-
-    <SearchBar SearchTextChanged="OnSearchTextChanged" />
-
-    <MudDivider Class="my-4" />
-
-    @if (_isSearching)
-    {
-        <div class="d-flex justify-center my-8">
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-        </div>
-    }
-    else if (!string.IsNullOrEmpty(_query) && _results is not null)
-    {
-        if (_results.Count > 0)
-        {
-            <MudText Typo="Typo.caption" Class="mb-2">
-                找到 @_results.Count 件物品
-            </MudText>
-
-            <MudList T="ItemSummaryDto">
-                @foreach (var item in _results)
-                {
-                    <MudListItem T="ItemSummaryDto" OnClick='() => Navigation.NavigateTo($"/items/{item.Id}")' Class="pa-3">
-                        <div class="d-flex align-center" style="gap: 12px; width: 100%;">
-                            @if (!string.IsNullOrEmpty(item.ThumbPath))
-                            {
-                                <img src="api/images/@item.Id?type=thumb"
-                                     alt="@item.Name"
-                                     style="width: 72px; height: 72px; object-fit: cover; border-radius: 4px;" />
-                            }
-                            else
-                            {
-                                <MudIcon Icon="@Icons.Material.Filled.Image"
-                                         Size="Size.Large"
-                                         Style="width: 72px; height: 72px; color: #BDBDBD;" />
-                            }
-                            <div class="flex-grow-1">
-                                <MudText Typo="Typo.h6">@item.Name</MudText>
-                                @if (!string.IsNullOrEmpty(item.LocationPath))
-                                {
-                                    <MudText Typo="Typo.caption" Color="Color.Default">
-                                        @FormatLocationPath(item.LocationPath)
-                                    </MudText>
-                                }
-                                @if (item.TagNames.Count > 0)
-                                {
-                                    <div class="d-flex flex-wrap mt-1" style="gap: 4px;">
-                                        @foreach (var tag in item.TagNames)
-                                        {
-                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Info">@tag</MudChip>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
-                        </div>
-                    </MudListItem>
-                }
-            </MudList>
-        }
-        else
-        {
-            <div class="d-flex flex-column align-center justify-center my-8" style="color: #9E9E9E;">
-                <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" />
-                <MudText Typo="Typo.body1" Class="mt-2">未找到匹配的物品</MudText>
-                <MudText Typo="Typo.caption">试试其他关键词</MudText>
-            </div>
-        }
-    }
-    else
-    {
-        <div class="d-flex flex-column align-center justify-center my-8" style="color: #9E9E9E;">
-            <MudIcon Icon="@Icons.Material.Filled.ManageSearch" Size="Size.Large" />
-            <MudText Typo="Typo.body1" Class="mt-2">输入关键词搜索物品</MudText>
-            <MudText Typo="Typo.caption">按名称、备注或标签模糊匹配</MudText>
-        </div>
-    }
-
-    <MudGrid Class="mt-4">
-        <MudItem xs="6">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                       OnClick='() => Navigation.NavigateTo("/entry")'
-                       FullWidth="true" Class="pa-8">
-                <MudStack>
-                    <MudIcon Icon="@Icons.Material.Filled.AddBox" Size="Size.Large" />
-                    <MudText Typo="Typo.h6">录入物品</MudText>
-                </MudStack>
-            </MudButton>
-        </MudItem>
-        <MudItem xs="6">
-            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
-                       OnClick='() => Navigation.NavigateTo("/browse")'
-                       FullWidth="true" Class="pa-8">
-                <MudStack>
-                    <MudIcon Icon="@Icons.Material.Filled.GridView" Size="Size.Large" />
-                    <MudText Typo="Typo.h6">浏览物品</MudText>
-                </MudStack>
-            </MudButton>
-        </MudItem>
-    </MudGrid>
-
-    @if (AppState.IsAdmin)
-    {
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-                   Href="@AdminUrl" Class="mt-4" FullWidth="true">
-            管理后台
-        </MudButton>
-    }
+    <div class="d-flex justify-center my-8">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
+    </div>
 }
-else
+else if (_error)
 {
-    <MudText Typo="Typo.body1" Class="mb-4">
-        请登录以管理您的物品库
+    <div class="d-flex flex-column align-center justify-center my-8" style="color:#9E9E9E;">
+        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-2">加载失败</MudText>
+        <MudButton Variant="Variant.Outlined" OnClick="LoadAsync" Class="mt-2">重试</MudButton>
+    </div>
+}
+else if (_items is { Count: 0 })
+{
+    <div class="d-flex flex-column align-center justify-center my-8" style="color:#9E9E9E;">
+        <MudIcon Icon="@Icons.Material.Filled.Inventory2" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-2">
+            @(string.IsNullOrEmpty(_query) ? "暂无物品" : "没有匹配的物品")
+        </MudText>
+        <MudText Typo="Typo.caption">
+            @(string.IsNullOrEmpty(_query) ? "点击底部录入按钮添加第一个吧" : "试试其他关键词")
+        </MudText>
+    </div>
+}
+else if (_items is not null)
+{
+    <MudText Typo="Typo.caption" Class="mb-2">
+        @(string.IsNullOrEmpty(_query) ? $"共 {_items.Count} 件物品" : $"找到 {_items.Count} 件物品")
     </MudText>
-    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-               OnClick='() => Navigation.NavigateTo("/login")'>
-        前往登录
+    <MudGrid>
+        @foreach (var item in _items)
+        {
+            <MudItem xs="6" sm="4" md="3" lg="2">
+                <ItemCard Item="item" />
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@if (AppState.IsAdmin)
+{
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+               Href="@AdminUrl" Class="mt-4" FullWidth="true">
+        管理后台
     </MudButton>
 }
 
 @code {
-    private string _query = "";
-    private List<ItemSummaryDto>? _results;
-    private bool _isSearching;
-    private CancellationTokenSource? _searchCts;
-
     private string AdminUrl => Http.BaseAddress is not null
         ? new Uri(Http.BaseAddress, "admin").ToString()
         : "/admin";
+    private string _query = "";
+    private List<ItemSummaryDto>? _items;
+    private bool _loading = true;
+    private bool _error;
+    private CancellationTokenSource? _searchCts;
 
-    private async Task OnSearchTextChanged(string query)
+    protected override async Task OnInitializedAsync()
     {
-        _query = query ?? "";
+        await LoadAsync();
+    }
 
-        if (string.IsNullOrWhiteSpace(_query))
-        {
-            _searchCts?.Cancel();
-            _results = null;
-            _isSearching = false;
-            return;
-        }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loading) return;
 
         _searchCts?.Cancel();
         _searchCts = new CancellationTokenSource();
         var ct = _searchCts.Token;
 
-        _isSearching = true;
+        try
+        {
+            await Task.Delay(300, ct);
+
+            if (string.IsNullOrWhiteSpace(_query))
+            {
+                if (_items is null)
+                    await LoadAsync();
+                return;
+            }
+
+            _loading = true;
+            StateHasChanged();
+
+            var results = await ItemService.SearchAsync(_query, ct);
+            if (!ct.IsCancellationRequested)
+            {
+                _items = results ?? [];
+                _loading = false;
+                StateHasChanged();
+            }
+        }
+        catch (TaskCanceledException) { }
+        catch
+        {
+            if (!ct.IsCancellationRequested)
+            {
+                _error = true;
+                _loading = false;
+            }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = false;
+        _loading = true;
         StateHasChanged();
 
         try
         {
-            _results = await ItemService.SearchAsync(_query, ct);
+            _items = await ItemService.GetFilteredAsync(null, null, null, CancellationToken.None) ?? [];
         }
-        catch (TaskCanceledException)
+        catch
         {
-            return;
+            _error = true;
+            _items = null;
         }
-
-        _isSearching = false;
-        StateHasChanged();
-    }
-
-    private static string FormatLocationPath(string? path)
-    {
-        if (string.IsNullOrEmpty(path)) return "";
-        return string.Join(" → ", path.Split('/', StringSplitOptions.RemoveEmptyEntries));
+        finally
+        {
+            _loading = false;
+        }
     }
 }
