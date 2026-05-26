@@ -82,9 +82,9 @@ docker compose up -d
 BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 ├── src/
 │   ├── BoxWise.Client/             # Blazor WASM (PWA) - UI 层
-│   │   ├── Pages/                  # Razor 页面组件（Home, Login, NotFound, ItemEntry, ItemDetail）
-│   │   ├── Layout/                 # MainLayout.razor
-│   │   ├── Components/             # 可复用 Blazor 组件（LocationTree, TagFilter, ImageUploader, ContinuityBanner）
+│   │   ├── Pages/                  # Razor 页面组件（Home, Login, NotFound, ItemEntry, ItemDetail, Browse, Settings）
+│   │   ├── Layout/                 # MainLayout.razor（4 Tab 底部导航：首页/录入/浏览/设置）
+│   │   ├── Components/             # 可复用 Blazor 组件（LocationTree, TagFilter, ImageUploader, ContinuityBanner, LocationManageDialog, TagManageDialog）
 │   │   └── Services/               # AuthService, AppState, LocationService, TagService, ItemEntryService, ItemService
 │   ├── BoxWise.Server/             # ASP.NET Core Web API - 后端
 │   │   ├── Endpoints/              # Minimal API 路由组（RouteGroupBuilder 模式）
@@ -256,3 +256,4 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 - **规划工件：** `_bmad-output/planning-artifacts/`
 - **实施工件：** `_bmad-output/implementation-artifacts/`
 - **当前进度：** Epic 1 ✅ | Epic 2 ✅ | Epic 3 ✅ | Epic 4 ✅ — MVP 全部完成
+- **设置页重构 ✅** — 4 Tab 导航 + 位置/标签管理弹窗，34 测试通过
