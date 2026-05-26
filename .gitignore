@@ -489,6 +489,7 @@ _bmad-output/
 appsettings.Production.json
 appsettings.*.local.json
 /data/
+/src/data/
 *.db
 *.db-shm
 *.db-wal
