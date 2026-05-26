@@ -1,10 +1,11 @@
 @inject NavigationManager Navigation
+@inject HttpClient Http
 
 <div style="cursor:pointer" @onclick='() => Navigation.NavigateTo($"/items/{Item.Id}")'>
 <MudPaper Elevation="1" Class="rounded pa-0" Style="overflow:hidden">
     @if (!string.IsNullOrEmpty(Item.ThumbPath))
     {
-        <img src="api/images/@Item.Id?type=thumb"
+        <img src="@($"{Http.BaseAddress}api/images/{Item.Id}?type=thumb")"
              alt="@Item.Name"
              loading="lazy"
              style="width:100%;height:150px;object-fit:cover;display:block;" />

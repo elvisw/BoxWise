@@ -5,6 +5,7 @@
 @inject ItemService ItemService
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
+@inject HttpClient Http
 
 @if (_loading)
 {
@@ -18,7 +19,7 @@ else if (_item is not null)
 {
     @if (_item.MediumPath is not null)
     {
-        <img src="@($"/api/images/{_item.Id}?type=medium")" style="max-width:100%;max-height:400px;border-radius:4px" />
+        <img src="@($"{Http.BaseAddress}api/images/{_item.Id}?type=medium")" style="max-width:100%;max-height:400px;border-radius:4px" />
     }
     else
     {
