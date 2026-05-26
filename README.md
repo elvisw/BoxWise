@@ -115,11 +115,11 @@ cd src/BoxWise.Client && dotnet run
 
 ```bash
 # 1. 下载最新版本（从 GitHub Releases）
-curl -L https://github.com/elvisw/BoxWise/releases/latest/download/boxwise.tar.gz -o boxwise.tar.gz
+curl -L https://github.com/elvisw/BoxWise/releases/latest/download/boxwise-linux-x64.tar.gz -o boxwise-linux-x64.tar.gz
 
 # 2. 解压到服务器
 sudo mkdir -p /opt/boxwise
-sudo tar -xzf boxwise.tar.gz -C /opt/boxwise
+sudo tar -xzf boxwise-linux-x64.tar.gz -C /opt/boxwise
 mkdir -p /opt/boxwise/data/images
 
 # 3. 安装 .NET Runtime（如未安装）
@@ -184,6 +184,64 @@ sudo apt install caddy
 
 sudo systemctl restart caddy
 ```
+
+### 二进制部署（Windows Server）
+
+适合 Windows Server 环境，通过 IIS 反向代理运行。**CI 已自动构建，直接从 GitHub 下载即可。**
+
+**前置条件：** [.NET 10 Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) + IIS（推荐）。
+
+```powershell
+# 1. 下载最新版本（从 GitHub Releases）
+Invoke-WebRequest -Uri "https://github.com/elvisw/BoxWise/releases/latest/download/boxwise-win-x64.zip" -OutFile "boxwise-win-x64.zip"
+
+# 2. 解压
+Expand-Archive -Path boxwise-win-x64.zip -DestinationPath "C:\BoxWise"
+New-Item -ItemType Directory -Force -Path "C:\BoxWise\data\images"
+
+# 3. 创建生产配置（AI 可选）
+@'
+{
+  "Llm": {
+    "BaseUrl": "https://api.openai.com/v1",
+    "ApiKey": "sk-xxx",
+    "Model": "gpt-4o-mini"
+  }
+}
+'@ | Out-File -FilePath "C:\BoxWise\appsettings.Production.json" -Encoding UTF8
+
+# 4. 直接运行测试
+$env:ASPNETCORE_ENVIRONMENT = "Production"
+$env:ASPNETCORE_URLS = "http://+:5000"
+$env:Admin__Username = "admin"
+$env:Admin__Password = "你的强密码"
+$env:DataDirectory = "C:\BoxWise\data"
+dotnet C:\BoxWise\BoxWise.Server.dll
+```
+
+**配置 IIS（推荐生产环境）：**
+
+1. 安装 [ASP.NET Core Hosting Bundle](https://dotnet.microsoft.com/download/dotnet/10.0)（选择 Hosting Bundle 下载）
+2. IIS 管理器 → 应用程序池 → 添加应用程序池 → 名称 `BoxWise`，.NET CLR 版本选"无托管代码"
+3. 添加网站 → 物理路径 `C:\BoxWise\`，端口 `80`，应用程序池 `BoxWise`
+4. IIS 自动通过 ASP.NET Core Module（ANCM）将请求转发到 Kestrel，无需额外配置反向代理
+
+**注册为 Windows 服务（无 IIS 方案）：**
+
+```powershell
+# 先确认 dotnet 路径
+where.exe dotnet
+# 通常位于 C:\Program Files\dotnet\dotnet.exe
+
+# 注意：sc.exe 要求等号后有空格（binPath= 而非 binPath=）
+sc.exe create "BoxWise" binPath= "C:\Program Files\dotnet\dotnet.exe C:\BoxWise\BoxWise.Server.dll" start= auto
+sc.exe description "BoxWise" "箱知 · BoxWise 家庭物品管理服务"
+sc.exe start "BoxWise"
+```
+
+> **路径差异：** Windows 版归档文件名为 `boxwise-win-x64.zip`，Linux 版为 `boxwise-linux-x64.tar.gz`。
+>
+> **自包含发布：** 如需在未安装 .NET Runtime 的机器上运行，可手动执行 `dotnet publish -c Release -r win-x64 --self-contained true`。
 
 ### Docker 部署
 
