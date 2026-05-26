@@ -1,28 +1,194 @@
+@using BoxWise.Client.Models
 @using Microsoft.AspNetCore.Components.Forms
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<MudStack Row AlignItems="AlignItems.Center" Class="mb-3">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               OnClick="CaptureAsync" StartIcon="@Icons.Material.Filled.CameraAlt"
+               Disabled="@_isCapturing">
+        @(_isCapturing ? "拍照中..." : "拍照")
+    </MudButton>
+    @if (_isCapturing)
+    {
+        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="ml-2" />
+    }
+</MudStack>
+
+@if (_errorMessage is not null)
+{
+    <MudText Color="Color.Error" Class="mb-2">@_errorMessage</MudText>
+}
 
 <InputFile OnChange="OnFileSelected" accept="image/*" />
+
 @if (_previewUrl is not null)
 {
-    <MudPaper Elevation="2" Class="my-3 pa-2">
+    <MudPaper Elevation="2" Class="my-3 pa-2" Style="position:relative">
         <img src="@_previewUrl" style="max-width:100%;max-height:300px" />
     </MudPaper>
 }
 
 @code {
-    [Parameter] public EventCallback<IBrowserFile> OnFileUploaded { get; set; }
+    [Parameter] public EventCallback<PhotoCapture> OnPhotoCaptured { get; set; }
 
+    private IJSObjectReference? _jsModule;
+    private DotNetObjectReference<ImageUploader>? _dotNetRef;
+    private CancellationTokenSource? _captureCts;
+    private bool _isDisposed;
+    private bool _isCapturing;
     private string? _previewUrl;
+    private string? _errorMessage;
+
+    protected override void OnInitialized()
+    {
+        _dotNetRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _jsModule = await JS.InvokeAsync<IJSObjectReference>(
+                    "import", "./js/camera-capture.js");
+            }
+            catch
+            {
+                _errorMessage = "无法加载相机模块";
+            }
+        }
+    }
+
+    private async Task CaptureAsync()
+    {
+        if (_jsModule is null) return;
+        _errorMessage = null;
+        _isCapturing = true;
+        StateHasChanged();
+
+        // 15s timeout guard: prevent stuck spinner if camera/file picker is blocked
+        _captureCts?.Cancel();
+        _captureCts = new CancellationTokenSource();
+        var timeoutToken = _captureCts.Token;
+
+        try
+        {
+            await _jsModule.InvokeVoidAsync("capturePhoto", _dotNetRef);
+
+            // Start timeout monitor
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(15000, timeoutToken);
+                    if (!timeoutToken.IsCancellationRequested)
+                    {
+                        await InvokeAsync(() =>
+                        {
+                            if (!_isDisposed && _isCapturing)
+                            {
+                                _isCapturing = false;
+                                _errorMessage = "拍照超时，请重试";
+                                StateHasChanged();
+                            }
+                        });
+                    }
+                }
+                catch (TaskCanceledException) { }
+            }, timeoutToken);
+        }
+        catch
+        {
+            _captureCts?.Cancel();
+            _errorMessage = "无法启动相机";
+            _isCapturing = false;
+            StateHasChanged();
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnPhotoCapturedCallback(string? name, string? type, string? dataUrl)
+    {
+        _captureCts?.Cancel();
+        if (_isDisposed) return;
+        if (name is null || dataUrl is null)
+        {
+            _isCapturing = false;
+            StateHasChanged();
+            return;
+        }
+
+        var commaIdx = dataUrl.IndexOf(',');
+        if (commaIdx < 0)
+        {
+            _isCapturing = false;
+            return;
+        }
+
+        var base64 = dataUrl[(commaIdx + 1)..];
+        var bytes = Convert.FromBase64String(base64);
+
+        const int maxSize = 10 * 1024 * 1024;
+        if (bytes.Length > maxSize)
+        {
+            _isCapturing = false;
+            _errorMessage = "照片不能超过10MB";
+            StateHasChanged();
+            return;
+        }
+
+        _previewUrl = dataUrl;
+        _isCapturing = false;
+
+        await OnPhotoCaptured.InvokeAsync(
+            new PhotoCapture(name, type ?? "image/jpeg", bytes));
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnPhotoError(string message)
+    {
+        _captureCts?.Cancel();
+        _isCapturing = false;
+        if (_isDisposed) return;
+        _errorMessage = message;
+        StateHasChanged();
+    }
 
     private async Task OnFileSelected(InputFileChangeEventArgs e)
     {
+        _errorMessage = null;
         var file = e.GetMultipleFiles(1).FirstOrDefault();
         if (file is null) return;
 
         await using var stream = file.OpenReadStream(10 * 1024 * 1024);
-        using var ms = new System.IO.MemoryStream();
-        await stream.CopyToAsync(ms);
-        _previewUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+        var bytes = new byte[stream.Length];
+        await stream.ReadExactlyAsync(bytes);
+        var base64 = Convert.ToBase64String(bytes);
+        _previewUrl = $"data:{file.ContentType};base64,{base64}";
 
-        await OnFileUploaded.InvokeAsync(file);
+        await OnPhotoCaptured.InvokeAsync(
+            new PhotoCapture(file.Name, file.ContentType, bytes));
+    }
+
+    public void ClearPreview()
+    {
+        _previewUrl = null;
+        _errorMessage = null;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _isDisposed = true;
+        _captureCts?.Cancel();
+        _captureCts?.Dispose();
+        _dotNetRef?.Dispose();
+        if (_jsModule is not null)
+        {
+            try { await _jsModule.DisposeAsync(); } catch { }
+        }
     }
 }
