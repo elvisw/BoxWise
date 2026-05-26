@@ -69,4 +69,59 @@ public class TagRepositoryTests
         // Note: SQLite ORDER BY Name produces correct alphabetical order;
         // InMemory provider may differ in ordering behavior.
     }
+
+    [Fact]
+    public async Task RenameAsync_Success()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+        var tag = await repo.CreateAsync("旧名称");
+
+        var result = await repo.RenameAsync(tag.Id, "新名称");
+
+        Assert.Equal("新名称", result.Name);
+        Assert.Equal(tag.Id, result.Id);
+    }
+
+    [Fact]
+    public async Task RenameAsync_DuplicateName_Throws()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+        await repo.CreateAsync("标签A");
+        var tagB = await repo.CreateAsync("标签B");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.RenameAsync(tagB.Id, "标签A"));
+    }
+
+    [Fact]
+    public async Task RenameAsync_NotFound_Throws()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => repo.RenameAsync(999, "不存在"));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_Success()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+        var tag = await repo.CreateAsync("待删除");
+
+        await repo.DeleteAsync(tag.Id);
+
+        var exists = db.Tags.Any(t => t.Id == tag.Id);
+        Assert.False(exists);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_NotFound_Throws()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => repo.DeleteAsync(999));
+    }
 }
