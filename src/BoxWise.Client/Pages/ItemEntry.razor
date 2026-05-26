@@ -1,10 +1,12 @@
 @page "/entry"
 @attribute [Authorize]
+@implements IDisposable
 
 @inject NavigationManager Navigation
 @inject ItemEntryService ItemService
 @inject AppState AppState
 @inject HttpClient Http
+@inject AiService AiService
 
 <MudText Typo="Typo.h5" Class="mb-4">录入物品</MudText>
 
@@ -17,6 +19,18 @@
 
 <MudText Typo="Typo.subtitle2" Class="mb-2">照片（可选）</MudText>
 <ImageUploader @ref="_imageUploader" PhotoCaptured="OnPhotoCaptured" />
+
+@if (_isRecognizing)
+{
+    <MudText Color="Color.Info" Class="mb-2 mt-2">
+        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+        AI 识别中...
+    </MudText>
+}
+@if (_recognitionError is not null)
+{
+    <MudText Color="Color.Warning" Class="mb-2 mt-2">@_recognitionError</MudText>
+}
 
 <MudTextField @bind-Value="_name" Label="物品名称" Variant="Variant.Outlined" Class="mb-3 mt-3" />
 <MudTextField @bind-Value="_note" Label="备注" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
@@ -48,7 +62,11 @@
     private PhotoCapture? _photo;
     private ImageUploader? _imageUploader;
     private bool _saving;
+    private bool _isDisposed;
+    private bool _isRecognizing;
+    private string? _recognitionError;
     private string? _errorMessage;
+    private CancellationTokenSource? _recognitionCts;
 
     protected override void OnInitialized()
     {
@@ -59,10 +77,62 @@
         }
     }
 
-    private Task OnPhotoCaptured(PhotoCapture photo)
+    private async Task OnPhotoCaptured(PhotoCapture photo)
     {
         _photo = photo;
-        return Task.CompletedTask;
+
+        // 取消上一次尚未完成的 AI 识别
+        _recognitionCts?.Cancel();
+        _recognitionCts?.Dispose();
+        _recognitionCts = new CancellationTokenSource();
+        var token = _recognitionCts.Token;
+
+        _isRecognizing = true;
+        _recognitionError = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AiService.RecognizeAsync(
+                photo.OpenReadStream(), photo.FileName, photo.ContentType, token);
+
+            if (_isDisposed || token.IsCancellationRequested) return;
+
+            if (result is not null)
+            {
+                if (string.IsNullOrWhiteSpace(_name))
+                    _name = result.Name;
+                if (!string.IsNullOrWhiteSpace(result.Note) && string.IsNullOrWhiteSpace(_note))
+                    _note = result.Note;
+            }
+            else
+            {
+                _recognitionError = "AI 未能识别物品，请手动输入";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 被新的拍照请求取消
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _recognitionError = "AI 识别失败，请手动输入";
+        }
+        finally
+        {
+            if (!_isDisposed && !token.IsCancellationRequested)
+            {
+                _isRecognizing = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _isDisposed = true;
+        _recognitionCts?.Cancel();
+        _recognitionCts?.Dispose();
     }
 
     private void RemovePhoto()

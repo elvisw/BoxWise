@@ -13,6 +13,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10MB
+});
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -182,6 +186,7 @@ app.MapLocationEndpoints();
 app.MapImageEndpoints();
 app.MapItemEndpoints();
 app.MapTagEndpoints();
+app.MapAiEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
 app.MapFallbackToFile("index.html").AllowAnonymous();

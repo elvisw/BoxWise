@@ -22,11 +22,13 @@ public class LlmClient
         _logger = logger;
     }
 
-    public async Task<RecognitionResultDto?> RecognizeAsync(string imagePath)
+    public async Task<RecognitionResultDto?> RecognizeAsync(string imagePath, string contentType = "image/jpeg",
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
 
             var fileInfo = new FileInfo(imagePath);
             if (!fileInfo.Exists || fileInfo.Length > MaxImageBytes)
@@ -36,6 +38,7 @@ public class LlmClient
             }
 
             var imageBase64 = Convert.ToBase64String(await File.ReadAllBytesAsync(imagePath, cts.Token));
+            var mime = GetMimeType(contentType);
             var requestBody = new
             {
                 model = _options.Model,
@@ -47,7 +50,7 @@ public class LlmClient
                         content = new object[]
                         {
                             new { type = "text", text = "识别这张照片中的物品，返回物品名称和简短描述。请以JSON格式返回：{\"name\":\"物品名称\",\"note\":\"简要描述\"}" },
-                            new { type = "image_url", image_url = new { url = $"data:image/jpeg;base64,{imageBase64}" } }
+                            new { type = "image_url", image_url = new { url = $"data:{mime};base64,{imageBase64}" } }
                         }
                     }
                 },
@@ -91,7 +94,10 @@ public class LlmClient
     {
         try
         {
-            return JsonSerializer.Deserialize<RecognitionResultDto>(content, JsonOptions);
+            var dto = JsonSerializer.Deserialize<RecognitionResultDto>(content, JsonOptions);
+            if (dto is not null && !string.IsNullOrWhiteSpace(dto.Name))
+                return dto;
+            return null;
         }
         catch
         {
@@ -103,6 +109,13 @@ public class LlmClient
             return null;
         }
     }
+
+    private static string GetMimeType(string contentType) => contentType switch
+    {
+        "image/png" => "image/png",
+        "image/webp" => "image/webp",
+        _ => "image/jpeg"
+    };
 
     private class OpenAiResponse
     {

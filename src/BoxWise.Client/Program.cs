@@ -50,6 +50,7 @@ builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<ItemEntryService>();
 builder.Services.AddScoped<ItemService>();
+builder.Services.AddScoped<AiService>();
 builder.Services.AddMudServices();
 
 await builder.Build().RunAsync();
