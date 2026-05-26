@@ -16,7 +16,7 @@
 }
 
 <MudText Typo="Typo.subtitle2" Class="mb-2">照片（可选）</MudText>
-<ImageUploader @ref="_imageUploader" OnPhotoCaptured="OnPhotoCaptured" />
+<ImageUploader @ref="_imageUploader" PhotoCaptured="OnPhotoCaptured" />
 
 <MudTextField @bind-Value="_name" Label="物品名称" Variant="Variant.Outlined" Class="mb-3 mt-3" />
 <MudTextField @bind-Value="_note" Label="备注" Variant="Variant.Outlined" Lines="2" Class="mb-3" />

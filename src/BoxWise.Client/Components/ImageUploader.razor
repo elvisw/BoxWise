@@ -30,11 +30,10 @@
 }
 
 @code {
-    [Parameter] public EventCallback<PhotoCapture> OnPhotoCaptured { get; set; }
+    [Parameter] public EventCallback<PhotoCapture> PhotoCaptured { get; set; }
 
     private IJSObjectReference? _jsModule;
     private DotNetObjectReference<ImageUploader>? _dotNetRef;
-    private CancellationTokenSource? _captureCts;
     private bool _isDisposed;
     private bool _isCapturing;
     private string? _previewUrl;
@@ -68,40 +67,12 @@
         _isCapturing = true;
         StateHasChanged();
 
-        // 15s timeout guard: prevent stuck spinner if camera/file picker is blocked
-        _captureCts?.Cancel();
-        _captureCts = new CancellationTokenSource();
-        var timeoutToken = _captureCts.Token;
-
         try
         {
             await _jsModule.InvokeVoidAsync("capturePhoto", _dotNetRef);
-
-            // Start timeout monitor
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(15000, timeoutToken);
-                    if (!timeoutToken.IsCancellationRequested)
-                    {
-                        await InvokeAsync(() =>
-                        {
-                            if (!_isDisposed && _isCapturing)
-                            {
-                                _isCapturing = false;
-                                _errorMessage = "拍照超时，请重试";
-                                StateHasChanged();
-                            }
-                        });
-                    }
-                }
-                catch (TaskCanceledException) { }
-            }, timeoutToken);
         }
         catch
         {
-            _captureCts?.Cancel();
             _errorMessage = "无法启动相机";
             _isCapturing = false;
             StateHasChanged();
@@ -109,9 +80,8 @@
     }
 
     [JSInvokable]
-    public async Task OnPhotoCapturedCallback(string? name, string? type, string? dataUrl)
+    public async Task OnPhotoCaptured(string? name, string? type, string? dataUrl)
     {
-        _captureCts?.Cancel();
         if (_isDisposed) return;
         if (name is null || dataUrl is null)
         {
@@ -142,7 +112,7 @@
         _previewUrl = dataUrl;
         _isCapturing = false;
 
-        await OnPhotoCaptured.InvokeAsync(
+        await PhotoCaptured.InvokeAsync(
             new PhotoCapture(name, type ?? "image/jpeg", bytes));
         StateHasChanged();
     }
@@ -150,7 +120,6 @@
     [JSInvokable]
     public void OnPhotoError(string message)
     {
-        _captureCts?.Cancel();
         _isCapturing = false;
         if (_isDisposed) return;
         _errorMessage = message;
@@ -169,7 +138,7 @@
         var base64 = Convert.ToBase64String(bytes);
         _previewUrl = $"data:{file.ContentType};base64,{base64}";
 
-        await OnPhotoCaptured.InvokeAsync(
+        await PhotoCaptured.InvokeAsync(
             new PhotoCapture(file.Name, file.ContentType, bytes));
     }
 
@@ -183,8 +152,6 @@
     public async ValueTask DisposeAsync()
     {
         _isDisposed = true;
-        _captureCts?.Cancel();
-        _captureCts?.Dispose();
         _dotNetRef?.Dispose();
         if (_jsModule is not null)
         {
