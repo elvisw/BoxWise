@@ -81,10 +81,11 @@ public record PhotoCapture(string FileName, string ContentType, byte[] Bytes)
 ### ImageUploader.razor
 
 **新增成员和状态：**
+- `_jsModule` (`IJSObjectReference?`) — OnAfterRenderAsync(true) 中动态 import 加载 JS 模块
+- `_dotNetRef` (`DotNetObjectReference<ImageUploader>`) — OnInitialized 创建，DisposeAsync 释放
 - `_isCapturing` (bool) — 拍照进行中，禁用按钮防重复点击
 - `_errorMessage` (string?) — 拍照错误提示
 - `_isDisposed` (bool) — 释放防护，JS 回调时检查组件是否仍存活
-- `_dotNetRef` — `DotNetObjectReference<ImageUploader>`（OnInitialized 创建，DisposeAsync 释放）
 
 **拍照按钮（模板）：**
 ```razor
@@ -105,6 +106,8 @@ public record PhotoCapture(string FileName, string ContentType, byte[] Bytes)
 
 **拍照流程（@code 关键逻辑）：**
 ```csharp
+private IJSObjectReference? _jsModule;    // OnAfterRenderAsync(true) 中动态 import 加载
+private DotNetObjectReference<ImageUploader>? _dotNetRef;  // OnInitialized 中创建
 private bool _isDisposed;
 private bool _isCapturing;
 private string? _errorMessage;
@@ -119,7 +122,7 @@ private async Task CaptureAsync()
     {
         await _jsModule.InvokeVoidAsync("capturePhoto", _dotNetRef);
     }
-    catch (Exception ex)
+    catch
     {
         _errorMessage = "无法启动相机";
         _isCapturing = false;
@@ -130,19 +133,33 @@ private async Task CaptureAsync()
 [JSInvokable]
 public async Task OnPhotoCaptured(string? name, string? type, string? dataUrl)
 {
-    _isCapturing = false;
     if (_isDisposed) return;
     if (name is null || dataUrl is null)
     {
+        _isCapturing = false;
         // 用户取消拍照，保持原状态
         StateHasChanged();
         return;
     }
 
-    // 从 data URL 提取纯 base64: "data:image/jpeg;base64,xxxx" → "xxxx"
-    var base64 = dataUrl[(dataUrl.IndexOf(',') + 1)..];
+    // 从 data URL 提取纯 base64: "data:image/jpeg;base64,xxxx" -> "xxxx"
+    var commaIdx = dataUrl.IndexOf(',');
+    if (commaIdx < 0) return;  // 无效 data URL，静默忽略
+    var base64 = dataUrl[(commaIdx + 1)..];
     var bytes = Convert.FromBase64String(base64);
+
+    // C# 端兜底：文件大小验证
+    const int maxSize = 10 * 1024 * 1024;
+    if (bytes.Length > maxSize)
+    {
+        _isCapturing = false;
+        _errorMessage = "照片不能超过10MB";
+        StateHasChanged();
+        return;
+    }
+
     _previewUrl = dataUrl;  // data URL 可直接用作预览
+    _isCapturing = false;
 
     await OnPhotoCaptured.InvokeAsync(
         new PhotoCapture(name, type ?? "image/jpeg", bytes));
@@ -173,6 +190,25 @@ public async ValueTask DisposeAsync()
 }
 ```
 
+**InputFile 文件选择路径（保留原有逻辑）：**
+```csharp
+private async Task OnFileSelected(InputFileChangeEventArgs e)
+{
+    _errorMessage = null;
+    var file = e.GetMultipleFiles(1).FirstOrDefault();
+    if (file is null) return;
+
+    await using var stream = file.OpenReadStream(10 * 1024 * 1024);
+    var bytes = new byte[stream.Length];
+    await stream.ReadExactlyAsync(bytes);
+    var base64 = Convert.ToBase64String(bytes);
+    _previewUrl = $"data:{file.ContentType};base64,{base64}";
+
+    await OnPhotoCaptured.InvokeAsync(
+        new PhotoCapture(file.Name, file.ContentType, bytes));
+}
+```
+
 **参数变更：**
 - `OnFileUploaded(EventCallback<IBrowserFile>)` → `OnPhotoCaptured(EventCallback<PhotoCapture>)`
 
@@ -188,30 +224,33 @@ public async ValueTask DisposeAsync()
 ## 数据流
 
 ```
-拍照路径: [拍照按钮] → 设置 _isCapturing=true, 禁用按钮
-         → IJSRuntime → JS capturePhoto() → 原生 input.click()
-         → 用户拍照 → JS onchange → 文件大小验证(>10MB→OnPhotoError)
-         → FileReader.readAsDataURL() → 浏览器异步 base64 编码
-         → reader.onload → dotNetHelper.invokeMethodAsync("OnPhotoCaptured", name, type, dataUrl)
-         → 用户取消 → invokeMethodAsync("OnPhotoCaptured", null, null, null)
-         → C# OnPhotoCaptured → 检查 _isDisposed → 检查 null(取消) → 提取 base64
-         → Convert.FromBase64String → PhotoCapture → previewUrl=dataUrl
-         → OnPhotoCaptured.InvokeAsync(photoCapture) → _isCapturing=false → StateHasChanged
+拍照路径: [拍照按钮] -> 设置 _isCapturing=true, 禁用按钮
+         -> IJSRuntime -> JS capturePhoto() -> 原生 input.click()
+         -> 用户拍照 -> JS onchange -> 文件大小验证(>10MB->OnPhotoError)
+         -> FileReader.readAsDataURL() -> 浏览器异步 base64 编码
+         -> reader.onload -> dotNetHelper.invokeMethodAsync("OnPhotoCaptured", name, type, dataUrl)
+         -> 用户取消 -> invokeMethodAsync("OnPhotoCaptured", null, null, null)
+         -> C# OnPhotoCaptured -> 检查 _isDisposed -> 检查 null(取消) -> 检查逗号(无效dataUrl)
+         -> 提取 base64 -> Convert.FromBase64String -> C#端10MB兜底验证
+         -> PhotoCapture -> previewUrl=dataUrl -> _isCapturing=false
+         -> OnPhotoCaptured.InvokeAsync(photoCapture) -> StateHasChanged
 
-文件路径: [InputFile] → OnFileSelected → OpenReadStream → byte[]
-         → PhotoCapture → OnPhotoCaptured.InvokeAsync(photoCapture)
-         → ItemEntry 接收
+文件路径: [InputFile] -> OnFileSelected -> OpenReadStream -> byte[]
+         -> PhotoCapture -> OnPhotoCaptured.InvokeAsync(photoCapture)
+         -> ItemEntry 接收
 
-保存: PhotoCapture.OpenReadStream() → MemoryStream
-     → MultipartFormDataContent → POST /api/images/upload
+保存: PhotoCapture.OpenReadStream() -> MemoryStream
+     -> MultipartFormDataContent -> POST /api/images/upload
 ```
 
 ## 错误处理矩阵
 
 | 场景 | JS 端行为 | C# 端行为 | 用户体验 |
 |------|----------|----------|---------|
-| 用户取消拍照 | `onchange` 不触发，或 file 为空 → 回调 (null, null, null) | 检查 null，return，不清除已有预览 | 按钮恢复，之前照片保留 |
-| 文件超 10MB | 回调 `OnPhotoError("照片不能超过10MB")` | 显示红色错误文字 | 看到错误提示，可重试 |
+| 用户取消拍照 | `onchange` 触发，file 为空 -> 回调 (null, null, null) | 检查 null，return，不清除已有预览 | 按钮恢复，之前照片保留 |
+| 文件超 10MB（JS 端） | 回调 `OnPhotoError("照片不能超过10MB")` | 显示红色错误文字 | 看到错误提示，可重试 |
+| 文件超 10MB（C# 端兜底） | — | `Convert.FromBase64String` 后检查 `bytes.Length`，超限设 errorMessage | 看到错误提示，可重试 |
+| 无效 data URL | FileReader 正常返回 | `IndexOf(',') < 0`，return 静默忽略 | 按钮恢复，无变化 |
 | FileReader 失败 | 回调 `OnPhotoError("照片读取失败")` | 显示红色错误文字 | 看到错误提示，可重试 |
 | JS 模块加载失败 | `InvokeVoidAsync` 抛异常 | catch 显示"无法启动相机" | 看到错误提示 |
 | 组件已释放（页面跳转） | JS 回调触发 | `_isDisposed` 检查，return | 静默忽略，无异常 |
@@ -224,6 +263,9 @@ public async ValueTask DisposeAsync()
 - 应用关闭时 `DisposeAsync` 中不调用 JS 互操作（`IJSRuntime` 可能先释放），仅释放 `DotNetObjectReference`
 - `[JSInvokable]` 回调中须手动调用 `StateHasChanged()`
 - `FileReader.readAsDataURL()` 返回完整 data URL（含 `data:image/xxx;base64,` 前缀），C# 端需提取纯 base64
+- data URL 提取前需检查 `IndexOf(',')` 返回值，防止无效 data URL 导致索引异常
+- 文件大小双重验证：JS 端（`file.size > 10MB` 拦截）+ C# 端（`bytes.Length > 10MB` 兜底）
+- `_isCapturing = false` 放在 `_isDisposed` 检查之后，防止组件已释放时修改状态
 - `PhotoCapture` 的 `byte[]` 使用引用相等性，当前仅作数据载体无风险，后续如需哈希/比较需覆盖 Equals
 - `wwwroot/js/` 目录需新建
 - JS 模块通过动态 import 加载，无需在 index.html 预加载
