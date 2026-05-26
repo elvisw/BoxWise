@@ -18,4 +18,24 @@ public class LocationService
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<List<LocationDto>>(cancellationToken) ?? [];
     }
+
+    public async Task<LocationDto?> CreateAsync(CreateLocationRequest request)
+    {
+        var response = await _http.PostAsJsonAsync("api/locations", request);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<LocationDto>();
+    }
+
+    public async Task<LocationDto?> RenameAsync(int id, RenameLocationRequest request)
+    {
+        var response = await _http.PutAsJsonAsync($"api/locations/{id}", request);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<LocationDto>();
+    }
+
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var response = await _http.DeleteAsync($"api/locations/{id}");
+        return response.IsSuccessStatusCode;
+    }
 }

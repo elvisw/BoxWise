@@ -40,6 +40,18 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAsync();
+    }
+
+    public async Task RefreshAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = false;
         try
         {
             var locations = await LocationService.GetAllAsync();

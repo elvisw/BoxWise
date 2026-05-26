@@ -3,12 +3,17 @@
 @using Microsoft.AspNetCore.Authorization
 
 @inject ItemService ItemService
+@inject IDialogService DialogService
 
 <!-- 筛选控件 -->
 <MudGrid Class="mb-2">
     <MudItem xs="12" sm="6">
-        <MudText Typo="Typo.subtitle2" Class="mb-1">按位置</MudText>
-        <LocationTree SelectedLocationId="_locationId"
+        <div class="d-flex align-center justify-space-between mb-1">
+            <MudText Typo="Typo.subtitle2">按位置</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Settings" Size="Size.Small"
+                           OnClick="OpenLocationManageDialog" title="管理位置" />
+        </div>
+        <LocationTree @ref="_locationTree" SelectedLocationId="_locationId"
                       SelectedLocationIdChanged="OnLocationChanged" />
     </MudItem>
     <MudItem xs="12" sm="6">
@@ -61,6 +66,7 @@ else if (_items is not null)
 }
 
 @code {
+    private LocationTree? _locationTree;
     private List<ItemSummaryDto>? _items;
     private bool _loading = true;
     private bool _error;
@@ -69,6 +75,23 @@ else if (_items is not null)
     private IReadOnlyCollection<int> _tagIds = Array.Empty<int>();
 
     private bool _hasFilter => _locationId.HasValue || _tagIds.Count > 0;
+
+    private async Task OpenLocationManageDialog()
+    {
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+        var dialog = await DialogService.ShowAsync<LocationManageDialog>("管理位置", options);
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled && _locationTree is not null)
+        {
+            await _locationTree.RefreshAsync();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

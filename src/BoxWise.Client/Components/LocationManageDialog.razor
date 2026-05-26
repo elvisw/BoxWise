@@ -1,0 +1,304 @@
+@namespace BoxWise.Client.Components
+@using BoxWise.Shared.Dtos
+@inject LocationService LocationService
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">管理位置</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudText Color="Color.Error" Class="mb-2">@_error</MudText>
+        }
+
+        @if (_mode == Mode.Create)
+        {
+            <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background:#F5F5F5;">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">添加位置</MudText>
+                <MudTextField @bind-Value="_createName" Label="位置名称"
+                              Variant="Variant.Outlined" Immediate="true" Class="mb-2" />
+                <MudSelect T="int?" Label="父节点" Value="_createParentId"
+                           ValueChanged="OnCreateParentChanged"
+                           Variant="Variant.Outlined" Class="mb-2">
+                    <MudSelectItem Value="default(int?)">根位置（无父节点）</MudSelectItem>
+                    @foreach (var kv in _displayNames)
+                    {
+                        <MudSelectItem Value="kv.Key">@kv.Value</MudSelectItem>
+                    }
+                </MudSelect>
+                <div class="d-flex gap-2">
+                    <MudButton OnClick="SaveCreateAsync" Color="Color.Primary"
+                               Variant="Variant.Filled" Disabled="@(_saving)">保存</MudButton>
+                    <MudButton OnClick="CancelEdit">取消</MudButton>
+                </div>
+            </MudPaper>
+        }
+        else
+        {
+            <MudButton OnClick="StartCreate" Variant="Variant.Filled"
+                       Color="Color.Primary" Class="mb-3" StartIcon="@Icons.Material.Filled.Add">
+                添加位置
+            </MudButton>
+        }
+
+        @if (_flatList.Count == 0 && _mode != Mode.Create)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Default">暂无位置，请添加第一个位置</MudText>
+        }
+
+        @foreach (var node in _flatList)
+        {
+            <div class="d-flex align-center py-1" style="padding-left: @(node.Depth * 24)px;">
+                @if (_renamingId == node.Id)
+                {
+                    <MudTextField @bind-Value="_renameName" Label="新名称"
+                                  Variant="Variant.Outlined" Immediate="true"
+                                  Class="flex-grow-1" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small"
+                                   Color="Color.Success" OnClick="() => SaveRenameAsync(node.Id)" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                   OnClick="CancelEdit" />
+                }
+                else if (_deletingId == node.Id)
+                {
+                    <MudText Class="flex-grow-1">确认删除 <strong>@node.Name</strong>？</MudText>
+                    <MudButton OnClick="() => ConfirmDeleteAsync(node.Id)"
+                               Color="Color.Error" Variant="Variant.Filled"
+                               Size="Size.Small" Class="mr-2">删除</MudButton>
+                    <MudButton OnClick="CancelEdit" Size="Size.Small">取消</MudButton>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" Class="mr-2" Color="Color.Primary" />
+                    <MudText Class="flex-grow-1">@node.Name</MudText>
+                    @if (_mode == Mode.None)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                       OnClick="() => StartCreateChild(node.Id)" title="添加子位置" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                       OnClick="() => StartRename(node)" title="重命名" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                       OnClick="() => StartDelete(node)" Color="Color.Error" title="删除" />
+                    }
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">完成</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private enum Mode { None, Create, Rename, Delete }
+
+    private List<LocationDto> _allLocations = [];
+    private List<FlatNode> _flatList = [];
+    private Dictionary<int, string> _displayNames = [];
+    private Mode _mode;
+    private string? _error;
+    private bool _saving;
+
+    // Create state
+    private string _createName = "";
+    private int? _createParentId;
+
+    // Rename state
+    private int? _renamingId;
+    private string _renameName = "";
+
+    // Delete state
+    private int? _deletingId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _allLocations = await LocationService.GetAllAsync();
+        _displayNames = BuildDisplayNames();
+        _flatList = BuildFlatList();
+    }
+
+    private Dictionary<int, string> BuildDisplayNames()
+    {
+        var result = new Dictionary<int, string>();
+        foreach (var loc in _allLocations.OrderBy(l => l.SortOrder).ThenBy(l => l.Name))
+        {
+            var ids = loc.Path.Trim('/').Split('/');
+            var names = new List<string>();
+            foreach (var idStr in ids)
+            {
+                if (int.TryParse(idStr, out var id))
+                {
+                    var match = _allLocations.FirstOrDefault(l => l.Id == id);
+                    if (match is not null) names.Add(match.Name);
+                }
+            }
+            result[loc.Id] = string.Join(" > ", names);
+        }
+        return result;
+    }
+
+    private List<FlatNode> BuildFlatList()
+    {
+        var byParent = _allLocations
+            .GroupBy(l => l.ParentId ?? 0)
+            .ToDictionary(g => g.Key, g => g.OrderBy(l => l.SortOrder).ThenBy(l => l.Name).ToList());
+
+        var result = new List<FlatNode>();
+        AddLevel(0, 0);
+        return result;
+
+        void AddLevel(int parentId, int depth)
+        {
+            if (!byParent.TryGetValue(parentId, out var children)) return;
+            foreach (var child in children)
+            {
+                result.Add(new FlatNode(child.Id, child.Name, child.ParentId, depth));
+                AddLevel(child.Id, depth + 1);
+            }
+        }
+    }
+
+    private void StartCreate()
+    {
+        _error = null;
+        _createName = "";
+        _createParentId = null;
+        _mode = Mode.Create;
+    }
+
+    private void StartCreateChild(int parentId)
+    {
+        _error = null;
+        _createName = "";
+        _createParentId = parentId;
+        _mode = Mode.Create;
+    }
+
+    private void OnCreateParentChanged(int? value)
+    {
+        _createParentId = value;
+    }
+
+    private async Task SaveCreateAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_createName)) return;
+
+        _error = null;
+        _saving = true;
+
+        try
+        {
+            var request = new CreateLocationRequest(_createName.Trim(), _createParentId, 0);
+            var result = await LocationService.CreateAsync(request);
+            if (result is not null)
+            {
+                CancelEdit();
+                _hasChanges = true;
+                await LoadAsync();
+            }
+            else
+            {
+                _error = "创建失败，请检查输入";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"创建失败：{ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void StartRename(FlatNode node)
+    {
+        _error = null;
+        _renamingId = node.Id;
+        _renameName = node.Name;
+        _mode = Mode.Rename;
+    }
+
+    private async Task SaveRenameAsync(int id)
+    {
+        if (string.IsNullOrWhiteSpace(_renameName)) return;
+
+        _error = null;
+        try
+        {
+            var request = new RenameLocationRequest(_renameName.Trim());
+            var result = await LocationService.RenameAsync(id, request);
+            if (result is not null)
+            {
+                CancelEdit();
+                _hasChanges = true;
+                await LoadAsync();
+            }
+            else
+            {
+                _error = "重命名失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"重命名失败：{ex.Message}";
+        }
+    }
+
+    private void StartDelete(FlatNode node)
+    {
+        _error = null;
+        _deletingId = node.Id;
+        _mode = Mode.Delete;
+    }
+
+    private async Task ConfirmDeleteAsync(int id)
+    {
+        _error = null;
+        try
+        {
+            var ok = await LocationService.DeleteAsync(id);
+            if (ok)
+            {
+                CancelEdit();
+                _hasChanges = true;
+                await LoadAsync();
+            }
+            else
+            {
+                _error = "删除失败：该位置下可能还有子位置或物品";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"删除失败：{ex.Message}";
+        }
+    }
+
+    private void CancelEdit()
+    {
+        _mode = Mode.None;
+        _renamingId = null;
+        _deletingId = null;
+        _createName = "";
+        _error = null;
+    }
+
+    private bool _hasChanges;
+
+    private void Close()
+    {
+        MudDialog.Close(DialogResult.Ok(_hasChanges));
+    }
+
+    private record FlatNode(int Id, string Name, int? ParentId, int Depth);
+}
