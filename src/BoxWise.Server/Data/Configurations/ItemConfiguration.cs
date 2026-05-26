@@ -37,7 +37,7 @@ public class ItemConfiguration : IEntityTypeConfiguration<Item>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(x => x.Tags)
-            .WithMany()
+            .WithMany(t => t.Items)
             .UsingEntity("ItemTag");
     }
 }
