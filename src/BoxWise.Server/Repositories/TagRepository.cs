@@ -16,6 +16,7 @@ public class TagRepository
     public async Task<List<Tag>> GetAllAsync()
     {
         return await _db.Tags
+            .Include(t => t.Items)
             .OrderBy(t => t.Name)
             .ToListAsync();
     }
@@ -45,6 +46,36 @@ public class TagRepository
         }
 
         return tag;
+    }
+
+    public async Task<Tag> RenameAsync(int id, string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("标签名称不能为空");
+
+        name = name.Trim();
+        if (name.Length > 50)
+            throw new ArgumentException("标签名称不能超过 50 个字符");
+
+        var tag = await _db.Tags.FindAsync(id)
+            ?? throw new KeyNotFoundException("标签不存在");
+
+        var exists = await _db.Tags.AnyAsync(t => t.Name == name && t.Id != id);
+        if (exists)
+            throw new ArgumentException($"标签 '{name}' 已存在");
+
+        tag.Name = name;
+        await _db.SaveChangesAsync();
+        return tag;
+    }
+
+    public async Task DeleteAsync(int id)
+    {
+        var tag = await _db.Tags.FindAsync(id)
+            ?? throw new KeyNotFoundException("标签不存在");
+
+        _db.Tags.Remove(tag);
+        await _db.SaveChangesAsync();
     }
 
     public async Task<Tag> GetOrCreateAsync(string name)
