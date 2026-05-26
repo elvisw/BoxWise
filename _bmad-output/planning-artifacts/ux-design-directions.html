@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BoxWise 设计方向 - UX 线框图</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: Roboto, system-ui, sans-serif; background: #ECEFF1; color: #37474F; padding: 24px; }
+h1 { font-size: 28px; margin-bottom: 8px; }
+.subtitle { color: #78909C; margin-bottom: 32px; }
+.direction { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.direction h2 { font-size: 20px; margin-bottom: 4px; }
+.direction .desc { color: #78909C; margin-bottom: 20px; font-size: 14px; }
+.screens { display: flex; gap: 16px; flex-wrap: wrap; }
+.screen { flex: 1; min-width: 280px; max-width: 380px; border: 1px solid #CFD8DC; border-radius: 16px; overflow: hidden; }
+.screen-label { background: #455A64; color: #fff; padding: 8px 12px; font-size: 12px; font-weight: 500; text-align: center; }
+.screen-content { padding: 16px; background: #FAFAFA; min-height: 440px; position: relative; }
+/* 状态栏模拟 */
+.status-bar { height: 20px; background: #455A64; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; color: #fff; font-size: 10px; }
+/* 通用组件 */
+.appbar { background: #455A64; color: #fff; padding: 10px 14px; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+.bottom-nav { background: #fff; border-top: 1px solid #CFD8DC; display: flex; padding: 4px 0; position: absolute; bottom: 0; left: 0; right: 0; }
+.nav-item { flex: 1; text-align: center; padding: 6px 0; font-size: 10px; color: #90A4AE; }
+.nav-item.active { color: #546E7A; font-weight: 500; }
+.nav-icon { font-size: 18px; display: block; margin-bottom: 2px; }
+.fab { position: absolute; bottom: 60px; right: 16px; width: 48px; height: 48px; background: #546E7A; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+/* 组件 */
+.card { background: #fff; border-radius: 8px; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.card img { width: 100%; height: 100px; object-fit: cover; border-radius: 4px; background: #CFD8DC; }
+.card .name { font-size: 13px; font-weight: 500; margin-top: 6px; }
+.card .loc { font-size: 11px; color: #78909C; }
+.search { background: #ECEFF1; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #90A4AE; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 11px; color: #78909C; margin-bottom: 4px; }
+.field input, .field select { width: 100%; padding: 8px 10px; border: 1px solid #CFD8DC; border-radius: 6px; font-size: 13px; }
+.btn { padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; border: none; cursor: default; }
+.btn-primary { background: #546E7A; color: #fff; }
+.btn-outline { border: 1px solid #546E7A; color: #546E7A; background: #fff; }
+.btn-danger { background: #EF5350; color: #fff; }
+.btn-disabled { background: #CFD8DC; color: #90A4AE; }
+.chip { display: inline-block; background: #E0F2F1; color: #546E7A; padding: 4px 10px; border-radius: 16px; font-size: 11px; margin: 2px; }
+.chip.active { background: #80CBC4; color: #fff; }
+.tag-row { margin: 8px 0; }
+.tree { font-size: 12px; }
+.tree-item { padding: 4px 8px; color: #546E7A; cursor: default; }
+.tree-item.child { padding-left: 24px; }
+.tree-item.grandchild { padding-left: 40px; }
+.tree-item.selected { background: #E0F2F1; border-radius: 4px; font-weight: 500; }
+.continuity-banner { background: #E8F5E9; color: #2E7D32; padding: 6px 12px; font-size: 11px; border-radius: 4px; margin-bottom: 10px; }
+.ai-loading { display: flex; align-items: center; gap: 8px; padding: 12px; background: #F5F5F5; border-radius: 8px; margin: 8px 0; font-size: 12px; color: #78909C; }
+.photo-area { height: 120px; background: #ECEFF1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 10px; }
+.detail-header { text-align: center; padding: 12px 0; }
+.detail-header img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; background: #CFD8DC; }
+.placeholder-card { background: #F5F5F5; border: 2px dashed #CFD8DC; border-radius: 8px; padding: 16px; text-align: center; color: #90A4AE; font-size: 12px; }
+.placeholder-icon { font-size: 38px; display: block; margin-bottom: 6px; }
+.side-panel { border-left: 1px solid #CFD8DC; padding-left: 10px; margin-left: -8px; }
+</style>
+</head>
+<body>
+
+<h1>箱知 · BoxWise 设计方向展示</h1>
+<p class="subtitle">移动端为核心视图（PWA） | MudBlazor 实现 | 蓝灰色系</p>
+
+<!-- Direction 1: Default -->
+<div class="direction">
+<h2>方向 1: 底部Tab导航 · 双列网格 · 标准间距</h2>
+<p class="desc">默认推荐。底部三Tab（首页/录入/浏览），FAB拍照按钮，8dp间距。最符合移动端触屏操作习惯。</p>
+<div class="screens">
+  <div class="screen">
+    <div class="screen-label">首页 — 网格浏览 + 搜索</div>
+    <div class="status-bar">📶 9:41</div>
+    <div class="appbar">📦 箱知 · BoxWise</div>
+    <div class="screen-content">
+      <div class="search">🔍 搜索物品名称</div>
+      <div class="grid-2">
+        <div class="card"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3Ctext x='100' y='55' text-anchor='middle' fill='%2390A4AE' font-size='12'%3E数据线%3C/text%3E%3C/svg%3E"><div class="name">USB-C 数据线</div><div class="loc">书房 · 电子配件箱</div></div>
+        <div class="card"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3Ctext x='100' y='55' text-anchor='middle' fill='%2390A4AE' font-size='12'%3E保修卡%3C/text%3E%3C/svg%3E"><div class="name">戴森保修卡</div><div class="loc">次卧 · 文件柜</div></div>
+        <div class="card"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3Ctext x='100' y='55' text-anchor='middle' fill='%2390A4AE' font-size='12'%3E螺丝刀%3C/text%3E%3C/svg%3E"><div class="name">精密螺丝刀套装</div><div class="loc">客厅 · 工具箱</div></div>
+        <div class="card"><div class="placeholder-card"><span class="placeholder-icon">📝</span>无照片</div><div class="name">网线 5米</div><div class="loc">书房 · 线缆箱</div></div>
+      </div>
+      <div class="fab">＋</div>
+      <div class="bottom-nav">
+        <div class="nav-item active"><span class="nav-icon">🏠</span>首页</div>
+        <div class="nav-item"><span class="nav-icon">📷</span>录入</div>
+        <div class="nav-item"><span class="nav-icon">📂</span>浏览</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="screen">
+    <div class="screen-label">录入 — 拍照分支（AI 识别中）</div>
+    <div class="status-bar">📶 9:42</div>
+    <div class="appbar">← 录入物品</div>
+    <div class="screen-content">
+      <div class="continuity-banner">🔄 连续收纳至：次卧 · 衣柜 · 上层</div>
+      <div class="photo-area">📸 已拍照 — 预览</div>
+      <div class="ai-loading">⏳ AI 正在识别物品…</div>
+      <div class="field"><label>物品名称</label><input value="" placeholder="识别中…" disabled></div>
+      <div class="field"><label>备注</label><input value="" placeholder="识别中…" disabled></div>
+      <div class="field"><label>位置 *</label><div class="tree"><div class="tree-item">▸ 次卧</div><div class="tree-item child">▸ 衣柜</div><div class="tree-item grandchild selected">✓ 上层收纳箱</div></div></div>
+      <div class="field"><label>标签</label><div class="tag-row"><span class="chip">电子配件</span><span class="chip">工具</span><span class="chip">+ 新建</span></div></div>
+      <div style="text-align:right;margin-top:12px;"><span class="btn btn-primary">保存</span></div>
+    </div>
+  </div>
+
+  <div class="screen">
+    <div class="screen-label">详情页 — 含删除</div>
+    <div class="status-bar">📶 9:43</div>
+    <div class="appbar">← 物品详情</div>
+    <div class="screen-content">
+      <div class="detail-header">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Crect fill='%23CFD8DC' width='120' height='120'/%3E%3Ctext x='60' y='65' text-anchor='middle' fill='%2390A4AE' font-size='14'%3E数据线%3C/text%3E%3C/svg%3E">
+        <div class="name" style="font-size:18px;margin-top:8px;">USB-C 数据线</div>
+      </div>
+      <div class="field"><label>位置</label><div style="font-size:13px;padding:8px;background:#F5F5F5;border-radius:6px;">书房 ▸ 储物柜 ▸ 电子配件箱</div></div>
+      <div class="field"><label>标签</label><div class="tag-row"><span class="chip">电子配件</span><span class="chip">线缆</span></div></div>
+      <div class="field"><label>备注</label><div style="font-size:13px;color:#78909C;">Anker 品牌，1米，支持 100W 快充</div></div>
+      <div class="field"><label>录入者</label><div style="font-size:13px;color:#78909C;">Developer · 2026-03-15</div></div>
+      <div style="margin-top:20px;display:flex;gap:8px;">
+        <span class="btn btn-outline" style="flex:1;text-align:center;">查看原图</span>
+        <span class="btn btn-danger" style="flex:1;text-align:center;">🗑 删除</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Direction 2: Compact -->
+<div class="direction">
+<h2>方向 2: 紧凑布局 · 三列网格 · 搜索栏突出</h2>
+<p class="desc">更高密度展示更多物品。适合物品数量多时。搜索栏占更大视觉权重。卡片更小、间距更紧。</p>
+<div class="screens">
+  <div class="screen">
+    <div class="screen-label">首页 — 紧凑三列 + 大搜索</div>
+    <div class="status-bar">📶 9:41</div>
+    <div class="appbar">📦 箱知</div>
+    <div class="screen-content" style="padding:10px;">
+      <div class="search" style="padding:10px 14px;font-size:14px;">🔍 搜索物品名称、位置、标签…</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;">
+        <div class="card" style="padding:6px;"><img style="height:60px;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3C/svg%3E"><div class="name" style="font-size:11px;">USB-C 数据线</div><div class="loc" style="font-size:10px;">书房·电子</div></div>
+        <div class="card" style="padding:6px;"><img style="height:60px;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3C/svg%3E"><div class="name" style="font-size:11px;">保修卡</div><div class="loc" style="font-size:10px;">次卧·文件</div></div>
+        <div class="card" style="padding:6px;"><img style="height:60px;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3C/svg%3E"><div class="name" style="font-size:11px;">螺丝刀</div><div class="loc" style="font-size:10px;">客厅·工具</div></div>
+        <div class="card" style="padding:6px;"><div class="placeholder-card" style="padding:8px;font-size:10px;"><span class="placeholder-icon" style="font-size:20px;">📝</span>网线</div><div class="name" style="font-size:11px;">网线</div><div class="loc" style="font-size:10px;">书房·线缆</div></div>
+        <div class="card" style="padding:6px;"><img style="height:60px;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3C/svg%3E"><div class="name" style="font-size:11px;">耳机</div><div class="loc" style="font-size:10px;">客厅·抽屉</div></div>
+        <div class="card" style="padding:6px;"><img style="height:60px;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3C/svg%3E"><div class="name" style="font-size:11px;">电池</div><div class="loc" style="font-size:10px;">厨房·抽屉</div></div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active"><span class="nav-icon">🏠</span>首页</div>
+        <div class="nav-item"><span class="nav-icon">📷</span>录入</div>
+        <div class="nav-item"><span class="nav-icon">📂</span>浏览</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen">
+    <div class="screen-label">录入 — 跳过拍照分支</div>
+    <div class="status-bar">📶 9:42</div>
+    <div class="appbar">← 快速录入</div>
+    <div class="screen-content">
+      <div class="field" style="text-align:center;margin-bottom:16px;">
+        <span class="btn btn-outline" style="width:100%;">📷 拍照录入</span>
+      </div>
+      <div style="text-align:center;color:#90A4AE;font-size:11px;margin-bottom:16px;">或直接填写信息</div>
+      <div class="field"><label>物品名称 *</label><input placeholder="输入物品名称"></div>
+      <div class="field"><label>位置 *</label><select><option>选择位置…</option><option>书房 ▸ 电子配件箱</option></select></div>
+      <div class="field"><label>标签</label><input placeholder="添加标签"></div>
+      <div class="field"><label>备注</label><input placeholder="可选补充说明"></div>
+      <div style="text-align:right;margin-top:16px;"><span class="btn btn-disabled">保存</span></div>
+    </div>
+  </div>
+  <div class="screen">
+    <div class="screen-label">浏览 — 侧滑位置面板</div>
+    <div class="status-bar">📶 9:43</div>
+    <div class="appbar">📂 浏览</div>
+    <div class="screen-content">
+      <div style="display:flex;gap:12px;">
+        <div style="width:120px;flex-shrink:0;">
+          <div class="search" style="margin-bottom:8px;font-size:11px;">🔍 筛选</div>
+          <div class="tree">
+            <div class="tree-item">🏠 全部</div>
+            <div class="tree-item selected">▾ 次卧</div>
+            <div class="tree-item child">▾ 衣柜</div>
+            <div class="tree-item grandchild" style="color:#546E7A;font-weight:500;">上层收纳箱</div>
+            <div class="tree-item grandchild">下层</div>
+            <div class="tree-item child">▸ 床底柜</div>
+            <div class="tree-item">▸ 书房</div>
+            <div class="tree-item">▸ 客厅</div>
+          </div>
+          <div style="margin-top:12px;">
+            <div style="font-size:10px;color:#90A4AE;margin-bottom:4px;">标签筛选</div>
+            <span class="chip active">电子配件</span><span class="chip">工具</span><span class="chip">证件</span>
+          </div>
+        </div>
+        <div style="flex:1;" class="grid-2">
+          <div class="card"><img style="height:50px;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3C/svg%3E"><div class="name" style="font-size:11px;">数据线</div><div class="loc" style="font-size:10px;">次卧·衣柜</div></div>
+          <div class="card"><img style="height:50px;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='100'%3E%3Crect fill='%23CFD8DC' width='200' height='100'/%3E%3C/svg%3E"><div class="name" style="font-size:11px;">保修卡</div><div class="loc" style="font-size:10px;">次卧·衣柜</div></div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="nav-icon">🏠</span>首页</div>
+        <div class="nav-item"><span class="nav-icon">📷</span>录入</div>
+        <div class="nav-item active"><span class="nav-icon">📂</span>浏览</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Direction 3: Drawer -->
+<div class="direction">
+<h2>方向 3: 抽屉导航 · 位置树侧滑 · 单列卡片</h2>
+<p class="desc">顶部AppBar + 汉堡菜单抽屉。浏览时位置树从左侧滑入。更大的物品卡片，适合展示更详细的摘要信息。</p>
+<div class="screens">
+  <div class="screen">
+    <div class="screen-label">首页 — 位置树侧滑面板</div>
+    <div class="status-bar">📶 9:41</div>
+    <div class="appbar">☰ 箱知 · BoxWise</div>
+    <div class="screen-content">
+      <div class="search">🔍 搜索物品名称</div>
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;">
+          <div class="card" style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+            <img style="width:60px;height:60px;object-fit:cover;border-radius:4px;background:#CFD8DC;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect fill='%23CFD8DC' width='60' height='60'/%3E%3C/svg%3E">
+            <div><div class="name">USB-C 数据线</div><div class="loc">书房·电子配件箱</div><div style="font-size:10px;color:#90A4AE;margin-top:2px;">录入于 2026-03-15</div></div>
+          </div>
+          <div class="card" style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+            <img style="width:60px;height:60px;object-fit:cover;border-radius:4px;background:#CFD8DC;" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect fill='%23CFD8DC' width='60' height='60'/%3E%3C/svg%3E">
+            <div><div class="name">戴森保修卡</div><div class="loc">次卧·文件柜</div><div style="font-size:10px;color:#90A4AE;margin-top:2px;">录入于 2026-02-28</div></div>
+          </div>
+          <div class="card" style="display:flex;gap:10px;align-items:center;">
+            <div class="placeholder-card" style="width:60px;height:60px;padding:8px;font-size:18px;">📝</div>
+            <div><div class="name">网线 5米</div><div class="loc">书房·线缆箱</div><div style="font-size:10px;color:#90A4AE;margin-top:2px;">录入于 2026-05-20</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="fab">＋</div>
+    </div>
+  </div>
+  <div class="screen">
+    <div class="screen-label">Drawer 展开 — 位置树 + 标签</div>
+    <div class="status-bar">📶 9:41</div>
+    <div class="appbar">☰ 位置导航</div>
+    <div class="screen-content">
+      <div class="tree" style="font-size:13px;">
+        <div class="tree-item" style="font-size:14px;font-weight:500;">🏠 全部物品 <span style="color:#90A4AE;">(12)</span></div>
+        <div class="tree-item child">▾ 次卧 <span style="color:#90A4AE;">(5)</span></div>
+        <div class="tree-item grandchild">▾ 衣柜 <span style="color:#90A4AE;">(3)</span></div>
+        <div class="tree-item" style="padding-left:56px;">上层收纳箱 <span style="color:#90A4AE;">(2)</span></div>
+        <div class="tree-item" style="padding-left:56px;">下层 <span style="color:#90A4AE;">(1)</span></div>
+        <div class="tree-item grandchild">▸ 床底柜 <span style="color:#90A4AE;">(2)</span></div>
+        <div class="tree-item child">▸ 书房 <span style="color:#90A4AE;">(4)</span></div>
+        <div class="tree-item child">▸ 客厅 <span style="color:#90A4AE;">(3)</span></div>
+      </div>
+      <div style="margin-top:20px;border-top:1px solid #ECEFF1;padding-top:12px;">
+        <div style="font-size:12px;font-weight:500;margin-bottom:8px;">标签</div>
+        <span class="chip active">电子配件 <small>(4)</small></span>
+        <span class="chip">工具 <small>(3)</small></span>
+        <span class="chip">证件 <small>(2)</small></span>
+        <span class="chip">线缆 <small>(2)</small></span>
+        <span class="chip">衣物 <small>(1)</small></span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

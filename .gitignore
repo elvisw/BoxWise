@@ -483,7 +483,6 @@ $RECYCLE.BIN/
 
 # BMad Method V6
 _bmad/
-_bmad-output/
 
 # BoxWise 项目特定
 appsettings.Production.json
