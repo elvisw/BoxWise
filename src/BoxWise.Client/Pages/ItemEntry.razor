@@ -1,7 +1,6 @@
 @page "/entry"
 @attribute [Authorize]
 
-@using Microsoft.AspNetCore.Components.Forms
 @inject NavigationManager Navigation
 @inject ItemEntryService ItemService
 @inject AppState AppState
@@ -17,7 +16,7 @@
 }
 
 <MudText Typo="Typo.subtitle2" Class="mb-2">照片（可选）</MudText>
-<ImageUploader OnFileUploaded="OnFileUploaded" />
+<ImageUploader @ref="_imageUploader" OnPhotoCaptured="OnPhotoCaptured" />
 
 <MudTextField @bind-Value="_name" Label="物品名称" Variant="Variant.Outlined" Class="mb-3 mt-3" />
 <MudTextField @bind-Value="_note" Label="备注" Variant="Variant.Outlined" Lines="2" Class="mb-3" />
@@ -46,7 +45,8 @@
     private int? _selectedLocationId;
     private string? _selectedLocationName;
     private IReadOnlyCollection<int> _selectedTagIds = Array.Empty<int>();
-    private IBrowserFile? _photoFile;
+    private PhotoCapture? _photo;
+    private ImageUploader? _imageUploader;
     private bool _saving;
     private string? _errorMessage;
 
@@ -59,10 +59,16 @@
         }
     }
 
-    private Task OnFileUploaded(IBrowserFile file)
+    private Task OnPhotoCaptured(PhotoCapture photo)
     {
-        _photoFile = file;
+        _photo = photo;
         return Task.CompletedTask;
+    }
+
+    private void RemovePhoto()
+    {
+        _photo = null;
+        _imageUploader?.ClearPreview();
     }
 
     private Task OnSelectedLocationChanged(int? value)
@@ -93,9 +99,9 @@
 
             if (itemId is not null)
             {
-                if (_photoFile is not null)
+                if (_photo is not null)
                 {
-                    await UploadPhotoAsync(itemId.Value, _photoFile);
+                    await UploadPhotoAsync(itemId.Value, _photo);
                 }
 
                 var locationLabel = _selectedLocationName ?? $"位置 #{_selectedLocationId}";
@@ -116,15 +122,15 @@
         }
     }
 
-    private async Task UploadPhotoAsync(int itemId, IBrowserFile file)
+    private async Task UploadPhotoAsync(int itemId, PhotoCapture photo)
     {
         try
         {
             using var content = new MultipartFormDataContent();
-            using var stream = file.OpenReadStream(10 * 1024 * 1024);
+            using var stream = photo.OpenReadStream();
             using var streamContent = new StreamContent(stream);
-            streamContent.Headers.ContentType = new(file.ContentType);
-            content.Add(streamContent, "\"file\"", file.Name);
+            streamContent.Headers.ContentType = new(photo.ContentType);
+            content.Add(streamContent, "\"file\"", photo.FileName);
             content.Add(new StringContent(itemId.ToString()), "\"itemId\"");
 
             await Http.PostAsync("api/images/upload", content);
