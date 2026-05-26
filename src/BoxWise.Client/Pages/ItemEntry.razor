@@ -130,8 +130,8 @@
             using var stream = photo.OpenReadStream();
             using var streamContent = new StreamContent(stream);
             streamContent.Headers.ContentType = new(photo.ContentType);
-            content.Add(streamContent, "\"file\"", photo.FileName);
-            content.Add(new StringContent(itemId.ToString()), "\"itemId\"");
+            content.Add(streamContent, "file", photo.FileName);
+            content.Add(new StringContent(itemId.ToString()), "itemId");
 
             await Http.PostAsync("api/images/upload", content);
         }
