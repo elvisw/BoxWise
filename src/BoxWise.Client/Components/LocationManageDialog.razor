@@ -20,6 +20,7 @@
                               Variant="Variant.Outlined" Immediate="true" Class="mb-2" />
                 <MudSelect T="int?" Label="父节点" Value="_createParentId"
                            ValueChanged="OnCreateParentChanged"
+                           ToStringFunc="GetParentDisplayName"
                            Variant="Variant.Outlined" Class="mb-2">
                     <MudSelectItem Value="default(int?)">根位置（无父节点）</MudSelectItem>
                     @foreach (var kv in _displayNames)
@@ -187,6 +188,9 @@
     {
         _createParentId = value;
     }
+
+    private string GetParentDisplayName(int? id) =>
+        id.HasValue && _displayNames.TryGetValue(id.Value, out var name) ? name : "根位置";
 
     private async Task SaveCreateAsync()
     {
