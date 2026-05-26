@@ -10,7 +10,8 @@
 
 <div class="bw-settings-list">
 
-    <div class="pa-4 mb-1 bw-settings-item" @onclick="OpenLocationManageDialog">
+    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
+         @onclick="OpenLocationManageDialog" @onkeydown="HandleLocationKey" @onkeydown:preventDefault>
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
             <div class="flex-grow-1">
@@ -21,7 +22,8 @@
         </div>
     </div>
 
-    <div class="pa-4 mb-1 bw-settings-item" @onclick="OpenTagManageDialog">
+    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
+         @onclick="OpenTagManageDialog" @onkeydown="HandleTagKey" @onkeydown:preventDefault>
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.Label" Size="Size.Medium" Class="mr-3" Color="Color.Secondary" />
             <div class="flex-grow-1">
@@ -34,7 +36,8 @@
 
     <MudDivider Class="my-3" />
 
-    <div class="pa-4 mb-1 bw-settings-item" @onclick="LogoutAsync">
+    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
+         @onclick="LogoutAsync" @onkeydown="HandleLogoutKey" @onkeydown:preventDefault>
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Medium" Class="mr-3" Color="Color.Error" />
             <div class="flex-grow-1">
@@ -80,5 +83,20 @@
         try { await AuthService.LogoutAsync(); }
         catch { }
         finally { Navigation.NavigateTo("/", forceLoad: true); }
+    }
+
+    private async void HandleLocationKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") { await OpenLocationManageDialog(); }
+    }
+
+    private async void HandleTagKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") { await OpenTagManageDialog(); }
+    }
+
+    private async void HandleLogoutKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") { await LogoutAsync(); }
     }
 }

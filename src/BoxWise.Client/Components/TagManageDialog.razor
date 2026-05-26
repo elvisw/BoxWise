@@ -120,7 +120,7 @@
             if (result is not null)
             {
                 CancelEdit();
-                _hasChanges = true;
+
                 await LoadAsync();
             }
             else
@@ -157,7 +157,7 @@
             if (result is not null)
             {
                 CancelEdit();
-                _hasChanges = true;
+
                 await LoadAsync();
             }
             else
@@ -186,7 +186,7 @@
             if (ok)
             {
                 CancelEdit();
-                _hasChanges = true;
+
                 await LoadAsync();
             }
             else
@@ -209,10 +209,8 @@
         _error = null;
     }
 
-    private bool _hasChanges;
-
     private void Close()
     {
-        MudDialog.Close(DialogResult.Ok(_hasChanges));
+        MudDialog.Close();
     }
 }
