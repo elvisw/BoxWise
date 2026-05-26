@@ -79,25 +79,43 @@ After:   首页 | 录入 | 浏览 | 设置
 
 - 移除 `@inject IDialogService`
 - 移除齿轮图标 button + `OpenLocationManageDialog` 方法
-- 移除 `LocationTree` 的 `@ref`
+- `LocationTree` 的 `@ref` 保留 — 导航切换时 Blazor 自动重建组件实例，无需手动刷新
 
-### 5.3 `TagEndpoints.cs` (Server)
+### 5.3 `Tag.cs` Model (Server)
+
+添加反向导航属性以支持 ItemCount 查询：
+
+```csharp
+public ICollection<Item> Items { get; set; } = new List<Item>();
+```
+
+### 5.4 `ItemConfiguration.cs` (Server)
+
+更新 Many-to-Many 配置，连接 Tag 反向导航：
+
+```csharp
+builder.HasMany(x => x.Tags)
+    .WithMany(t => t.Items)
+    .UsingEntity("ItemTag");
+```
+
+### 5.5 `TagEndpoints.cs` (Server)
 
 新增端点：
 
-| 方法 | 端点 | 功能 |
-|------|------|------|
-| PUT | `/api/tags/{id}` | 重命名标签 |
-| DELETE | `/api/tags/{id}` | 删除标签（解除物品关联） |
+| 方法 | 端点 | 功能 | 错误处理 |
+|------|------|------|---------|
+| PUT | `/api/tags/{id}` | 重命名标签 | 不存在→404，重名→400 |
+| DELETE | `/api/tags/{id}` | 删除标签（解除物品关联） | 不存在→404 |
 
-### 5.4 `TagRepository.cs` (Server)
+### 5.6 `TagRepository.cs` (Server)
 
 新增方法：
 
 - `RenameAsync(int id, string name)` — 校验唯一性后重命名
 - `DeleteAsync(int id)` — 删除标签，级联删除 `ItemTag` 中间表记录
 
-### 5.5 `TagService.cs` (Client)
+### 5.7 `TagService.cs` (Client)
 
 新增方法：
 
@@ -105,7 +123,7 @@ After:   首页 | 录入 | 浏览 | 设置
 - `RenameAsync(int id, RenameTagRequest)` → `PUT /api/tags/{id}`
 - `DeleteAsync(int id)` → `DELETE /api/tags/{id}`
 
-### 5.6 `TagDto.cs` (Shared)
+### 5.8 `TagDto.cs` (Shared)
 
 添加 `ItemCount` 字段：
 
@@ -113,26 +131,36 @@ After:   首页 | 录入 | 浏览 | 设置
 public record TagDto(int Id, string Name, int ItemCount);
 ```
 
-### 5.7 `RenameTagRequest.cs` (Shared, new)
+### 5.9 `RenameTagRequest.cs` (Shared, new)
 
 ```csharp
 public record RenameTagRequest(string Name);
 ```
 
-### 5.8 `TagRepository.cs` — GetAllAsync
+### 5.10 `TagRepository.cs` — GetAllAsync
 
-修改查询，Include ItemTags 并计算 ItemCount：
+利用新增的 `Tag.Items` 导航属性计算 ItemCount：
 
 ```csharp
 return await _db.Tags
     .OrderBy(t => t.Name)
-    .Select(t => new { t.Id, t.Name, ItemCount = t.ItemTags.Count })
+    .Select(t => new { t.Id, t.Name, ItemCount = t.Items.Count })
     .ToListAsync();
 ```
 
-### 5.9 `TagEndpoints.cs` — GetAllTagsAsync
+### 5.11 `TagEndpoints.cs` — GetAllTagsAsync
 
-修改为返回带 ItemCount 的 TagDto。
+修改映射为返回带 ItemCount 的 TagDto。同步更新 `TagFilter.razor` 中所有引用 `TagDto` 的代码（构造函数参数增加 ItemCount）。
+
+### 5.12 `TagRepositoryTests.cs` (Test)
+
+新增测试：
+
+- `RenameAsync_Success` — 正常重命名
+- `RenameAsync_DuplicateName_Throws` — 重名校验
+- `RenameAsync_NotFound_Throws` — 不存在
+- `DeleteAsync_Success` — 正常删除
+- `DeleteAsync_NotFound_Throws` — 不存在
 
 ## 6. Future Extension Points
 
@@ -142,10 +170,13 @@ return await _db.Tags
 
 ## 7. Implementation Order
 
-1. **Backend Tag CRUD** — TagRepository + TagEndpoints + TagDto
-2. **Client Tag Service** — TagService CUD methods
-3. **TagManageDialog** — 新建弹窗组件
-4. **Settings.razor** — 新建设置页
-5. **MainLayout** — 4 Tab + 精简顶栏
-6. **Browse** — 移除齿轮入口
-7. **Build & Test** — 验证编译 + 运行测试
+1. **Tag Model + Config** — Tag.Items 导航属性 + ItemConfiguration 更新
+2. **Backend Tag CRUD** — TagRepository (Rename/Delete/GetAll ItemCount) + TagEndpoints + DTO 更新
+3. **Tag Unit Tests** — TagRepositoryTests 新增 5 个测试
+4. **Client Tag Service** — TagService CUD 方法
+5. **TagManageDialog** — 新建弹窗组件
+6. **Settings.razor** — 新建设置页
+7. **MainLayout** — 4 Tab + 精简顶栏
+8. **Browse** — 移除齿轮入口
+9. **TagFilter/TagDto 引用更新** — 所有 TagDto 构造调用增加 ItemCount
+10. **Build & Test** — 验证编译 + 运行全部测试
