@@ -1,6 +1,5 @@
 @inherits LayoutComponentBase
 @implements IDisposable
-@inject AuthService AuthService
 @inject AppState AppState
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -15,23 +14,17 @@
             @if (AppState.IsLoggedIn && !_isHomePage)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
-                               Size="Size.Medium"
+                               Size="Size.Small"
                                Color="Color.Inherit"
                                aria-label="返回"
-                               OnClick="GoBack"
-                               Class="mr-2" />
+                               OnClick="GoBack" />
             }
             <MudText Typo="Typo.h6" Class="flex-grow-1">📦 箱知 · BoxWise</MudText>
             @if (AppState.IsLoggedIn)
             {
-                <MudText Typo="Typo.subtitle1" Class="d-none d-sm-block mr-2" Style="color:inherit;">
+                <MudText Typo="Typo.subtitle1" Class="d-none d-sm-block" Style="color:inherit;">
                     @AppState.CurrentUserName
                 </MudText>
-                <MudIconButton Icon="@Icons.Material.Filled.Logout"
-                               Size="Size.Medium"
-                               Color="Color.Inherit"
-                               aria-label="退出登录"
-                               OnClick="LogoutAsync" />
             }
         </MudStack>
     </MudAppBar>
@@ -57,6 +50,11 @@
              @onclick="GoBrowse" @onkeydown="HandleBrowseKey" @onkeydown:preventDefault>
             <MudIcon Icon="@Icons.Material.Filled.GridView" Size="Size.Large" />
             <MudText Typo="Typo.caption">浏览</MudText>
+        </div>
+        <div class="bw-nav-item @IsActive("/settings")" role="button" tabindex="0"
+             @onclick="GoSettings" @onkeydown="HandleSettingsKey" @onkeydown:preventDefault>
+            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Large" />
+            <MudText Typo="Typo.caption">设置</MudText>
         </div>
     </MudPaper>
 }
@@ -117,6 +115,7 @@
     private void GoHome() => NavigateTo("/");
     private void GoEntry() => NavigateTo("/entry");
     private void GoBrowse() => NavigateTo("/browse");
+    private void GoSettings() => NavigateTo("/settings");
     private async void GoBack() => await JS.InvokeVoidAsync("history.back");
 
     private string IsActive(string path) => _currentPath == path ? "bw-nav-active" : "";
@@ -136,26 +135,15 @@
         if (e.Key is "Enter" or " ") GoBrowse();
     }
 
+    private void HandleSettingsKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") GoSettings();
+    }
+
     private void NavigateTo(string path)
     {
         if (_currentPath != path)
             Navigation.NavigateTo(path);
-    }
-
-    private async Task LogoutAsync()
-    {
-        try
-        {
-            await AuthService.LogoutAsync();
-        }
-        catch
-        {
-            // 即使服务端登出失败，仍执行客户端清理
-        }
-        finally
-        {
-            Navigation.NavigateTo("/", forceLoad: true);
-        }
     }
 
     public void Dispose()
