@@ -94,6 +94,7 @@
         if (commaIdx < 0)
         {
             _isCapturing = false;
+            _previewUrl = null;
             _errorMessage = "拍照失败，请重试";
             StateHasChanged();
             return;
