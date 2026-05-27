@@ -199,4 +199,39 @@ public class TagRepositoryTests
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => repo.DeleteAsync(999));
     }
+
+    [Fact]
+    public async Task CreateAsync_NullName_ThrowsArgumentException()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync(null!));
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("\t")]
+    public async Task CreateAsync_WhitespaceName_ThrowsArgumentException(string whitespaceName)
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync(whitespaceName));
+    }
+
+    [Fact]
+    public async Task RenameAsync_ThrowsArgumentException_NameUnchanged()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+        var tag = await repo.CreateAsync("原始名称");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.RenameAsync(tag.Id, ""));
+
+        // 验证 DB 中名称未被修改
+        var unchanged = await repo.GetOrCreateAsync("原始名称");
+        Assert.Equal(tag.Id, unchanged.Id);
+        Assert.Equal("原始名称", unchanged.Name);
+    }
 }

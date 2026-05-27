@@ -50,10 +50,11 @@ public static class TestIdentityFactory
         var provider = services.BuildServiceProvider();
 
         var httpContextAccessor = provider.GetRequiredService<IHttpContextAccessor>();
+        var responseBody = new MemoryStream();
         var defaultHttpContext = new DefaultHttpContext
         {
             RequestServices = provider,
-            Response = { Body = new MemoryStream() }
+            Response = { Body = responseBody }
         };
         httpContextAccessor.HttpContext = defaultHttpContext;
 
@@ -69,12 +70,14 @@ public static class TestIdentityFactory
 
         await roleManager.CreateAsync(new IdentityRole("Admin"));
 
-        return new TestIdentityContext(provider, scope, userManager, roleManager, signInManager);
+        return new TestIdentityContext(provider, scope, userManager, roleManager, signInManager, responseBody);
     }
 }
 
 public class TestIdentityContext : IAsyncDisposable
 {
+    private readonly MemoryStream? _responseBody;
+
     public ServiceProvider Provider { get; }
     public IServiceScope Scope { get; }
     public UserManager<AppUser> UserManager { get; }
@@ -86,17 +89,20 @@ public class TestIdentityContext : IAsyncDisposable
         IServiceScope scope,
         UserManager<AppUser> userManager,
         RoleManager<IdentityRole> roleManager,
-        SignInManager<AppUser> signInManager)
+        SignInManager<AppUser> signInManager,
+        MemoryStream? responseBody = null)
     {
         Provider = provider;
         Scope = scope;
         UserManager = userManager;
         RoleManager = roleManager;
         SignInManager = signInManager;
+        _responseBody = responseBody;
     }
 
     public async ValueTask DisposeAsync()
     {
+        _responseBody?.Dispose();
         Scope.Dispose();
         await Provider.DisposeAsync();
     }

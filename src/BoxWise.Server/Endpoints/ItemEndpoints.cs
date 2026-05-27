@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using BoxWise.Server.Models;
 using BoxWise.Server.Repositories;
 using BoxWise.Server.Services;
@@ -102,7 +103,7 @@ public static class ItemEndpoints
     }
 
     private static async Task<Ok<ItemSummaryDto[]>>
-        SearchItemsAsync(string? q, int? locationId, string?[]? tagId,
+        SearchItemsAsync(string? q, int? locationId, [FromQuery] string?[]? tagId,
             ItemRepository repo, LocationRepository locationRepo,
             HttpContext httpContext)
     {
@@ -127,7 +128,6 @@ public static class ItemEndpoints
                 i.CreatedAt);
         }).ToArray();
 
-        httpContext.Response.Headers["X-Total-Count"] = dtos.Length.ToString();
         return TypedResults.Ok(dtos);
     }
 

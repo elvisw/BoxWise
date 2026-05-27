@@ -162,6 +162,50 @@ public class ThumbnailServiceTests
     }
 
     [Fact]
+    public void GenerateThumb_SmallImage_ResizesSuccessfully()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"boxwise-test-{Guid.NewGuid()}");
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            var sourcePath = Path.Combine(tempDir, "source.jpg");
+            var destPath = Path.Combine(tempDir, "thumb.jpg");
+            CreateTestImage(sourcePath, width: 1, height: 1);
+
+            // Act: 正常 Resize 1x1 图片验证 null check 不影响正常路径
+            ThumbnailService.GenerateThumb(sourcePath, destPath, 300);
+
+            Assert.True(File.Exists(destPath));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void GenerateThumb_DestDirectoryNotExists_CreatesDirectory()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"boxwise-test-{Guid.NewGuid()}");
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            var sourcePath = Path.Combine(tempDir, "source.jpg");
+            var destPath = Path.Combine(tempDir, "nonexistent-subdir", "thumb.jpg");
+            CreateTestImage(sourcePath);
+
+            // Act: 目录不存在时应自动创建
+            ThumbnailService.GenerateThumb(sourcePath, destPath, 300);
+
+            Assert.True(File.Exists(destPath));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public async Task GenerateAsync_ItemNotFound_NoOp()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"boxwise-test-{Guid.NewGuid()}");

@@ -376,4 +376,38 @@ public class LocationRepositoryTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => repo.DeleteAsync(location.Id));
     }
 
+    [Fact]
+    public async Task CreateAsync_NullName_ThrowsArgumentException()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync(null!, null));
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("\t")]
+    public async Task CreateAsync_WhitespaceName_ThrowsArgumentException(string whitespaceName)
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync(whitespaceName, null));
+    }
+
+    [Fact]
+    public async Task RenameAsync_ThrowsArgumentException_NameUnchanged()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        var location = await repo.CreateAsync("原始位置", null);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.RenameAsync(location.Id, ""));
+
+        // 验证 DB 中名称未被修改
+        var unchanged = db.Locations.Find(location.Id);
+        Assert.NotNull(unchanged);
+        Assert.Equal("原始位置", unchanged.Name);
+    }
 }
