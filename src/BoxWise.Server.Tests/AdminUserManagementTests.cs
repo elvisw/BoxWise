@@ -152,6 +152,110 @@ public class AdminUserManagementTests
         Assert.NotNull(model.ErrorMessage);
     }
 
+    // ──────── CreateAccountModel ────────
+
+    [Fact]
+    public async Task CreateAccount_Success_Redirects()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var model = CreateCreateAccountModel(ctx.UserManager, admin);
+        model.Input = new() { Username = "newuser", Password = "pass1234" };
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var created = await ctx.UserManager.FindByNameAsync("newuser");
+        Assert.NotNull(created);
+    }
+
+    [Fact]
+    public async Task CreateAccount_EmptyUsername_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var model = CreateCreateAccountModel(ctx.UserManager, admin);
+        model.Input = new() { Username = "", Password = "pass1234" };
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task CreateAccount_WeakPassword_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var model = CreateCreateAccountModel(ctx.UserManager, admin);
+        model.Input = new() { Username = "testuser", Password = "ab" };
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task CreateAccount_DuplicateUsername_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        await CreateUserAsync(ctx, "existing", "pass1234");
+        var model = CreateCreateAccountModel(ctx.UserManager, admin);
+        model.Input = new() { Username = "existing", Password = "pass1234" };
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+    }
+
+    // ──────── OnGetAsync 补完 ────────
+
+    [Fact]
+    public async Task EditAccount_OnGet_LoadsUser()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserAsync(ctx, "target", "pass1234");
+        var model = CreateEditAccountModel(ctx.UserManager, admin);
+
+        var result = await model.OnGetAsync(target.Id);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal("target", model.Username);
+    }
+
+    [Fact]
+    public async Task Index_OnGet_LoadsUsers()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        await CreateUserAsync(ctx, "user1", "pass1234");
+        var model = CreateIndexModel(ctx.UserManager, admin);
+
+        await model.OnGetAsync();
+
+        // OnGetAsync 调用 LoadUsersAsync()，不应抛异常
+        Assert.NotEmpty(model.Users);
+    }
+
+    [Fact]
+    public async Task ChangePassword_OnGet_LoadsUser()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserAsync(ctx, "target", "pass1234");
+        var model = CreateChangePasswordModel(ctx.UserManager, admin);
+
+        var result = await model.OnGetAsync(target.Id);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal("target", model.TargetUsername);
+    }
+
     private static async Task<AppUser> CreateUserAsync(TestIdentityContext ctx, string name, string password)
     {
         var user = new AppUser { UserName = name };
@@ -186,6 +290,14 @@ public class AdminUserManagementTests
     {
         var logger = NullLogger<ChangeUserPasswordModel>.Instance;
         var model = new ChangeUserPasswordModel(userManager, logger, Configuration);
+        SetupPageContext(model, currentUser);
+        return model;
+    }
+
+    private static CreateAccountModel CreateCreateAccountModel(UserManager<AppUser> userManager, AppUser currentUser)
+    {
+        var logger = NullLogger<CreateAccountModel>.Instance;
+        var model = new CreateAccountModel(userManager, logger);
         SetupPageContext(model, currentUser);
         return model;
     }
