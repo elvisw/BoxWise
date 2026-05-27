@@ -13,14 +13,18 @@ public class IndexModel : PageModel
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly ILogger<IndexModel> _logger;
+    private readonly IConfiguration _config;
 
-    public IndexModel(UserManager<AppUser> userManager, ILogger<IndexModel> logger)
+    public IndexModel(UserManager<AppUser> userManager, ILogger<IndexModel> logger, IConfiguration config)
     {
         _userManager = userManager;
         _logger = logger;
+        _config = config;
     }
 
     public List<UserListItemDto> Users { get; set; } = null!;
+    public bool IsAdminPasswordManagedByEnv =>
+        !string.IsNullOrWhiteSpace(_config["Admin:Password"]);
 
     [TempData]
     public string? StatusMessage { get; set; }

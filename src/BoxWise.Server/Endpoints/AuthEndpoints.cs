@@ -41,7 +41,8 @@ public static class AuthEndpoints
     }
 
     private static async Task<Results<Ok<AuthUserDto>, UnauthorizedHttpResult, ValidationProblem>>
-        LoginAsync(LoginRequest request, SignInManager<AppUser> signInManager, UserManager<AppUser> userManager)
+        LoginAsync(LoginRequest request, SignInManager<AppUser> signInManager, UserManager<AppUser> userManager,
+        IConfiguration config)
     {
         var result = await signInManager.PasswordSignInAsync(
             request.Username, request.Password, isPersistent: true, lockoutOnFailure: false);
@@ -56,8 +57,11 @@ public static class AuthEndpoints
 
         var user = await userManager.FindByNameAsync(request.Username);
         var isAdmin = user != null && await userManager.IsInRoleAsync(user, "Admin");
+        var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
+        var isSpecificAdmin = adminConfigured
+            && string.Equals(request.Username, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
 
-        return TypedResults.Ok(new AuthUserDto(request.Username, isAdmin));
+        return TypedResults.Ok(new AuthUserDto(request.Username, isAdmin, isSpecificAdmin));
     }
 
     private static async Task<Ok> LogoutAsync(SignInManager<AppUser> signInManager)
@@ -67,7 +71,7 @@ public static class AuthEndpoints
     }
 
     private static async Task<Ok<AuthUserDto>> GetCurrentUserAsync(
-        UserManager<AppUser> userManager, HttpContext httpContext)
+        UserManager<AppUser> userManager, HttpContext httpContext, IConfiguration config)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
         if (user?.UserName is null)
@@ -77,12 +81,16 @@ public static class AuthEndpoints
         }
 
         var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
-        return TypedResults.Ok(new AuthUserDto(user.UserName, isAdmin));
+        var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
+        var isSpecificAdmin = adminConfigured
+            && string.Equals(user.UserName, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
+
+        return TypedResults.Ok(new AuthUserDto(user.UserName, isAdmin, isSpecificAdmin));
     }
 
     private static async Task<Results<Ok<AuthUserDto>, ValidationProblem>>
         UpdateProfileAsync(UpdateProfileRequest request,
-        UserManager<AppUser> userManager, HttpContext httpContext)
+        UserManager<AppUser> userManager, HttpContext httpContext, IConfiguration config)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
         if (user?.UserName is null)
@@ -126,7 +134,11 @@ public static class AuthEndpoints
         }
 
         var stillAdmin = await userManager.IsInRoleAsync(user, "Admin");
-        return TypedResults.Ok(new AuthUserDto(user.UserName, stillAdmin));
+        var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
+        var isSpecificAdmin = adminConfigured
+            && string.Equals(user.UserName, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
+
+        return TypedResults.Ok(new AuthUserDto(user.UserName, stillAdmin, isSpecificAdmin));
     }
 
     private static async Task<Results<Ok, ValidationProblem>>

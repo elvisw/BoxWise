@@ -11,11 +11,13 @@ public class ChangeUserPasswordModel : PageModel
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly ILogger<ChangeUserPasswordModel> _logger;
+    private readonly IConfiguration _config;
 
-    public ChangeUserPasswordModel(UserManager<AppUser> userManager, ILogger<ChangeUserPasswordModel> logger)
+    public ChangeUserPasswordModel(UserManager<AppUser> userManager, ILogger<ChangeUserPasswordModel> logger, IConfiguration config)
     {
         _userManager = userManager;
         _logger = logger;
+        _config = config;
     }
 
     [BindProperty]
@@ -24,6 +26,7 @@ public class ChangeUserPasswordModel : PageModel
     public string? ErrorMessage { get; set; }
 
     public string TargetUsername { get; set; } = "";
+    public bool IsAdminPasswordManagedByEnv { get; set; }
 
     public async Task<IActionResult> OnGetAsync(string id)
     {
@@ -35,6 +38,7 @@ public class ChangeUserPasswordModel : PageModel
             return NotFound();
 
         TargetUsername = user.UserName ?? "";
+        IsAdminPasswordManagedByEnv = IsSpecificAdmin(user.UserName);
         return Page();
     }
 
@@ -48,6 +52,7 @@ public class ChangeUserPasswordModel : PageModel
             return NotFound();
 
         TargetUsername = user.UserName ?? "";
+        IsAdminPasswordManagedByEnv = IsSpecificAdmin(user.UserName);
 
         if (string.IsNullOrWhiteSpace(NewPassword))
         {
@@ -74,5 +79,11 @@ public class ChangeUserPasswordModel : PageModel
         _logger.LogInformation("Admin '{AdminName}' reset password for user '{UserName}'", User.Identity?.Name, user.UserName);
         TempData["StatusMessage"] = $"已成功修改 '{user.UserName}' 的密码";
         return RedirectToPage("/Admin/Index");
+    }
+
+    private bool IsSpecificAdmin(string? username)
+    {
+        return !string.IsNullOrWhiteSpace(_config["Admin:Password"])
+            && string.Equals(username, _config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
     }
 }

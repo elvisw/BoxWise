@@ -26,7 +26,7 @@ public class CookieAuthenticationStateProvider : AuthenticationStateProvider
                 if (user is { UserName: not null and not "" })
                 {
                     if (_appState.CurrentUserName != user.UserName)
-                        _appState.SetUser(user.UserName, user.IsAdmin);
+                        _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv);
 
                     var identity = new ClaimsIdentity(
                         claims: new[]
@@ -53,5 +53,5 @@ public class CookieAuthenticationStateProvider : AuthenticationStateProvider
         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
     }
 
-    private record AuthUser(string UserName, bool IsAdmin);
+    private record AuthUser(string UserName, bool IsAdmin, bool PasswordManagedByEnv = false);
 }

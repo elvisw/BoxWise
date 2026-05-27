@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using BoxWise.Server.Models;
 using BoxWise.Server.Pages.Admin;
@@ -14,6 +15,9 @@ namespace BoxWise.Server.Tests;
 
 public class AdminUserManagementTests
 {
+    private static readonly IConfiguration Configuration = new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>())
+        .Build();
     [Fact]
     public async Task EditAccount_Rename_Succeeds()
     {
@@ -173,7 +177,7 @@ public class AdminUserManagementTests
     private static IndexModel CreateIndexModel(UserManager<AppUser> userManager, AppUser currentUser)
     {
         var logger = NullLogger<IndexModel>.Instance;
-        var model = new IndexModel(userManager, logger);
+        var model = new IndexModel(userManager, logger, Configuration);
         SetupPageContext(model, currentUser);
         return model;
     }
@@ -181,7 +185,7 @@ public class AdminUserManagementTests
     private static ChangeUserPasswordModel CreateChangePasswordModel(UserManager<AppUser> userManager, AppUser currentUser)
     {
         var logger = NullLogger<ChangeUserPasswordModel>.Instance;
-        var model = new ChangeUserPasswordModel(userManager, logger);
+        var model = new ChangeUserPasswordModel(userManager, logger, Configuration);
         SetupPageContext(model, currentUser);
         return model;
     }

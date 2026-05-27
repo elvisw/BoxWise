@@ -4,6 +4,7 @@ public class AppState
 {
     public string? CurrentUserName { get; private set; }
     public bool IsAdmin { get; private set; }
+    public bool IsPasswordManagedByEnv { get; private set; }
     public bool IsLoggedIn => CurrentUserName is not null;
 
     public int? ContinuousLocationId { get; private set; }
@@ -11,10 +12,11 @@ public class AppState
 
     public event Action? StateChanged;
 
-    public void SetUser(string userName, bool isAdmin)
+    public void SetUser(string userName, bool isAdmin, bool isPasswordManagedByEnv = false)
     {
         CurrentUserName = userName;
         IsAdmin = isAdmin;
+        IsPasswordManagedByEnv = isPasswordManagedByEnv;
         StateChanged?.Invoke();
     }
 
@@ -22,6 +24,7 @@ public class AppState
     {
         CurrentUserName = null;
         IsAdmin = false;
+        IsPasswordManagedByEnv = false;
         StateChanged?.Invoke();
     }
 

@@ -23,7 +23,7 @@ public class AuthService
         if (response.IsSuccessStatusCode)
         {
             var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
-            _appState.SetUser(user?.UserName ?? username, user?.IsAdmin ?? false);
+            _appState.SetUser(user?.UserName ?? username, user?.IsAdmin ?? false, user?.PasswordManagedByEnv ?? false);
             _authStateProvider.NotifyAuthenticationStateChanged();
             return LoginResult.Success;
         }
@@ -47,7 +47,7 @@ public class AuthService
             var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
             if (user is not null)
             {
-                _appState.SetUser(user.UserName, user.IsAdmin);
+                _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv);
                 _authStateProvider.NotifyAuthenticationStateChanged();
             }
             return (true, null);
