@@ -135,12 +135,7 @@ public class LocationRepository
         }
 
         if (allIds.Count == 0)
-        {
-            var empty = new Dictionary<string, string?>();
-            foreach (var path in paths)
-                empty[path] = null;
-            return empty;
-        }
+            return new Dictionary<string, string?>();
 
         var nameDict = await _db.Locations
             .Where(l => allIds.Contains(l.Id))

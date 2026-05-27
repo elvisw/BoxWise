@@ -94,6 +94,8 @@
         if (commaIdx < 0)
         {
             _isCapturing = false;
+            _errorMessage = "拍照失败，请重试";
+            StateHasChanged();
             return;
         }
 
@@ -106,7 +108,20 @@
             StateHasChanged();
             return;
         }
-        var bytes = Convert.FromBase64String(base64);
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(base64);
+        }
+        catch (FormatException)
+        {
+            _isCapturing = false;
+            _previewUrl = null;
+            _errorMessage = "拍照失败，请重试";
+            StateHasChanged();
+            return;
+        }
 
         const int maxSize = 10 * 1024 * 1024;
         if (bytes.Length > maxSize)

@@ -37,6 +37,12 @@ public class LlmClient
             return null;
         }
 
+        if (string.IsNullOrWhiteSpace(_options.Model))
+        {
+            _logger.LogWarning("AI 未配置（缺少 Model），降级为手动输入");
+            return null;
+        }
+
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
