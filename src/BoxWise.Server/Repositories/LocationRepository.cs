@@ -110,15 +110,51 @@ public class LocationRepository
             .ToDictionaryAsync(l => l.Id, l => l.Name);
 
         return string.Join("/", ids.Select(id =>
-            id.HasValue && names.TryGetValue(id.Value, out var n) ? n : id?.ToString() ?? "?"));
+            id.HasValue && names.TryGetValue(id.Value, out var n) ? n : "?"));
     }
 
-    internal static string? ResolvePathNames(string? idPath, Dictionary<int, string> nameDict)
+    public async Task<Dictionary<string, string?>> ResolvePathNamesBatchAsync(IEnumerable<string?> idPaths)
     {
-        if (string.IsNullOrEmpty(idPath)) return null;
-        var ids = idPath.Trim('/').Split('/');
-        var names = ids.Select(id => int.TryParse(id, out var i) && nameDict.TryGetValue(i, out var n) ? n : "?");
-        return string.Join("/", names);
+        var paths = idPaths
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Select(p => p!)
+            .Distinct()
+            .ToList();
+
+        if (paths.Count == 0)
+            return new Dictionary<string, string?>();
+
+        var allIds = new HashSet<int>();
+        foreach (var path in paths)
+        {
+            foreach (var segment in path.Trim('/').Split('/'))
+            {
+                if (int.TryParse(segment, out var id))
+                    allIds.Add(id);
+            }
+        }
+
+        if (allIds.Count == 0)
+        {
+            var empty = new Dictionary<string, string?>();
+            foreach (var path in paths)
+                empty[path] = null;
+            return empty;
+        }
+
+        var nameDict = await _db.Locations
+            .Where(l => allIds.Contains(l.Id))
+            .ToDictionaryAsync(l => l.Id, l => l.Name);
+
+        var result = new Dictionary<string, string?>();
+        foreach (var path in paths)
+        {
+            var names = path.Trim('/').Split('/')
+                .Select(s => int.TryParse(s, out var i) && nameDict.TryGetValue(i, out var n) ? n : "?");
+            result[path] = string.Join("/", names);
+        }
+
+        return result;
     }
 
     public async Task<List<Location>> GetChildrenAsync(int id)

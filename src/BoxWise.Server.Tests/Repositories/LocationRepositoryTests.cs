@@ -120,4 +120,126 @@ public class LocationRepositoryTests
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => repo.GetChildrenAsync(999));
     }
+
+    [Fact]
+    public async Task ResolvePathNamesAsync_ValidPath_ReturnsNamePath()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        var root = await repo.CreateAsync("客厅", null);
+        var child = await repo.CreateAsync("电视机柜", root.Id);
+
+        var path = await repo.ResolvePathNamesAsync($"/{root.Id}/{child.Id}/");
+
+        Assert.Equal($"客厅/电视机柜", path);
+    }
+
+    [Fact]
+    public async Task ResolvePathNamesAsync_NullOrEmpty_ReturnsNull()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        Assert.Null(await repo.ResolvePathNamesAsync(null!));
+        Assert.Null(await repo.ResolvePathNamesAsync(""));
+    }
+
+    [Fact]
+    public async Task ResolvePathNamesAsync_DeletedId_ShowsQuestionMark()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        var root = await repo.CreateAsync("客厅", null);
+        var child = await repo.CreateAsync("电视机柜", root.Id);
+
+        // 删除子位置，路径中的 ID 不再存在于数据库
+        await repo.DeleteAsync(child.Id);
+
+        var path = await repo.ResolvePathNamesAsync($"/{root.Id}/{child.Id}/");
+
+        Assert.Equal("客厅/?", path);
+    }
+
+    [Fact]
+    public async Task ResolvePathNamesAsync_OnlySeparators_ReturnsNull()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        var path = await repo.ResolvePathNamesAsync("///");
+
+        Assert.Null(path);
+    }
+
+    [Fact]
+    public async Task ResolvePathNamesBatchAsync_ResolvesMultiplePathsWithOneQuery()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        var root = await repo.CreateAsync("客厅", null);
+        var child = await repo.CreateAsync("电视机柜", root.Id);
+
+        var pathDict = await repo.ResolvePathNamesBatchAsync([
+            $"/{root.Id}/",
+            $"/{root.Id}/{child.Id}/"
+        ]);
+
+        Assert.Equal(2, pathDict.Count);
+        Assert.Equal("客厅", pathDict[$"/{root.Id}/"]);
+        Assert.Equal("客厅/电视机柜", pathDict[$"/{root.Id}/{child.Id}/"]);
+    }
+
+    [Fact]
+    public async Task ResolvePathNamesBatchAsync_OverlappingIds_SingleQuery()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        var root = await repo.CreateAsync("客厅", null);
+
+        var pathDict = await repo.ResolvePathNamesBatchAsync([
+            $"/{root.Id}/",
+            $"/{root.Id}/",
+            $"/{root.Id}/"
+        ]);
+
+        Assert.Single(pathDict);
+        Assert.Equal("客厅", pathDict[$"/{root.Id}/"]);
+    }
+
+    [Fact]
+    public async Task ResolvePathNamesBatchAsync_EmptyInput_ReturnsEmptyDict()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        var pathDict = await repo.ResolvePathNamesBatchAsync([]);
+
+        Assert.Empty(pathDict);
+    }
+
+    [Fact]
+    public async Task ResolvePathNamesBatchAsync_AllNullPaths_ReturnsEmptyDict()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        var pathDict = await repo.ResolvePathNamesBatchAsync([null, ""]);
+
+        Assert.Empty(pathDict);
+    }
+
+    [Fact]
+    public async Task ResolvePathNamesBatchAsync_ConsistentWithSingleAsync()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        var root = await repo.CreateAsync("客厅", null);
+        var child = await repo.CreateAsync("电视机柜", root.Id);
+
+        var idPath = $"/{root.Id}/{child.Id}/";
+        var single = await repo.ResolvePathNamesAsync(idPath);
+        var batch = await repo.ResolvePathNamesBatchAsync([idPath]);
+
+        Assert.Equal(single, batch[idPath]);
+    }
 }

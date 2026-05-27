@@ -112,12 +112,14 @@ public static class ItemEndpoints
 
         var items = await repo.GetFilteredAsync(locationId, tagIds, q);
 
-        var allLocations = await locationRepo.GetAllAsync();
-        var nameDict = allLocations.ToDictionary(l => l.Id, l => l.Name);
+        var paths = items.Select(i => i.Location?.Path).ToList();
+        var pathDict = await locationRepo.ResolvePathNamesBatchAsync(paths);
 
         var dtos = items.Select(i =>
         {
-            var namePath = LocationRepository.ResolvePathNames(i.Location?.Path, nameDict);
+            var namePath = i.Location?.Path is not null
+                && pathDict.TryGetValue(i.Location.Path, out var n)
+                ? n : null;
             return new ItemSummaryDto(
                 i.Id, i.Name, i.ThumbPath,
                 namePath,
