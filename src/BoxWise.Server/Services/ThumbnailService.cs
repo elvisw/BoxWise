@@ -14,34 +14,34 @@ public class ThumbnailService
     }
 
     public void GenerateInBackground(int itemId, IServiceScopeFactory scopeFactory)
+        => _ = Task.Run(() => GenerateAsync(itemId, scopeFactory));
+
+    internal async Task GenerateAsync(int itemId, IServiceScopeFactory scopeFactory)
     {
-        _ = Task.Run(async () =>
+        try
         {
-            try
-            {
-                using var scope = scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
-                var item = await db.Items.FindAsync(itemId);
-                if (item is null) return;
+            using var scope = scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<Data.AppDbContext>();
+            var item = await db.Items.FindAsync(itemId);
+            if (item is null) return;
 
-                var original = _storage.GetOriginalPath(itemId);
+            var original = _storage.GetOriginalPath(itemId);
 
-                GenerateThumb(original, _storage.GetThumbPath(itemId), 300);
-                GenerateThumb(original, _storage.GetMediumPath(itemId), 1200);
+            GenerateThumb(original, _storage.GetThumbPath(itemId), 300);
+            GenerateThumb(original, _storage.GetMediumPath(itemId), 1200);
 
-                item.PhotoPath = Path.Combine(itemId.ToString(), "original.jpg");
-                item.ThumbPath = Path.Combine(itemId.ToString(), "thumb.jpg");
-                item.MediumPath = Path.Combine(itemId.ToString(), "medium.jpg");
-                await db.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to generate thumbnails for item {ItemId}", itemId);
-            }
-        });
+            item.PhotoPath = Path.Combine(itemId.ToString(), "original.jpg");
+            item.ThumbPath = Path.Combine(itemId.ToString(), "thumb.jpg");
+            item.MediumPath = Path.Combine(itemId.ToString(), "medium.jpg");
+            await db.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to generate thumbnails for item {ItemId}", itemId);
+        }
     }
 
-    private static void GenerateThumb(string sourcePath, string destPath, int width)
+    internal static void GenerateThumb(string sourcePath, string destPath, int width)
     {
         using var original = SKBitmap.Decode(sourcePath)
             ?? throw new InvalidOperationException($"无法解码图片: {sourcePath}");

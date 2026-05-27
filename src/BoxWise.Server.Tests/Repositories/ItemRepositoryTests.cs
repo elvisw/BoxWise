@@ -195,7 +195,9 @@ public class ItemRepositoryTests
         using var db = TestDbContextFactory.Create();
         await SeedLocationAndTags(db);
 
-        // 直接插入 Item 并验证 GetByIdAsync 不抛异常
+        // 植入 AppUser 实体以绕过 EF Core InMemory Include 限制
+        db.Users.Add(new AppUser { Id = "user-1", UserName = "test" });
+
         var item = new Item
         {
             Name = "螺丝刀", LocationId = 1, Note = "测试备注",
@@ -203,26 +205,16 @@ public class ItemRepositoryTests
         };
         db.Items.Add(item);
         await db.SaveChangesAsync();
-        // 不验证 CreatedByUser 导航 — InMemory 对此 Include 有限制
+        db.ChangeTracker.Clear();
 
         var repo = new ItemRepository(db);
         var result = await repo.GetByIdAsync(item.Id);
 
-        // EF Core InMemory 限制: .Include(CreatedByUser) 引用不存在的
-        // AppUser 实体时 FirstOrDefaultAsync 返回 null。生产 SQLite 中
-        // CreatedByUser 正确返回 null、Item 正常返回。
-        if (result is not null)
-        {
-            Assert.Equal("螺丝刀", result.Name);
-            Assert.Equal("测试备注", result.Note);
-        }
-        else
-        {
-            // InMemory 限制触发 — 通过直接查询验证 Item 已持久化
-            var direct = await db.Items.FindAsync(item.Id);
-            Assert.NotNull(direct);
-            Assert.Equal("螺丝刀", direct!.Name);
-        }
+        Assert.NotNull(result);
+        Assert.Equal("螺丝刀", result.Name);
+        Assert.Equal("测试备注", result.Note);
+        Assert.NotNull(result.CreatedByUser);
+        Assert.Equal("test", result.CreatedByUser.UserName);
     }
 
     [Fact]
@@ -270,6 +262,9 @@ public class ItemRepositoryTests
         using var db = TestDbContextFactory.Create();
         await SeedLocationAndTags(db);
 
+        // 植入 AppUser 实体以绕过 EF Core InMemory Include 限制
+        db.Users.Add(new AppUser { Id = "user-1", UserName = "test" });
+
         var item = new Item
         {
             Name = "多标签物品", LocationId = 1,
@@ -278,7 +273,6 @@ public class ItemRepositoryTests
         db.Items.Add(item);
         await db.SaveChangesAsync();
 
-        // 通过原始 SQL 风格的直接调用添加 ItemTag（many-to-many via Tags 集合）
         var tag1 = await db.Tags.FindAsync(1);
         var tag2 = await db.Tags.FindAsync(2);
         item.Tags.Add(tag1!);
@@ -289,12 +283,10 @@ public class ItemRepositoryTests
         var repo = new ItemRepository(db);
         var result = await repo.GetByIdAsync(item.Id);
 
-        // 同上 — InMemory 在 CreatedByUser Include 失败时返回 null。
-        // Tags 在结果非 null 时验证（many-to-many join 在 InMemory 中正常工作）
-        if (result is not null)
-        {
-            Assert.Equal(2, result.Tags.Count);
-        }
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Tags.Count);
+        Assert.NotNull(result.CreatedByUser);
+        Assert.Equal("test", result.CreatedByUser.UserName);
     }
 
     [Fact]

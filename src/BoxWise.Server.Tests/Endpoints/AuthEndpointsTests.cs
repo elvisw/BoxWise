@@ -46,4 +46,47 @@ public class AuthEndpointsTests : IAsyncDisposable
     [Fact] public async Task UpdateProfileAsync_DuplicateName_Fails() { var u1 = new AppUser { UserName = "un1" }; var u2 = new AppUser { UserName = "un2" }; await _userManager.CreateAsync(u1, "Test1234!"); await _userManager.CreateAsync(u2, "Test1234!"); var hc = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, u1.Id)], "test")) }; Assert.Equal(400, await InvokeAsync("UpdateProfileAsync", new UpdateProfileRequest("un2"), _userManager, hc, _config)); }
     [Fact] public async Task ChangePasswordAsync_CorrectPassword_Succeeds() { var u = new AppUser { UserName = "pu" }; await _userManager.CreateAsync(u, "OldPass1!"); var hc = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, u.Id)], "test")) }; Assert.Equal(200, await InvokeAsync("ChangePasswordAsync", new ChangePasswordRequest("OldPass1!", "NewPass2!"), _userManager, hc)); }
     [Fact] public async Task ChangePasswordAsync_WrongCurrent_Fails() { var u = new AppUser { UserName = "pu2" }; await _userManager.CreateAsync(u, "OldPass1!"); var hc = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, u.Id)], "test")) }; Assert.Equal(400, await InvokeAsync("ChangePasswordAsync", new ChangePasswordRequest("WrongOld!", "NewPass2!"), _userManager, hc)); }
+
+    [Fact]
+    public async Task LoginAsync_ValidCredentials_ReturnsOk()
+    {
+        var u = new AppUser { UserName = "loginuser" };
+        await _userManager.CreateAsync(u, "Test1234!");
+        var result = await InvokeAsync("LoginAsync", new LoginRequest("loginuser", "Test1234!"),
+            _ctx.SignInManager, _userManager, _config);
+        Assert.Equal(200, result);
+    }
+
+    [Fact]
+    public async Task LoginAsync_InvalidCredentials_ReturnsValidationProblem()
+    {
+        var u = new AppUser { UserName = "wrongpwuser" };
+        await _userManager.CreateAsync(u, "Test1234!");
+        var result = await InvokeAsync("LoginAsync", new LoginRequest("wrongpwuser", "WrongPass1!"),
+            _ctx.SignInManager, _userManager, _config);
+        Assert.Equal(400, result);
+    }
+
+    [Fact]
+    public async Task LoginAsync_EmptyUsername_ReturnsValidationProblem()
+    {
+        var result = await InvokeAsync("LoginAsync", new LoginRequest("", "Test1234!"),
+            _ctx.SignInManager, _userManager, _config);
+        Assert.Equal(400, result);
+    }
+
+    [Fact]
+    public async Task LoginAsync_NonexistentUser_ReturnsValidationProblem()
+    {
+        var result = await InvokeAsync("LoginAsync", new LoginRequest("nouser", "Test1234!"),
+            _ctx.SignInManager, _userManager, _config);
+        Assert.Equal(400, result);
+    }
+
+    [Fact]
+    public async Task LogoutAsync_Authenticated_ReturnsOk()
+    {
+        var result = await InvokeAsync("LogoutAsync", _ctx.SignInManager);
+        Assert.Equal(200, result);
+    }
 }

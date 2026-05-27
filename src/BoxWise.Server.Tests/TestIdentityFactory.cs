@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +17,9 @@ public static class TestIdentityFactory
         services.AddDbContext<AppDbContext>(options =>
             options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
 
-        services.AddIdentityCore<AppUser>(options =>
+        services.AddHttpContextAccessor();
+
+        services.AddIdentity<AppUser, IdentityRole>(options =>
         {
             options.Password.RequireDigit = false;
             options.Password.RequireLowercase = false;
@@ -24,14 +27,35 @@ public static class TestIdentityFactory
             options.Password.RequireUppercase = false;
             options.Password.RequiredLength = 4;
         })
-        .AddRoles<IdentityRole>()
         .AddEntityFrameworkStores<AppDbContext>()
         .AddDefaultTokenProviders();
+
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.Events.OnRedirectToLogin = context =>
+            {
+                context.Response.StatusCode = 401;
+                return Task.CompletedTask;
+            };
+            options.Events.OnRedirectToAccessDenied = context =>
+            {
+                context.Response.StatusCode = 401;
+                return Task.CompletedTask;
+            };
+        });
 
         services.AddDataProtection();
         services.AddLogging(b => b.AddConsole());
 
         var provider = services.BuildServiceProvider();
+
+        var httpContextAccessor = provider.GetRequiredService<IHttpContextAccessor>();
+        var defaultHttpContext = new DefaultHttpContext
+        {
+            RequestServices = provider,
+            Response = { Body = new MemoryStream() }
+        };
+        httpContextAccessor.HttpContext = defaultHttpContext;
 
         var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -39,11 +63,13 @@ public static class TestIdentityFactory
 
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var signInManager = scope.ServiceProvider.GetRequiredService<SignInManager<AppUser>>();
+        signInManager.Context = defaultHttpContext;
         var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
 
         await roleManager.CreateAsync(new IdentityRole("Admin"));
 
-        return new TestIdentityContext(provider, scope, userManager, roleManager);
+        return new TestIdentityContext(provider, scope, userManager, roleManager, signInManager);
     }
 }
 
@@ -53,17 +79,20 @@ public class TestIdentityContext : IAsyncDisposable
     public IServiceScope Scope { get; }
     public UserManager<AppUser> UserManager { get; }
     public RoleManager<IdentityRole> RoleManager { get; }
+    public SignInManager<AppUser> SignInManager { get; }
 
     public TestIdentityContext(
         ServiceProvider provider,
         IServiceScope scope,
         UserManager<AppUser> userManager,
-        RoleManager<IdentityRole> roleManager)
+        RoleManager<IdentityRole> roleManager,
+        SignInManager<AppUser> signInManager)
     {
         Provider = provider;
         Scope = scope;
         UserManager = userManager;
         RoleManager = roleManager;
+        SignInManager = signInManager;
     }
 
     public async ValueTask DisposeAsync()

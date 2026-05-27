@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
@@ -49,6 +50,23 @@ public class ItemEndpointsTests : IAsyncDisposable
         return httpContext.Response.StatusCode;
     }
 
+    private static async Task<(int StatusCode, string Body)> InvokeWithBodyAsync(string methodName, params object?[] args)
+    {
+        var method = typeof(ItemEndpoints).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
+        var task = (Task)method.Invoke(null, args)!;
+        await task;
+        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
+        var executeMethod = httpResult.GetType().GetMethod("ExecuteAsync", [typeof(HttpContext)])!;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var httpContext = new DefaultHttpContext { RequestServices = services.BuildServiceProvider() };
+        httpContext.Response.Body = new MemoryStream();
+        await (Task)executeMethod.Invoke(httpResult, [httpContext])!;
+        httpContext.Response.Body.Seek(0, SeekOrigin.Begin);
+        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
+        return (httpContext.Response.StatusCode, body);
+    }
+
     private static void SeedDb(AppDbContext db)
     {
         db.Locations.Add(new Location { Name = "客厅", Path = "/1/" });
@@ -63,5 +81,36 @@ public class ItemEndpointsTests : IAsyncDisposable
     [Fact] public async Task SearchItemsAsync_ByKeyword_ReturnsMatching() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); await r.CreateAsync("螺丝刀", 1, [], null, "tester"); await r.CreateAsync("锤子", 1, [], null, "tester"); Assert.Equal(200, await InvokeAsync("SearchItemsAsync", "螺丝", null, null, r, lr, _httpContext)); }
     [Fact] public async Task SearchItemsAsync_ByLocation_ReturnsSubtree() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); var child = await lr.CreateAsync("电视机柜", 1); await r.CreateAsync("螺丝刀", child.Id, [], null, "tester"); await r.CreateAsync("遥控器", 1, [], null, "tester"); Assert.Equal(200, await InvokeAsync("SearchItemsAsync", null, 1, null, r, lr, _httpContext)); }
     [Fact] public async Task GetItemByIdAsync_NonExistent_ReturnsNotFound() { using var db = TestDbContextFactory.Create(); var r = new ItemRepository(db); var lr = new LocationRepository(db); Assert.Equal(404, await InvokeAsync("GetItemByIdAsync", 999, r, lr)); }
+    [Fact]
+    public async Task GetItemByIdAsync_Exists_ReturnsOk()
+    {
+        using var db = TestDbContextFactory.Create();
+        db.Locations.Add(new Location { Name = "客厅", Path = "/1/" });
+        db.Users.Add(new AppUser { Id = "creator-1", UserName = "creator" });
+        await db.SaveChangesAsync();
+
+        var item = new Item
+        {
+            Name = "螺丝刀",
+            LocationId = 1,
+            CreatedByUserId = "creator-1",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var repo = new ItemRepository(db);
+        var lr = new LocationRepository(db);
+
+        var (status, body) = await InvokeWithBodyAsync("GetItemByIdAsync", item.Id, repo, lr);
+        Assert.Equal(200, status);
+
+        var dto = JsonSerializer.Deserialize<ItemDto>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        Assert.NotNull(dto);
+        Assert.Equal("螺丝刀", dto.Name);
+        Assert.Equal("creator", dto.CreatedByUserName);
+        Assert.Equal("客厅", dto.LocationName);
+    }
     [Fact] public async Task DeleteItemAsync_Exists_ReturnsNoContent() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var c = await r.CreateAsync("待删除", 1, [], null, "tester"); var s = new ImageStorageService(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DataDirectory"] = Path.GetTempPath() }).Build()); Assert.Equal(204, await InvokeAsync("DeleteItemAsync", c.Id, r, s)); Assert.False(db.Items.Any(i => i.Id == c.Id)); }
 }
