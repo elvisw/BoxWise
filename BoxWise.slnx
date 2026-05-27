@@ -4,5 +4,6 @@
     <Project Path="src/BoxWise.Server/BoxWise.Server.csproj" />
     <Project Path="src/BoxWise.Shared/BoxWise.Shared.csproj" />
     <Project Path="src/BoxWise.Server.Tests/BoxWise.Server.Tests.csproj" />
+    <Project Path="src/BoxWise.Client.Tests/BoxWise.Client.Tests.csproj" />
   </Folder>
 </Solution>
