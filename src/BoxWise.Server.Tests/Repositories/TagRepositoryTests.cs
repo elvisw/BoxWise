@@ -27,6 +27,23 @@ public class TagRepositoryTests
         await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync("工具"));
     }
 
+    public static IEnumerable<object[]> InvalidTagNames =>
+        new List<object[]>
+        {
+            new object[] { "" },
+            new object[] { new string('x', 51) }
+        };
+
+    [Theory]
+    [MemberData(nameof(InvalidTagNames))]
+    public async Task CreateAsync_InvalidName_ThrowsArgumentException(string invalidName)
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync(invalidName));
+    }
+
     [Fact]
     public async Task GetOrCreateAsync_ExistingName_ReturnsExisting()
     {
@@ -50,6 +67,23 @@ public class TagRepositoryTests
         Assert.Equal("新标签", result.Name);
         var exists = db.Tags.Any(t => t.Name == "新标签");
         Assert.True(exists);
+    }
+
+    public static IEnumerable<object[]> InvalidTagNamesForGetOrCreate =>
+        new List<object[]>
+        {
+            new object[] { "" },
+            new object[] { new string('x', 51) }
+        };
+
+    [Theory]
+    [MemberData(nameof(InvalidTagNamesForGetOrCreate))]
+    public async Task GetOrCreateAsync_InvalidName_ThrowsArgumentException(string invalidName)
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.GetOrCreateAsync(invalidName));
     }
 
     [Fact]
@@ -124,6 +158,24 @@ public class TagRepositoryTests
         var repo = new TagRepository(db);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => repo.RenameAsync(999, "不存在"));
+    }
+
+    public static IEnumerable<object[]> InvalidTagNamesForRename =>
+        new List<object[]>
+        {
+            new object[] { "" },
+            new object[] { new string('x', 51) }
+        };
+
+    [Theory]
+    [MemberData(nameof(InvalidTagNamesForRename))]
+    public async Task RenameAsync_InvalidName_ThrowsArgumentException(string invalidName)
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new TagRepository(db);
+        var tag = await repo.CreateAsync("有效标签");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.RenameAsync(tag.Id, invalidName));
     }
 
     [Fact]

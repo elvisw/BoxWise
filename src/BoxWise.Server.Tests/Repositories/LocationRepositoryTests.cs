@@ -32,23 +32,21 @@ public class LocationRepositoryTests
         Assert.Equal(parent.Id, child.ParentId);
     }
 
-    [Fact]
-    public async Task CreateAsync_EmptyName_ThrowsArgumentException()
+    public static IEnumerable<object[]> InvalidLocationNames =>
+        new List<object[]>
+        {
+            new object[] { "" },
+            new object[] { new string('x', 101) }
+        };
+
+    [Theory]
+    [MemberData(nameof(InvalidLocationNames))]
+    public async Task CreateAsync_InvalidName_ThrowsArgumentException(string invalidName)
     {
         using var db = TestDbContextFactory.Create();
         var repo = new LocationRepository(db);
 
-        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync("", null));
-    }
-
-    [Fact]
-    public async Task CreateAsync_NameExceedsMaxLength_ThrowsArgumentException()
-    {
-        using var db = TestDbContextFactory.Create();
-        var repo = new LocationRepository(db);
-        var longName = new string('x', 101);
-
-        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync(longName, null));
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync(invalidName, null));
     }
 
     [Fact]
@@ -70,6 +68,24 @@ public class LocationRepositoryTests
         var repo = new LocationRepository(db);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() => repo.RenameAsync(999, "不存在"));
+    }
+
+    public static IEnumerable<object[]> InvalidLocationNamesForRename =>
+        new List<object[]>
+        {
+            new object[] { "" },
+            new object[] { new string('x', 101) }
+        };
+
+    [Theory]
+    [MemberData(nameof(InvalidLocationNamesForRename))]
+    public async Task RenameAsync_InvalidName_ThrowsArgumentException(string invalidName)
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        var location = await repo.CreateAsync("客厅", null);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.RenameAsync(location.Id, invalidName));
     }
 
     [Fact]

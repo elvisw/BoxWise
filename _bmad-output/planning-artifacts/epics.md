@@ -136,6 +136,20 @@ inputDocuments:
 **NFRs:** NFR-2, NFR-3, NFR-7
 **User outcome:** 可搜索/浏览找到任何物品，PWA 可安装，应用生产环境运行
 
+### Epic 5: 用户管理增强与品牌收尾
+
+用户可以自行修改信息和密码，管理员可编辑/删除用户、分配角色、重置密码，应用品牌完善。
+
+**FRs covered:** 无（增强现有功能）
+**User outcome:** 用户可管理自己的账户信息，管理员可完整管理用户，应用有专业品牌形象
+
+### Epic 6: 单元测试补完
+
+将单元测试从 52 个扩展到 ≥ 85 个，覆盖 Repository/Service/Endpoint/PageModel 层的测试缺口，建立回归安全网。
+
+**Source:** SPEC-test-coverage
+**User outcome:** 开发者可以放心重构，CI 可自动捕获回归
+
 ---
 
 ## Epic 1: 项目搭建与账户认证
@@ -633,3 +647,204 @@ So that 在 1C1G Linux VPS 上稳定运行。
 ---
 
 Epic 4 共 6 条 Story，覆盖搜索/浏览/筛选/删除/PWA/部署全部流程。
+
+## Epic 5: 用户管理增强与品牌收尾
+
+**Goal:** 管理员可以管理用户账户、角色和密码；用户可自行修改信息和密码；应用品牌完善。
+
+### Story 5.1: Admin 用户管理增强
+
+As a 管理员，
+I want 在后台编辑/删除用户、分配角色、重置密码，
+So that 用户账户管理完整可控。
+
+**Acceptance Criteria:**
+
+**Given** 管理员在 /admin 页面
+**When** 点击编辑用户
+**Then** 可修改用户名、分配/取消 Admin 角色
+
+**Given** 管理员操作
+**When** 删除其他用户
+**Then** 用户被删除，管理员不能删除自己
+
+**Given** 管理员操作
+**When** 重置用户密码
+**Then** 新密码生效，旧会话失效（SecurityStamp 更新）
+
+**And** 使用 `UserManager<T>` 内置 API（SetUserNameAsync、AddToRoleAsync、UpdateSecurityStampAsync）
+**And** NormalizedUserName 通过 SetUserNameAsync 自动维护
+
+### Story 5.2: 用户自助服务
+
+As a 普通用户，
+I want 修改自己的用户名和密码，
+So that 我可以管理自己的账户信息。
+
+**Acceptance Criteria:**
+
+**Given** 已登录
+**When** 修改用户名
+**Then** 新用户名生效，不能与已有用户重复
+
+**Given** 已登录
+**When** 修改密码（输入正确的旧密码）
+**Then** 密码修改成功
+
+**Given** 旧密码错误
+**When** 修改密码
+**Then** 返回验证错误
+
+**And** `TypedResults.ValidationProblem` 返回结构化错误
+**And** MudDialog 用于密码修改 UI
+
+### Story 5.3: 品牌与版权完善
+
+As a 用户，
+I want 应用有专业的品牌形象，
+So that BoxWise 看起来像一个成熟的产品。
+
+**Acceptance Criteria:**
+
+**Given** 访问应用
+**When** 浏览器加载
+**Then** 显示 SVG favicon、OG 标签、正确的页面标题
+
+**Given** 页面底部
+**When** 滚动到底部
+**Then** Footer 显示版权信息和版本号（AssemblyInformationalVersion）
+
+**And** `箱知 BoxWise` 应用名称统一
+**And** v1.0.0 版本标记
+
+---
+
+## Epic 6: 单元测试补完
+
+**Goal:** 将单元测试从 52 个扩展到 ≥ 85 个，覆盖 Repository 缺口、Service 层、Endpoint 层和 Admin PageModel 剩余 handler。
+
+**Source:** `_bmad-output/specs/spec-test-coverage/SPEC.md`
+
+### Story 6.1: 测试清理与质量改进
+
+As a 开发者，
+I want 删除死代码、将重复边界验证重构为 Theory、建立统一的测试模式，
+So that 后续测试补完有干净的基线和可复用的参数化模式。
+
+**Acceptance Criteria:**
+
+**Given** 测试项目存在死代码 UnitTest1.cs
+**When** 删除该文件
+**Then** 项目编译通过，测试总数减少 1
+
+**Given** 同类边界条件验证（空字符串/超长名）
+**When** 重构为 `[Theory]` + `[InlineData]`
+**Then** ≥ 3 个 Theory 覆盖 ≥ 10 个数据组合，原有覆盖不变
+
+**Given** 所有现有测试
+**When** `dotnet test`
+**Then** 52 个测试通过（删除 UnitTest1 后）→ 51 个测试均通过
+
+**And** 删除 `src/BoxWise.Server.Tests/UnitTest1.cs`
+**And** TagRepositoryTests 中 CreateAsync/RenameAsync/GetOrCreateAsync 的空名+超长名边界从多个 Fact 合并为 Theory
+**And** LocationRepositoryTests 中 CreateAsync 边界验证从多个 Fact 合并为 Theory
+
+### Story 6.2: Repository 层覆盖补完
+
+As a 开发者，
+I want 补齐 ItemRepository、TagRepository、LocationRepository 的测试缺口，
+So that Repository 层的每个 public 方法都有 happy-path 和关键异常路径测试。
+
+**Acceptance Criteria:**
+
+**Given** ItemRepository 缺失 GetByIdAsync 测试
+**When** 添加测试
+**Then** 覆盖：存在返回 Item（含 Location+Tags 导航属性）、不存在返回 null
+
+**Given** ItemRepository 缺失 DeleteAsync 测试
+**When** 添加测试
+**Then** 覆盖：存在删除返回 true、不存在返回 false、含标签级联删除 ItemTag
+
+**Given** LocationRepository 缺失 GetAllAsync 测试
+**When** 添加测试
+**Then** 覆盖：返回扁平列表按 SortOrder 排序
+
+**Given** LocationRepository 缺失边界条件
+**When** 添加测试
+**Then** 覆盖：CreateAsync 不存在的父节点抛 ArgumentException、CreateAsync 超过 MaxDepth(10) 抛 InvalidOperationException、DeleteAsync 有 Item 关联抛 InvalidOperationException
+
+**Given** TagRepository 缺失边界条件
+**When** 添加测试
+**Then** 通过 Theory 覆盖：空名和超长名（>50）在 CreateAsync/GetOrCreateAsync/RenameAsync 中均抛 ArgumentException
+
+**And** 所有新增测试使用 `TestDbContextFactory.Create()` 创建隔离 DbContext
+**And** 新增测试 ≥ 13 个
+
+### Story 6.3: Service 层测试建立
+
+As a 开发者，
+I want 为 ImageStorageService 和 LlmClient 建立测试，
+So that 文件存储逻辑和 AI 调用的解析逻辑有回归保护。
+
+**Acceptance Criteria:**
+
+**Given** ImageStorageService 无测试
+**When** 添加测试
+**Then** 覆盖：SaveOriginalAsync 保存文件到正确路径、GetItemDirectory 返回路径含 itemId、DeleteItemFiles 清理所有文件、GetOriginalPath/GetThumbPath/GetMediumPath 返回正确路径
+
+**Given** LlmClient 无测试
+**When** 添加测试（使用 Moq HttpMessageHandler）
+**Then** 覆盖：JSON 正常解析返回 RecognitionResultDto、fallback 正则解析（代码块格式）、空配置返回 null、HTTP 超时静默降级、无效 JSON 返回 null
+
+**And** ImageStorageService 测试使用 `Path.GetTempPath()` + GUID 子目录，测试后清理
+**And** LlmClient 测试使用 Moq `HttpMessageHandler` 模拟 HTTP 响应，不发起真实网络请求
+**And** ThumbnailService 不在本次范围内（手动验证）
+**And** 新增测试 ≥ 9 个
+
+### Story 6.4: Endpoint 层测试建立
+
+As a 开发者，
+I want 为 Auth、Item、Tag、Location 四个核心 Endpoint 建立 handler 级别测试，
+So that 请求-响应完整路径有回归保护。
+
+**Acceptance Criteria:**
+
+**Given** AuthEndpoints 无 handler 测试
+**When** 添加测试
+**Then** 覆盖：LoginAsync 成功/失败/锁定、LogoutAsync 成功、GetCurrentUserAsync 返回用户+IsAdmin、UpdateProfileAsync 成功/重复名/空名、ChangePasswordAsync 成功/错误旧密码/太短
+
+**Given** ItemEndpoints 无 handler 测试
+**When** 添加测试
+**Then** 覆盖：CreateItemAsync 成功/缺名/无效位置、GetItemByIdAsync 存在/404、SearchItemsAsync 无参/关键词/位置/标签、DeleteItemAsync 成功/404
+
+**Given** TagEndpoints 无 handler 测试
+**When** 添加测试
+**Then** 覆盖：GetAllTagsAsync 返回列表、CreateTagAsync 成功/空名/重复、RenameTagAsync 成功/不存在/重复、DeleteTagAsync 成功/不存在
+
+**Given** LocationEndpoints 无 handler 测试
+**When** 添加测试
+**Then** 覆盖：GetAllLocationsAsync 返回列表、CreateLocationAsync 根/子/空名、RenameLocationAsync 成功/不存在、DeleteLocationAsync 叶节点/有子节点拒绝、GetChildrenAsync 成功/不存在
+
+**And** 使用 `TestIdentityFactory.CreateAsync()` 获取 UserManager/SignInManager
+**And** Repository 通过 `TestDbContextFactory.Create()` 创建，注入 handler 调用
+**And** 新增测试 ≥ 30 个
+
+### Story 6.5: Admin PageModel 测试补完
+
+As a 开发者，
+I want 补齐 CreateAccountModel 和其余 PageModel 的 OnGetAsync handler 测试，
+So that Admin 后台的所有页面 handler 都有回归保护。
+
+**Acceptance Criteria:**
+
+**Given** CreateAccountModel 无测试
+**When** 添加测试
+**Then** 覆盖：OnPostAsync 成功创建用户、空用户名返回错误、弱密码返回错误、重复用户名返回错误
+
+**Given** 其余 PageModel 的 OnGetAsync 无测试
+**When** 添加测试
+**Then** 覆盖：EditAccountModel.OnGetAsync 加载用户、IndexModel.OnGetAsync 加载用户列表、ChangeUserPasswordModel.OnGetAsync 加载用户名
+
+**And** 使用 `TestIdentityFactory.CreateAsync()` 获取所需 Identity 服务
+**And** 新增测试 ≥ 5 个
+**And** `dotnet test` 全部通过，总数 ≥ 85
