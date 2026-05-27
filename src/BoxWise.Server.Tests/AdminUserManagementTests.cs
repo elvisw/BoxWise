@@ -1,0 +1,229 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Extensions.Logging.Abstractions;
+using BoxWise.Server.Models;
+using BoxWise.Server.Pages.Admin;
+
+namespace BoxWise.Server.Tests;
+
+public class AdminUserManagementTests
+{
+    [Fact]
+    public async Task EditAccount_Rename_Succeeds()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserAsync(ctx, "oldname", "pass1234");
+
+        var model = CreateEditAccountModel(ctx.UserManager, admin);
+        model.Username = "newname";
+        var result = await model.OnPostAsync(target.Id);
+
+        Assert.IsType<RedirectToPageResult>(result);
+
+        var updated = await ctx.UserManager.FindByIdAsync(target.Id);
+        Assert.NotNull(updated);
+        Assert.Equal("newname", updated!.UserName);
+        Assert.Equal("NEWNAME", updated.NormalizedUserName);
+    }
+
+    [Fact]
+    public async Task EditAccount_EmptyUsername_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserAsync(ctx, "oldname", "pass1234");
+
+        var model = CreateEditAccountModel(ctx.UserManager, admin);
+        model.Username = "";
+        var result = await model.OnPostAsync(target.Id);
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task DeleteUser_ValidUser_Succeeds()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserAsync(ctx, "victim", "pass1234");
+
+        var model = CreateIndexModel(ctx.UserManager, admin);
+        var result = await model.OnPostDeleteAsync(target.Id);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("已删除", model.StatusMessage);
+
+        var deleted = await ctx.UserManager.FindByIdAsync(target.Id);
+        Assert.Null(deleted);
+    }
+
+    [Fact]
+    public async Task DeleteUser_SelfDelete_Refused()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+
+        var model = CreateIndexModel(ctx.UserManager, admin);
+        var result = await model.OnPostDeleteAsync(admin.Id);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("不能删除", model.StatusMessage);
+
+        var stillExists = await ctx.UserManager.FindByIdAsync(admin.Id);
+        Assert.NotNull(stillExists);
+    }
+
+    [Fact]
+    public async Task ToggleRole_AddAndRemove_Succeeds()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserAsync(ctx, "member", "pass1234");
+
+        var model = CreateIndexModel(ctx.UserManager, admin);
+
+        // Promote to admin
+        await model.OnPostToggleRoleAsync(target.Id);
+        Assert.True(await ctx.UserManager.IsInRoleAsync(target, "Admin"));
+        Assert.Contains("设为管理员", model.StatusMessage);
+
+        // Demote
+        await model.OnPostToggleRoleAsync(target.Id);
+        Assert.False(await ctx.UserManager.IsInRoleAsync(target, "Admin"));
+        Assert.Contains("取消", model.StatusMessage);
+    }
+
+    [Fact]
+    public async Task ToggleRole_SelfChange_Refused()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+
+        var model = CreateIndexModel(ctx.UserManager, admin);
+        var result = await model.OnPostToggleRoleAsync(admin.Id);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Contains("不能修改", model.StatusMessage);
+    }
+
+    [Fact]
+    public async Task AdminChangePassword_ValidPassword_Succeeds()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserAsync(ctx, "user1", "oldpass1");
+
+        var model = CreateChangePasswordModel(ctx.UserManager, admin);
+        model.NewPassword = "newpass2";
+        var result = await model.OnPostAsync(target.Id);
+
+        Assert.IsType<RedirectToPageResult>(result);
+
+        var updated = await ctx.UserManager.FindByIdAsync(target.Id);
+        Assert.NotNull(updated);
+        var check = await ctx.UserManager.CheckPasswordAsync(updated!, "newpass2");
+        Assert.True(check);
+    }
+
+    [Fact]
+    public async Task AdminChangePassword_EmptyPassword_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserAsync(ctx, "user1", "oldpass1");
+
+        var model = CreateChangePasswordModel(ctx.UserManager, admin);
+        model.NewPassword = "";
+        var result = await model.OnPostAsync(target.Id);
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+    }
+
+    private static async Task<AppUser> CreateUserAsync(TestIdentityContext ctx, string name, string password)
+    {
+        var user = new AppUser { UserName = name };
+        await ctx.UserManager.CreateAsync(user, password);
+        return user;
+    }
+
+    private static async Task<AppUser> CreateAdminAsync(TestIdentityContext ctx, string name, string password)
+    {
+        var admin = await CreateUserAsync(ctx, name, password);
+        await ctx.UserManager.AddToRoleAsync(admin, "Admin");
+        return admin;
+    }
+
+    private static EditAccountModel CreateEditAccountModel(UserManager<AppUser> userManager, AppUser currentUser)
+    {
+        var logger = NullLogger<EditAccountModel>.Instance;
+        var model = new EditAccountModel(userManager, logger);
+        SetupPageContext(model, currentUser);
+        return model;
+    }
+
+    private static IndexModel CreateIndexModel(UserManager<AppUser> userManager, AppUser currentUser)
+    {
+        var logger = NullLogger<IndexModel>.Instance;
+        var model = new IndexModel(userManager, logger);
+        SetupPageContext(model, currentUser);
+        return model;
+    }
+
+    private static ChangeUserPasswordModel CreateChangePasswordModel(UserManager<AppUser> userManager, AppUser currentUser)
+    {
+        var logger = NullLogger<ChangeUserPasswordModel>.Instance;
+        var model = new ChangeUserPasswordModel(userManager, logger);
+        SetupPageContext(model, currentUser);
+        return model;
+    }
+
+    private static void SetupPageContext(PageModel model, AppUser currentUser)
+    {
+        var identity = new System.Security.Claims.ClaimsIdentity(
+            IdentityConstants.ApplicationScheme);
+        identity.AddClaim(new System.Security.Claims.Claim(
+            System.Security.Claims.ClaimTypes.NameIdentifier, currentUser.Id));
+        identity.AddClaim(new System.Security.Claims.Claim(
+            System.Security.Claims.ClaimTypes.Name, currentUser.UserName ?? ""));
+
+        var httpContext = new DefaultHttpContext
+        {
+            User = new System.Security.Claims.ClaimsPrincipal(identity)
+        };
+
+        httpContext.Features.Set<IHttpRequestFeature>(new HttpRequestFeature());
+        httpContext.Features.Set<IHttpResponseFeature>(new HttpResponseFeature());
+
+        var modelState = new ModelStateDictionary();
+        var tempData = new TempDataDictionary(httpContext, new NullTempDataProvider());
+        var urlHelper = new UrlHelper(new ActionContext(
+            httpContext, new Microsoft.AspNetCore.Routing.RouteData(), new PageActionDescriptor()));
+
+        model.PageContext = new PageContext(new ActionContext(
+            httpContext,
+            new Microsoft.AspNetCore.Routing.RouteData(),
+            new PageActionDescriptor(),
+            modelState))
+        {
+            ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), modelState)
+        };
+
+        model.TempData = tempData;
+        model.Url = urlHelper;
+    }
+}
+
+internal sealed class NullTempDataProvider : ITempDataProvider
+{
+    public IDictionary<string, object?> LoadTempData(HttpContext context) => new Dictionary<string, object?>();
+    public void SaveTempData(HttpContext context, IDictionary<string, object?> values) { }
+}

@@ -1,6 +1,7 @@
 {
   "name": "箱知 BoxWise",
   "short_name": "BoxWise",
+  "description": "家庭物品管理，一目了然",
   "id": "./",
   "start_url": "./",
   "display": "standalone",

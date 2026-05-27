@@ -6,6 +6,11 @@
 
 <h2>账户列表</h2>
 
+@if (Model.StatusMessage is not null)
+{
+    <div class="status-message">@Model.StatusMessage</div>
+}
+
 <div class="actions">
     <a href="/admin/create" class="btn btn-primary">+ 创建账户</a>
 </div>
@@ -21,6 +26,7 @@ else
             <tr>
                 <th>用户名</th>
                 <th>角色</th>
+                <th style="width:260px;">操作</th>
             </tr>
         </thead>
         <tbody>
@@ -37,6 +43,17 @@ else
                         {
                             <span class="badge badge-user">成员</span>
                         }
+                    </td>
+                    <td>
+                        <a href="/admin/@user.Id/edit" class="btn btn-sm btn-outline">编辑</a>
+                        <a href="/admin/@user.Id/password" class="btn btn-sm btn-outline">改密</a>
+                        <form method="post" asp-page-handler="ToggleRole" asp-route-id="@user.Id" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline">@(user.IsAdmin ? "取消管理" : "设为管理")</button>
+                        </form>
+                        <form method="post" asp-page-handler="Delete" asp-route-id="@user.Id" class="d-inline"
+                              onsubmit="return confirm('确定删除此账户吗？此操作不可撤销。')">
+                            <button type="submit" class="btn btn-sm btn-danger">删除</button>
+                        </form>
                     </td>
                 </tr>
             }

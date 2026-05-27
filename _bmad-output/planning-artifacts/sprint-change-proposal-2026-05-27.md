@@ -177,5 +177,69 @@ Epic 5: 用户管理增强
 **成功标准：**
 1. Admin 可编辑/删除用户、修改密码、切换角色
 2. 普通用户可修改自己的用户名和密码
-3. 所有现有 28 测试继续通过
+3. 所有现有 43 测试继续通过
 4. 新增功能有对应测试覆盖
+
+---
+
+## 6. 品牌与版权完善 (2026-05-27 追加)
+
+### 6.1 应用图标
+
+从 SVG 矢量图标 (`logo.svg`) 生成全尺寸 PNG：
+
+| 文件 | 尺寸 | 用途 |
+|------|------|------|
+| `favicon-32.png` | 32×32 | 浏览器标签页 |
+| `favicon.ico` | 32+16 | 传统浏览器兼容 |
+| `apple-touch-icon.png` | 180×180 | iOS 主屏幕 |
+| `icon-192.png` | 192×192 | PWA 清单 |
+| `icon-512.png` | 512×512 | PWA 清单 + OG 图片 |
+
+### 6.2 页脚与品牌标识
+
+- **App Bar**: 用 `<img src="logo.svg">` 替换 emoji 📦
+- **Footer**: 页面底部显示 `© 2026 BoxWise · GitHub`，链接到 `https://github.com/elvisw/BoxWise`
+- **`index.html`**: 新增 SVG favicon、PNG fallback、Open Graph 元标签 (`og:title`/`og:description`/`og:image`/`twitter:card`)、`lang="zh-CN"`、`theme-color`
+- **`manifest.webmanifest`**: 新增 `description` 字段
+
+### 6.3 关于页面 (`/about`)
+
+Settings 页面新增"关于"入口，独立页面展示：
+
+- **应用信息**: Logo + 名称 + 副标题 + 版本号 (`Assembly.GetExecutingAssembly().GetName().Version`)
+- **运行环境**: .NET 运行时版本 (`RuntimeInformation.FrameworkDescription`)、OS、架构、数据库类型
+- **第三方依赖与许可**:
+
+  | 类库 | 版本 | 许可证 |
+  |------|------|--------|
+  | MudBlazor | 9.4.0 | MIT |
+  | SkiaSharp | 3.119.2 | MIT |
+  | SixLabors.ImageSharp | 3.1.7 | Apache-2.0 |
+  | ASP.NET Core | 10.0.8 | MIT |
+  | Entity Framework Core | 10.0.8 | MIT |
+  | xunit | 2.9.3 | MIT |
+  | coverlet | 6.0.4 | MIT |
+
+- **图标归属**: Noto Emoji (Google Fonts) — SIL Open Font License 1.1 — `github.com/googlefonts/noto-emoji`
+- **开源许可**: BoxWise — GPL-3.0 — `github.com/elvisw/BoxWise`
+
+### 6.4 版本号
+
+`Directory.Build.props` 新增 `<Version>1.0.0</Version>`，所有项目统一版本。
+
+### 6.5 Epics 更新
+
+在 Epic 5 中新增第三个 Story：
+
+```
+Epic 5: 用户管理增强 + 品牌收尾
+├── Story 5.1: Admin 后台用户管理扩展（编辑/删除/角色/密码重置）
+├── Story 5.2: 用户自助账户管理（修改信息/密码）
+└── Story 5.3: 品牌与版权完善（已完成 ✅）
+```
+
+### 6.6 构建与测试状态
+
+- 构建: 0 错误 0 警告
+- 测试: 43/43 通过（品牌变更未破坏任何现有测试）

@@ -11,6 +11,32 @@
 <div class="bw-settings-list">
 
     <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
+         @onclick="OpenAccountInfoDialog" @onkeydown="HandleAccountKey" @onkeydown:preventDefault>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Style="font-weight:500;">账户信息</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">修改用户名</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </div>
+    </div>
+
+    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
+         @onclick="OpenChangePasswordDialog" @onkeydown="HandlePasswordKey" @onkeydown:preventDefault>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Medium" Class="mr-3" Color="Color.Secondary" />
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Style="font-weight:500;">修改密码</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">修改登录密码</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </div>
+    </div>
+
+    <MudDivider Class="my-3" />
+
+    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
          @onclick="OpenLocationManageDialog" @onkeydown="HandleLocationKey" @onkeydown:preventDefault>
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
@@ -37,6 +63,20 @@
     <MudDivider Class="my-3" />
 
     <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
+         @onclick="GoAbout" @onkeydown="HandleAboutKey" @onkeydown:preventDefault>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Medium" Class="mr-3" Color="Color.Tertiary" />
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Style="font-weight:500;">关于</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">版本信息与开源许可</MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </div>
+    </div>
+
+    <MudDivider Class="my-3" />
+
+    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
          @onclick="LogoutAsync" @onkeydown="HandleLogoutKey" @onkeydown:preventDefault>
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Medium" Class="mr-3" Color="Color.Error" />
@@ -48,24 +88,21 @@
         </div>
     </div>
 
-    <MudDivider Class="my-3" />
-
-    <MudText Typo="Typo.caption" Color="Color.Default" Class="mb-2 ml-2">以下功能将在后续版本提供</MudText>
-
-    <MudPaper Class="pa-4 bw-settings-item bw-settings-disabled" Elevation="0">
-        <div class="d-flex align-center">
-            <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Medium" Class="mr-3" Color="Color.Default" />
-            <div class="flex-grow-1">
-                <MudText Typo="Typo.body1" Color="Color.Default" Style="font-weight:500;">账户信息</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Default">查看当前账户详情</MudText>
-            </div>
-            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
-        </div>
-    </MudPaper>
-
 </div>
 
 @code {
+    private async Task OpenAccountInfoDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        await DialogService.ShowAsync<AccountInfoDialog>("账户信息", options);
+    }
+
+    private async Task OpenChangePasswordDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        await DialogService.ShowAsync<ChangePasswordDialog>("修改密码", options);
+    }
+
     private async Task OpenLocationManageDialog()
     {
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
@@ -82,21 +119,44 @@
     {
         try { await AuthService.LogoutAsync(); }
         catch { }
-        finally { Navigation.NavigateTo("/", forceLoad: true); }
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    private void GoAbout() => Navigation.NavigateTo("/about");
+
+    private async void HandleAccountKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenAccountInfoDialog); }
+    }
+
+    private async void HandlePasswordKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenChangePasswordDialog); }
     }
 
     private async void HandleLocationKey(KeyboardEventArgs e)
     {
-        if (e.Key is "Enter" or " ") { await OpenLocationManageDialog(); }
+        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenLocationManageDialog); }
     }
 
     private async void HandleTagKey(KeyboardEventArgs e)
     {
-        if (e.Key is "Enter" or " ") { await OpenTagManageDialog(); }
+        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenTagManageDialog); }
+    }
+
+    private async void HandleAboutKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") { GoAbout(); }
     }
 
     private async void HandleLogoutKey(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or " ") { await LogoutAsync(); }
+    }
+
+    private static async Task InvokeSafeAsync(Func<Task> action)
+    {
+        try { await action(); }
+        catch { }
     }
 }

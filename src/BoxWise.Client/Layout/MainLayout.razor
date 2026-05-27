@@ -20,7 +20,8 @@
                                aria-label="返回"
                                OnClick="GoBack" />
             }
-            <MudText Typo="Typo.h6" Class="flex-grow-1">📦 箱知 · BoxWise</MudText>
+            <img src="logo.svg" alt="箱知 BoxWise" class="bw-logo" />
+            <MudText Typo="Typo.h6" Class="flex-grow-1">箱知 · BoxWise</MudText>
             @if (AppState.IsLoggedIn)
             {
                 <MudText Typo="Typo.subtitle1" Class="d-none d-sm-block" Style="color:inherit;">
@@ -32,6 +33,12 @@
     <MudMainContent Class="px-4 pb-20 pt-16">
         @Body
     </MudMainContent>
+    <footer class="bw-footer">
+        <MudText Typo="Typo.caption">
+            &copy; 2026 BoxWise &middot;
+            <MudLink Href="https://github.com/elvisw/BoxWise" Target="_blank" Typo="Typo.caption" Underline="Underline.Hover">GitHub</MudLink>
+        </MudText>
+    </footer>
 </MudLayout>
 
 @if (_showBottomNav)

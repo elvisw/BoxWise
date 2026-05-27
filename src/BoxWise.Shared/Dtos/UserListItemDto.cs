@@ -1,3 +1,3 @@
 namespace BoxWise.Shared.Dtos;
 
-public record UserListItemDto(string UserName, bool IsAdmin);
+public record UserListItemDto(string Id, string UserName, bool IsAdmin);

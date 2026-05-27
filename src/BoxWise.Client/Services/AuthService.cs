@@ -38,7 +38,59 @@ public class AuthService
         _authStateProvider.NotifyAuthenticationStateChanged();
     }
 
-    private record AuthUserDto(string UserName, bool IsAdmin);
+    public async Task<(bool Success, string? Error)> UpdateProfileAsync(string newUsername)
+    {
+        var response = await _http.PutAsJsonAsync("api/auth/me", new UpdateProfileRequest(newUsername));
+
+        if (response.IsSuccessStatusCode)
+        {
+            var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
+            if (user is not null)
+            {
+                _appState.SetUser(user.UserName, user.IsAdmin);
+                _authStateProvider.NotifyAuthenticationStateChanged();
+            }
+            return (true, null);
+        }
+
+        var error = await TryGetErrorAsync(response);
+        return (false, error ?? "修改失败");
+    }
+
+    public async Task<(bool Success, string? Error)> ChangePasswordAsync(string currentPassword, string newPassword)
+    {
+        var response = await _http.PutAsJsonAsync("api/auth/me/password",
+            new ChangePasswordRequest(currentPassword, newPassword));
+
+        if (response.IsSuccessStatusCode)
+            return (true, null);
+
+        var error = await TryGetErrorAsync(response);
+        return (false, error ?? "密码修改失败");
+    }
+
+    private static async Task<string?> TryGetErrorAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+            if (problem?.Errors?.Count > 0)
+            {
+                return string.Join("; ", problem.Errors.Values.SelectMany(v => v));
+            }
+            return problem?.Detail;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private record ProblemDetails
+    {
+        public string? Detail { get; init; }
+        public Dictionary<string, string[]>? Errors { get; init; }
+    }
 }
 
 public enum LoginResult

@@ -1,0 +1,59 @@
+@namespace BoxWise.Client.Components
+@using MudBlazor
+@inject AuthService AuthService
+@inject AppState AppState
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">账户信息</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudText Color="Color.Error" Class="mb-2">@_error</MudText>
+        }
+        <MudTextField @bind-Value="_username" Label="用户名"
+                      Variant="Variant.Outlined" Disabled="@_saving" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="SaveAsync" Color="Color.Primary"
+                   Variant="Variant.Filled" Disabled="@(_saving || _username == _originalName)">保存</MudButton>
+        <MudButton OnClick="Cancel">取消</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private string _username = "";
+    private string _originalName = "";
+    private string? _error;
+    private bool _saving;
+
+    protected override void OnInitialized()
+    {
+        _username = AppState.CurrentUserName ?? "";
+        _originalName = _username;
+    }
+
+    private async Task SaveAsync()
+    {
+        _error = null;
+        _saving = true;
+
+        var (success, error) = await AuthService.UpdateProfileAsync(_username);
+        _saving = false;
+
+        if (success)
+        {
+            MudDialog.Close();
+        }
+        else
+        {
+            _error = error;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

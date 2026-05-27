@@ -1,0 +1,21 @@
+@page "/admin/{id}/edit"
+@model BoxWise.Server.Pages.Admin.EditAccountModel
+@{
+    ViewData["Title"] = "编辑用户";
+}
+
+<h2>编辑用户</h2>
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="error-message">@Model.ErrorMessage</div>
+}
+
+<form method="post">
+    <div class="form-group">
+        <label for="username">用户名</label>
+        <input type="text" id="username" name="Username" value="@Model.Username" required maxlength="50" />
+    </div>
+    <button type="submit" class="btn btn-primary">保存</button>
+    <a href="/admin" class="btn btn-link">返回列表</a>
+</form>

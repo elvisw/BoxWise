@@ -125,6 +125,26 @@ code {
     color: var(--mud-palette-primary);
 }
 
+/* App bar logo */
+.bw-logo {
+    width: 28px;
+    height: 28px;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+/* Footer */
+.bw-footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--mud-palette-surface);
+    border-top: 1px solid var(--mud-palette-lines-default);
+    color: var(--mud-palette-text-secondary);
+}
+
 /* Settings page */
 .bw-settings-item {
     border-radius: 8px;
@@ -136,4 +156,44 @@ code {
 .bw-settings-disabled {
     opacity: 0.4;
     pointer-events: none;
+}
+
+/* About page */
+.bw-about-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.bw-about-logo {
+    width: 72px;
+    height: 72px;
+}
+
+.bw-dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 16px;
+}
+
+.bw-dl dt {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.bw-dl dd {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.bw-license-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.bw-about-paper {
+    border: 1px solid var(--mud-palette-lines-default);
 }

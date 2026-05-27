@@ -67,5 +67,9 @@ development_status:
   4-4-item-detail-delete: review
   4-5-pwa-offline: review
   4-6-docker-deployment: review
-  epic-4: done
   epic-4-retrospective: done
+  epic-5: done
+  5-1-admin-user-management: done
+  5-2-user-self-service: done
+  5-3-branding-copyright: done
+  epic-5-retrospective: done
