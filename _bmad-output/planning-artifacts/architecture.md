@@ -223,6 +223,32 @@ Upload (multipart/form-data) → Validate → Save original
 
 **Affects:** FR-17, FR-18, FR-19, FR-20
 
+#### Admin UI Expansion: Continue on Identity + Razor Pages
+
+**Decision (2026-05-27):** 用户管理功能扩展（编辑用户、修改密码、删除用户、角色分配、用户自助改密/改信息）继续基于 ASP.NET Core Identity 内置 API + 自建 Razor Pages Admin UI 实现。不引入 Microsoft Identity UI (`AddDefaultUI`)、Auth0/Clerk、ABP Framework 或其他第三方管理层。
+
+**Rationale:**
+- 所有缺失功能的 API 已由 `UserManager<T>` 内置提供，当前缺失的仅是调用这些 API 的 UI 页面
+- Microsoft Identity UI 设计为自助注册场景，不提供 Admin CRUD/角色管理页面，且 UI 风格（Bootstrap）与项目（MudBlazor）不统一
+- 云托管方案（Auth0/Clerk）对 ≤5 人家用场景过重
+- .NET 生态中不存在仅提供 "Identity Admin 管理 UI" 的独立轻量库
+- 自建 Admin UI 工作量小（2-3 个 Razor Page），架构一致，无新依赖
+
+**Admin Razor Pages (updated structure):**
+```
+Pages/Admin/
+├── Index.cshtml              ← 账户列表（含操作列：编辑/删除/角色切换）
+├── CreateAccount.cshtml      ← 创建账户
+├── EditAccount.cshtml        ← [新增] 编辑用户信息
+├── ChangeUserPassword.cshtml ← [新增] 修改用户密码
+├── _Layout.cshtml
+├── _ViewImports.cshtml
+└── _ViewStart.cshtml
+```
+
+**New FRs:** FR-21~FR-26 (see Sprint Change Proposal 2026-05-27)
+**New Epic:** Epic 5 — 用户管理增强 (proposed)
+
 ---
 
 ### API & Communication Patterns
