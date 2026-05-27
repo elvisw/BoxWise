@@ -1,5 +1,6 @@
 @page "/"
 @attribute [Authorize]
+@implements IDisposable
 @using Microsoft.AspNetCore.Authorization
 
 @inject ItemService ItemService
@@ -8,6 +9,7 @@
 @inject HttpClient Http
 
 <MudTextField @bind-Value="_query"
+              @bind-Value:after="OnQueryChanged"
               Placeholder="搜索物品名称、备注或标签..."
               Adornment="Adornment.Start"
               AdornmentIcon="@Icons.Material.Filled.Search"
@@ -80,10 +82,8 @@ else if (_items is not null)
         await LoadAsync();
     }
 
-    protected override async Task OnParametersSetAsync()
+    private async Task OnQueryChanged()
     {
-        if (_loading) return;
-
         _searchCts?.Cancel();
         _searchCts = new CancellationTokenSource();
         var ct = _searchCts.Token;
@@ -94,8 +94,15 @@ else if (_items is not null)
 
             if (string.IsNullOrWhiteSpace(_query))
             {
-                if (_items is null)
-                    await LoadAsync();
+                _error = false;
+                _loading = true;
+                StateHasChanged();
+                _items = await ItemService.GetFilteredAsync(null, null, null, ct) ?? [];
+                if (!ct.IsCancellationRequested)
+                {
+                    _loading = false;
+                    StateHasChanged();
+                }
                 return;
             }
 
@@ -105,12 +112,21 @@ else if (_items is not null)
             var results = await ItemService.SearchAsync(_query, ct);
             if (!ct.IsCancellationRequested)
             {
+                _error = false;
                 _items = results ?? [];
                 _loading = false;
                 StateHasChanged();
             }
+            else
+            {
+                _loading = false;
+            }
         }
-        catch (TaskCanceledException) { }
+        catch (TaskCanceledException)
+        {
+            _loading = false;
+            StateHasChanged();
+        }
         catch
         {
             if (!ct.IsCancellationRequested)
@@ -118,7 +134,18 @@ else if (_items is not null)
                 _error = true;
                 _loading = false;
             }
+            else
+            {
+                _loading = false;
+            }
         }
+    }
+
+    public void Dispose()
+    {
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = null;
     }
 
     private async Task LoadAsync()
