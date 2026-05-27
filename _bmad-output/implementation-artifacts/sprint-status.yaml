@@ -75,7 +75,7 @@ development_status:
   epic-5-retrospective: done
   epic-6: in-progress
   6-1-test-cleanup-quality: done
-  6-2-repo-coverage-gap-fill: backlog
+  6-2-repo-coverage-gap-fill: done
   6-3-service-layer-tests: backlog
   6-4-endpoint-layer-tests: backlog
   6-5-admin-pagemodel-tests: backlog

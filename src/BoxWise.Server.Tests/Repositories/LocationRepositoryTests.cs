@@ -258,4 +258,122 @@ public class LocationRepositoryTests
 
         Assert.Equal(single, batch[idPath]);
     }
+
+    // ──────────── GetAllAsync ────────────
+
+    [Fact]
+    public async Task GetAllAsync_ReturnsAllOrderedBySortOrder()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        await repo.CreateAsync("第二", null, sortOrder: 2);
+        await repo.CreateAsync("第一", null, sortOrder: 1);
+        await repo.CreateAsync("第三", null, sortOrder: 3);
+
+        var locations = await repo.GetAllAsync();
+
+        Assert.Equal(3, locations.Count);
+        Assert.Equal("第一", locations[0].Name);
+        Assert.Equal("第二", locations[1].Name);
+        Assert.Equal("第三", locations[2].Name);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_SameSortOrder_ThenByNames()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        await repo.CreateAsync("C", null, sortOrder: 1);
+        await repo.CreateAsync("A", null, sortOrder: 1);
+        await repo.CreateAsync("B", null, sortOrder: 1);
+
+        var locations = await repo.GetAllAsync();
+
+        // 相同 SortOrder 按 Name 排序
+        Assert.Equal("A", locations[0].Name);
+        Assert.Equal("B", locations[1].Name);
+        Assert.Equal("C", locations[2].Name);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_Empty_ReturnsEmptyList()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        var locations = await repo.GetAllAsync();
+
+        Assert.Empty(locations);
+    }
+
+    // ──────────── CreateAsync 边界 ────────────
+
+    [Fact]
+    public async Task CreateAsync_NonExistentParent_ThrowsArgumentException()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync("子节点", parentId: 999));
+    }
+
+    [Fact]
+    public async Task CreateAsync_ExceedsMaxDepth_ThrowsArgumentException()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        // 构建 10 层深链
+        Location? parent = null;
+        for (int i = 1; i <= 10; i++)
+        {
+            parent = await repo.CreateAsync($"第{i}层", parent?.Id);
+        }
+
+        // 第 11 层应抛出 ArgumentException
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.CreateAsync("第11层", parent!.Id));
+    }
+
+    [Fact]
+    public async Task CreateAsync_AtMaxDepth_Succeeds()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+
+        // 构建 9 层 → 第 10 层应创建成功
+        Location? parent = null;
+        for (int i = 1; i < 10; i++)
+        {
+            parent = await repo.CreateAsync($"第{i}层", parent?.Id);
+        }
+
+        var deepest = await repo.CreateAsync("第10层", parent?.Id);
+
+        Assert.NotNull(deepest);
+        Assert.True(deepest.Id > 0);
+    }
+
+    // ──────────── DeleteAsync 边界 ────────────
+
+    [Fact]
+    public async Task DeleteAsync_WithItems_ThrowsInvalidOperationException()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new LocationRepository(db);
+        var location = await repo.CreateAsync("客厅", null);
+
+        // 创建关联 Item
+        var item = new Item
+        {
+            Name = "电视",
+            LocationId = location.Id,
+            CreatedByUserId = "user-1",
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repo.DeleteAsync(location.Id));
+    }
+
 }
