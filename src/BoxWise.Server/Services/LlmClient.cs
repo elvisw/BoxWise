@@ -25,6 +25,18 @@ public class LlmClient
     public async Task<RecognitionResultDto?> RecognizeAsync(string imagePath, string contentType = "image/jpeg",
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_options.BaseUrl))
+        {
+            _logger.LogWarning("AI 未配置（缺少 BaseUrl），降级为手动输入");
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            _logger.LogWarning("AI 未配置（缺少 ApiKey），降级为手动输入");
+            return null;
+        }
+
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

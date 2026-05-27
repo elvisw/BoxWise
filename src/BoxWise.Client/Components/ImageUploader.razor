@@ -98,6 +98,14 @@
         }
 
         var base64 = dataUrl[(commaIdx + 1)..];
+        if (string.IsNullOrWhiteSpace(base64))
+        {
+            _isCapturing = false;
+            _previewUrl = null;
+            _errorMessage = "拍照失败，请重试";
+            StateHasChanged();
+            return;
+        }
         var bytes = Convert.FromBase64String(base64);
 
         const int maxSize = 10 * 1024 * 1024;

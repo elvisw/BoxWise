@@ -197,8 +197,7 @@
         try
         {
             using var content = new MultipartFormDataContent();
-            using var stream = photo.OpenReadStream();
-            using var streamContent = new StreamContent(stream);
+            var streamContent = new StreamContent(photo.OpenReadStream());
             streamContent.Headers.ContentType = new(photo.ContentType);
             content.Add(streamContent, "file", photo.FileName);
             content.Add(new StringContent(itemId.ToString()), "itemId");
