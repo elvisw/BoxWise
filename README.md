@@ -21,7 +21,7 @@
 
 | 环境 | 配置方式 | 账户 |
 |------|---------|------|
-| **本地开发** | `launchSettings.json` + `appsettings.Development.json`（已预置） | `admin` / `admin123` |
+| **本地开发** | `launchSettings.json` 环境变量（已预置） | `admin` / `BoxWise!2024Dev` |
 | **Docker** | `docker-compose.yml` 环境变量 | 无默认，必须设置 |
 | **二进制** | systemd / shell 环境变量 | 无默认，必须设置 |
 
@@ -40,7 +40,7 @@
 | `Admin:Password` 未配置 | 不创建管理员账户，日志输出警告 |
 | 管理员被误删 | 只要密码环境变量仍存在，重启即自动重建 |
 
-> **安全提示：** 生产环境务必使用强密码，不要使用默认的 `admin123`。
+> **安全提示：** 生产环境务必使用强密码，不要使用默认密码。
 
 ### 创建家庭成员账户
 
@@ -105,7 +105,7 @@ cd src/BoxWise.Client && dotnet run
 >
 > **生产环境无需配置 `ApiBaseUrl`** — 不配置时 `Http.BaseAddress` 为 null，所有请求走同源，Admin 链接走 `/admin`。
 
-登录: `admin` / `admin123`
+登录: `admin` / `BoxWise!2024Dev`
 
 ### 二进制部署（Linux VPS）
 

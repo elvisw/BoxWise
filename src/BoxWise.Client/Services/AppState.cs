@@ -3,6 +3,7 @@ namespace BoxWise.Client.Services;
 public class AppState
 {
     public string? CurrentUserName { get; private set; }
+    public string? CurrentUserEmail { get; private set; }
     public bool IsAdmin { get; private set; }
     public bool IsPasswordManagedByEnv { get; private set; }
     public bool IsLoggedIn => CurrentUserName is not null;
@@ -12,17 +13,19 @@ public class AppState
 
     public event Action? StateChanged;
 
-    public void SetUser(string userName, bool isAdmin, bool isPasswordManagedByEnv = false)
+    public void SetUser(string userName, bool isAdmin, bool isPasswordManagedByEnv = false, string? email = null)
     {
         CurrentUserName = userName;
         IsAdmin = isAdmin;
         IsPasswordManagedByEnv = isPasswordManagedByEnv;
+        CurrentUserEmail = email;
         StateChanged?.Invoke();
     }
 
     public void Clear()
     {
         CurrentUserName = null;
+        CurrentUserEmail = null;
         IsAdmin = false;
         IsPasswordManagedByEnv = false;
         StateChanged?.Invoke();

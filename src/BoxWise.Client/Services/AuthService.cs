@@ -32,13 +32,14 @@ public class AuthService
                 return LoginResult.RequiresTwoFactor;
             }
 
+            _appState.SetUser(loginResponse.Username ?? username, loginResponse.IsAdmin ?? false, false);
+            _authStateProvider.NotifyAuthenticationStateChanged();
+
             if (loginResponse.PasswordRequiresChange)
             {
                 return LoginResult.PasswordRequiresChange;
             }
 
-            _appState.SetUser(loginResponse.Username ?? username, loginResponse.IsAdmin ?? false, false);
-            _authStateProvider.NotifyAuthenticationStateChanged();
             return LoginResult.Success;
         }
 
@@ -52,7 +53,7 @@ public class AuthService
         if (response.IsSuccessStatusCode)
         {
             var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
-            _appState.SetUser(user?.UserName ?? "", user?.IsAdmin ?? false, user?.PasswordManagedByEnv ?? false);
+            _appState.SetUser(user?.UserName ?? "", user?.IsAdmin ?? false, user?.PasswordManagedByEnv ?? false, user?.Email);
             _authStateProvider.NotifyAuthenticationStateChanged();
             return LoginResult.Success;
         }
@@ -189,7 +190,7 @@ public class AuthService
         if (response.IsSuccessStatusCode)
         {
             var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
-            _appState.SetUser(user?.UserName ?? "", user?.IsAdmin ?? false, user?.PasswordManagedByEnv ?? false);
+            _appState.SetUser(user?.UserName ?? "", user?.IsAdmin ?? false, user?.PasswordManagedByEnv ?? false, user?.Email);
             _authStateProvider.NotifyAuthenticationStateChanged();
             return LoginResult.Success;
         }
@@ -283,16 +284,16 @@ public class AuthService
         _authStateProvider.NotifyAuthenticationStateChanged();
     }
 
-    public async Task<(bool Success, string? Error)> UpdateProfileAsync(string newUsername)
+    public async Task<(bool Success, string? Error)> UpdateProfileAsync(string newUsername, string? newEmail = null)
     {
-        var response = await _http.PutAsJsonAsync("api/auth/me", new UpdateProfileRequest(newUsername));
+        var response = await _http.PutAsJsonAsync("api/auth/me", new UpdateProfileRequest(newUsername, newEmail));
 
         if (response.IsSuccessStatusCode)
         {
             var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
             if (user is not null)
             {
-                _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv);
+                _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email);
                 _authStateProvider.NotifyAuthenticationStateChanged();
             }
             return (true, null);

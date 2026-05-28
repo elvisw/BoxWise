@@ -30,3 +30,18 @@
 - [x] ~~无并发控制（最后写入胜出）~~ → 添加 `Version` GUID 并发令牌（`IsConcurrencyToken`），冲突时返回 409 Conflict
 - [x] ~~无编辑人/修改时间追踪~~ → 添加 `UpdatedByUserId`/`UpdatedAt` 字段，编辑时自动写入，详情页展示
 - [x] ~~空 Tag 列表清空所有标签~~ → 已验证：与 CreateAsync 行为一致，无需修改
+
+## Deferred from: code review of Epic 8 bug fixes (2026-05-29)
+
+- [ ] Email 唯一性检查 TOCTOU 竞态 — `AuthEndpoints.cs:225-232` — 与用户名唯一性检查同模式，预存在问题
+- [ ] 管理员创建/更新密码验证路径不一致 — `Program.cs:259,281` — 创建绕过了验证器但更新走完整验证链，设计决策需文档化
+- [ ] 邮箱格式校验宽松（仅 `Contains('@')`） — `AuthEndpoints.cs:217` — 当前使用场景足够，后续可增强
+- [ ] Email vs EmailForTwoFactor 不同步 — `AppUser.cs:10` vs `AuthEndpoints.cs:234` — 跨 Story 关注点，修改 Email 不会更新 2FA 邮箱
+- [ ] 客户端缺少邮箱格式前端校验 — `AccountInfoDialog.razor:17-19` — 非阻塞，服务端已有校验
+- [ ] 版本回滚时 Email 可能被清空 — `CookieAuthenticationStateProvider.cs:29` — 灰度发布/回滚期间旧 API 不返回 Email 字段导致状态丢失
+- [ ] LoginAsync 未传递 Email 给 SetUser — `AuthService.cs:35` — LoginResponse 无 Email 字段，需更大改动
+- [ ] 启动时并发创建管理员竞态 — `Program.cs:253-270` — 多实例同时启动时可能重复创建，生产单实例部署无影响
+- [ ] URL 长度/URI 格式的极端边界 — `TotpSetup.razor:92-94` — 极低概率
+- [ ] 保存按钮 disabled 逻辑无法感知服务器错误 — `AccountInfoDialog.razor:23` — 轻微 UX 改进
+- [ ] AppState 无线程同步保护 — `AppState.cs:5-8` — 与原有字段模式一致，预存在问题
+- [ ] NewUsername.Trim() 无 null 守卫 — `AuthEndpoints.cs:169` — positional record 非可空参数，但防御性编程建议添加

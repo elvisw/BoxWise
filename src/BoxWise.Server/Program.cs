@@ -255,12 +255,14 @@ if (app.Environment.IsDevelopment())
         if (adminUser is null)
         {
             adminUser = new AppUser { UserName = adminUsername };
-            var result = await userManager.CreateAsync(adminUser, adminPassword);
+            // 管理员账户创建跳过密码验证器（种子数据，配置来源可信）
+            adminUser.PasswordHash = userManager.PasswordHasher.HashPassword(adminUser, adminPassword);
+            var result = await userManager.CreateAsync(adminUser);
             if (!result.Succeeded)
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                 app.Logger.LogWarning("Failed to create admin user: {Errors}", errors);
-                adminUser = null; // 未持久化，跳过后续角色分配
+                adminUser = null;
             }
             else
             {

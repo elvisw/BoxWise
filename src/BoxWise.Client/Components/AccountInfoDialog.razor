@@ -14,10 +14,13 @@
         }
         <MudTextField @bind-Value="_username" Label="用户名"
                       Variant="Variant.Outlined" Disabled="@_saving" />
+        <MudTextField @bind-Value="_email" Label="邮箱"
+                      Variant="Variant.Outlined" Disabled="@_saving" Class="mt-3"
+                      HelperText="用于双因素认证的邮箱验证码" />
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="SaveAsync" Color="Color.Primary"
-                   Variant="Variant.Filled" Disabled="@(_saving || _username == _originalName)">保存</MudButton>
+                   Variant="Variant.Filled" Disabled="@(_saving || (_username == _originalName && _email == _originalEmail))">保存</MudButton>
         <MudButton OnClick="Cancel">取消</MudButton>
     </DialogActions>
 </MudDialog>
@@ -27,14 +30,18 @@
     private IMudDialogInstance MudDialog { get; set; } = null!;
 
     private string _username = "";
+    private string _email = "";
     private string _originalName = "";
+    private string _originalEmail = "";
     private string? _error;
     private bool _saving;
 
     protected override void OnInitialized()
     {
         _username = AppState.CurrentUserName ?? "";
+        _email = AppState.CurrentUserEmail ?? "";
         _originalName = _username;
+        _originalEmail = _email;
     }
 
     private async Task SaveAsync()
@@ -42,7 +49,8 @@
         _error = null;
         _saving = true;
 
-        var (success, error) = await AuthService.UpdateProfileAsync(_username);
+        var newEmail = _email != _originalEmail ? _email : null;
+        var (success, error) = await AuthService.UpdateProfileAsync(_username, newEmail);
         _saving = false;
 
         if (success)

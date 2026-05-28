@@ -283,7 +283,7 @@ public static class TwoFactorEndpoints
         var isSpecificAdmin = adminConfigured
             && string.Equals(user.UserName, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
 
-        return TypedResults.Ok(new AuthUserDto(user.UserName!, isAdmin, isSpecificAdmin));
+        return TypedResults.Ok(new AuthUserDto(user.UserName!, isAdmin, isSpecificAdmin, Email: user.Email));
     }
 
     /// <summary>
@@ -516,7 +516,7 @@ public static class TwoFactorEndpoints
         var isSpecificAdmin = adminConfigured
             && string.Equals(user.UserName, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
 
-        return TypedResults.Ok(new AuthUserDto(user.UserName!, isAdmin, isSpecificAdmin));
+        return TypedResults.Ok(new AuthUserDto(user.UserName!, isAdmin, isSpecificAdmin, Email: user.Email));
     }
 
     /// <summary>

@@ -9,7 +9,7 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Admin__Username": "admin",
-        "Admin__Password": "admin123",
+        "Admin__Password": "BoxWise!2024Dev",
         "Kestrel__Certificates__Default__Path": "certs/boxwise-dev.pfx"
       }
     }

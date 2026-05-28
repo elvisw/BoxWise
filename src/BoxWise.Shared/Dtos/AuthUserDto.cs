@@ -1,3 +1,3 @@
 namespace BoxWise.Shared.Dtos;
 
-public record AuthUserDto(string UserName, bool IsAdmin, bool PasswordManagedByEnv = false, bool PasswordRequiresChange = false);
+public record AuthUserDto(string UserName, bool IsAdmin, bool PasswordManagedByEnv = false, bool PasswordRequiresChange = false, string? Email = null);

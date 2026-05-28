@@ -155,7 +155,7 @@ public static class AuthEndpoints
         var isSpecificAdmin = adminConfigured
             && string.Equals(user.UserName, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
 
-        return TypedResults.Ok(new AuthUserDto(user.UserName, isAdmin, isSpecificAdmin));
+        return TypedResults.Ok(new AuthUserDto(user.UserName, isAdmin, isSpecificAdmin, Email: user.Email));
     }
 
     private static async Task<Results<Ok<AuthUserDto>, ValidationProblem>>
@@ -203,12 +203,59 @@ public static class AuthEndpoints
             });
         }
 
+        // 处理邮箱更新
+        if (request.NewEmail is not null)
+        {
+            var email = request.NewEmail.Trim();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                var clearResult = await userManager.SetEmailAsync(user, null);
+                if (!clearResult.Succeeded)
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "email", clearResult.Errors.Select(e => e.Description).ToArray() }
+                    });
+                }
+            }
+            else
+            {
+                if (!email.Contains('@') || email.Length > 256)
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "email", new[] { "请输入有效的邮箱地址" } }
+                    });
+                }
+
+                var existingEmailUser = await userManager.FindByEmailAsync(email);
+                if (existingEmailUser is not null && existingEmailUser.Id != user.Id)
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "email", new[] { "此邮箱已被其他用户使用" } }
+                    });
+                }
+
+                var emailResult = await userManager.SetEmailAsync(user, email);
+                if (!emailResult.Succeeded)
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "email", emailResult.Errors.Select(e => e.Description).ToArray() }
+                    });
+                }
+
+                user.EmailConfirmed = false;
+            }
+        }
+
         var stillAdmin = await userManager.IsInRoleAsync(user, "Admin");
         var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
         var isSpecificAdmin = adminConfigured
             && string.Equals(user.UserName, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
 
-        return TypedResults.Ok(new AuthUserDto(user.UserName, stillAdmin, isSpecificAdmin));
+        return TypedResults.Ok(new AuthUserDto(user.UserName, stillAdmin, isSpecificAdmin, Email: user.Email));
     }
 
     private static async Task<Results<Ok, ValidationProblem>>
