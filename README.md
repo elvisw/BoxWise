@@ -343,7 +343,8 @@ dotnet build                    # 3. 本地构建自动读取标签作为版本�
 |----------|-------------|
 | HEAD = `v1.0.1` | `v1.0.1` |
 | `v1.0.1` 之后 4 个 commit | `v1.0.1-4-gabcdef1` |
-| 无 tag / 非 git 环境 | `1.0.0`（回退，构建警告） |
+| 无 tag（git 可用） | `abcdef1` |
+| 非 git 环境 | `1.0.0`（回退，构建警告） |
 
 **工作原理：** `Directory.Build.targets` 中的 MSBuild Target 在 `dotnet build` 前自动执行 `git describe --tags`，提取版本号写入程序集属性。关于页面（`/about`）读取并显示。
 
