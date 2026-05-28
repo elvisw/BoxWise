@@ -328,13 +328,30 @@ BoxWise/
 - PWA（安装到桌面 + 离线浏览缓存图片）
 - 管理员后台（Razor Pages，创建家庭账户）
 
+## 版本管理
+
+版本号由构建时自动从 Git 标签获取，无需手动维护。
+
+```bash
+# 发版流程
+git tag v1.0.1                  # 1. 打标签
+git push origin v1.0.1          # 2. 推送标签（触发 CI 构建）
+dotnet build                    # 3. 本地构建自动读取标签作为版本号
+```
+
+| Git 状态 | 关于页面显示 |
+|----------|-------------|
+| HEAD = `v1.0.1` | `v1.0.1` |
+| `v1.0.1` 之后 4 个 commit | `v1.0.1-4-gabcdef1` |
+| 无 tag / 非 git 环境 | `1.0.0`（回退，构建警告） |
+
+**工作原理：** `Directory.Build.targets` 中的 MSBuild Target 在 `dotnet build` 前自动执行 `git describe --tags`，提取版本号写入程序集属性。关于页面（`/about`）读取并显示。
+
+> **CI/Docker 注意事项：** CI 构建前需 `git fetch --tags` 获取标签。Docker 构建因 `.dockerignore` 排除 `.git/` 目录，版本号始终回退到 `1.0.0`；如需嵌入真实版本，应在宿主机构建后 COPY 发布产物进镜像。
+
 ## 维护
 
 ```bash
-# 发布新版本（打 tag 后 GitHub Actions 自动构建并发布到 Releases）
-git tag v1.0.1
-git push origin v1.0.1
-
 # EF Core 迁移
 cd src/BoxWise.Server
 dotnet ef migrations add <MigrationName>
