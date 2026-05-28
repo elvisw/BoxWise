@@ -1,6 +1,6 @@
 <Project>
   <Target Name="SetVersionFromGit" BeforeTargets="BeforeBuild">
-    <Exec Command="git describe --tags --abbrev=7 --always"
+    <Exec Command="git describe --tags --first-parent --match v* --abbrev=7 --always"
           ConsoleToMSBuild="true"
           StandardOutputImportance="low"
           IgnoreExitCode="true">
