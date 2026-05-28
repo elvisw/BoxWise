@@ -3,6 +3,7 @@
 
 @using BoxWise.Shared.Dtos
 @inject ItemService ItemService
+@inject TagService TagService
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject HttpClient Http
@@ -17,6 +18,7 @@ else if (_notFound)
 }
 else if (_item is not null)
 {
+    @* --- 照片区域（展示/编辑模式均只读） --- *@
     @if (_item.MediumPath is not null)
     {
         <img src="@($"{Http.BaseAddress}api/images/{_item.Id}?type=medium")" style="max-width:100%;max-height:400px;border-radius:4px" />
@@ -29,48 +31,99 @@ else if (_item is not null)
         </MudPaper>
     }
 
-    <MudText Typo="Typo.h5" Class="mt-3">@_item.Name</MudText>
-
-    <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-2">
-        <strong>位置:</strong> @FormatLocationPath(_item.LocationPath, _item.LocationName, _item.LocationId)
-    </MudText>
-
-    @if (_item.TagNames is { Count: > 0 })
+    @if (_editing)
     {
-        <div class="mt-1 d-flex flex-wrap" style="gap:4px;">
-            <MudText Typo="Typo.body2"><strong>标签:</strong></MudText>
-            @foreach (var tag in _item.TagNames)
-            {
-                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">@tag</MudChip>
-            }
+        @* === 编辑模式 === *@
+        <MudTextField @bind-Value="_editName" Label="物品名称" Required="true"
+                      Variant="Variant.Outlined" Class="mt-3" />
+
+        <div class="mt-3">
+            <MudText Typo="Typo.body2" Class="mb-2"><strong>位置:</strong></MudText>
+            <LocationTree SelectedLocationId="_editLocationId"
+                          SelectedLocationIdChanged="v => _editLocationId = v" />
+        </div>
+
+        <div class="mt-3">
+            <MudText Typo="Typo.body2" Class="mb-2"><strong>标签:</strong></MudText>
+            <TagFilter SelectedTagIds="_editTagIds"
+                       SelectedTagIdsChanged="v => _editTagIds = v" />
+        </div>
+
+        <MudTextField @bind-Value="_editNote" Label="备注" Lines="3"
+                      Variant="Variant.Outlined" Class="mt-3" />
+
+        <div class="d-flex" style="gap:8px;">
+            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                       OnClick="SaveAsync" Class="mt-4"
+                       Disabled="@(string.IsNullOrWhiteSpace(_editName) || _editLocationId is null || _isSaving)">
+                @(_isSaving ? "保存中..." : "保存")
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Default"
+                       OnClick="CancelEdit" Class="mt-4"
+                       Disabled="_isSaving">
+                取消
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick='() => Navigation.NavigateTo("/browse")' Class="mt-4">
+                返回浏览
+            </MudButton>
+        </div>
+
+        @if (_saveError is not null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Error" Class="mt-2">@_saveError</MudText>
+        }
+    }
+    else
+    {
+        @* === 展示模式 === *@
+        <MudText Typo="Typo.h5" Class="mt-3">@_item.Name</MudText>
+
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-2">
+            <strong>位置:</strong> @FormatLocationPath(_item.LocationPath, _item.LocationName, _item.LocationId)
+        </MudText>
+
+        @if (_item.TagNames is { Count: > 0 })
+        {
+            <div class="mt-1 d-flex flex-wrap" style="gap:4px;">
+                <MudText Typo="Typo.body2"><strong>标签:</strong></MudText>
+                @foreach (var tag in _item.TagNames)
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary">@tag</MudChip>
+                }
+            </div>
+        }
+
+        @if (_item.Note is not null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-1">
+                <strong>备注:</strong> @_item.Note
+            </MudText>
+        }
+
+        <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-1">
+            <strong>录入者:</strong> @(_item.CreatedByUserName.Length > 0 ? _item.CreatedByUserName : "未知")
+        </MudText>
+        <MudText Typo="Typo.caption" Color="Color.Default">
+            录入时间: @_item.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+        </MudText>
+
+        <div class="d-flex" style="gap:8px;">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick='() => Navigation.NavigateTo("/browse")' Class="mt-4">
+                返回浏览
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="() => EnterEditMode()" Class="mt-4">
+                编辑
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Error"
+                       OnClick="OpenDeleteDialogAsync" Class="mt-4"
+                       Disabled="_isDeleting">
+                @(_isDeleting ? "删除中..." : "删除物品")
+            </MudButton>
         </div>
     }
-
-    @if (_item.Note is not null)
-    {
-        <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-1">
-            <strong>备注:</strong> @_item.Note
-        </MudText>
-    }
-
-    <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-1">
-        <strong>录入者:</strong> @(_item.CreatedByUserName.Length > 0 ? _item.CreatedByUserName : "未知")
-    </MudText>
-    <MudText Typo="Typo.caption" Color="Color.Default">
-        录入时间: @_item.CreatedAt.ToString("yyyy-MM-dd HH:mm")
-    </MudText>
-
-    <div class="d-flex" style="gap:8px;">
-        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                   OnClick='() => Navigation.NavigateTo("/browse")' Class="mt-4">
-            返回浏览
-        </MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Error"
-                   OnClick="OpenDeleteDialogAsync" Class="mt-4"
-                   Disabled="_isDeleting">
-            @(_isDeleting ? "删除中..." : "删除物品")
-        </MudButton>
-    </div>
 }
 
 @code {
@@ -78,6 +131,14 @@ else if (_item is not null)
     private bool _loading = true;
     private bool _notFound;
     private bool _isDeleting;
+
+    private bool _editing;
+    private bool _isSaving;
+    private string _editName = string.Empty;
+    private string _editNote = string.Empty;
+    private int? _editLocationId;
+    private IReadOnlyCollection<int> _editTagIds = Array.Empty<int>();
+    private string? _saveError;
 
     [Parameter] public int Id { get; set; }
 
@@ -95,6 +156,82 @@ else if (_item is not null)
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task EnterEditMode()
+    {
+        if (_item is null) return;
+        _editName = _item.Name;
+        _editNote = _item.Note ?? string.Empty;
+        _editLocationId = _item.LocationId;
+
+        if (_item.TagNames is { Count: > 0 })
+        {
+            try
+            {
+                var allTags = await TagService.GetAllAsync();
+                _editTagIds = allTags
+                    .Where(t => _item.TagNames.Contains(t.Name))
+                    .Select(t => t.Id)
+                    .ToList();
+            }
+            catch
+            {
+                _editTagIds = Array.Empty<int>();
+            }
+        }
+        else
+        {
+            _editTagIds = Array.Empty<int>();
+        }
+
+        _saveError = null;
+        _editing = true;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = false;
+        _isSaving = false;
+        _saveError = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_item is null || _isSaving) return;
+        if (_editLocationId is null) return;
+
+        _isSaving = true;
+        _saveError = null;
+        StateHasChanged();
+
+        try
+        {
+            var request = new UpdateItemRequest(
+                _editName.Trim(),
+                _editLocationId.Value,
+                _editTagIds.ToList(),
+                string.IsNullOrWhiteSpace(_editNote) ? null : _editNote);
+
+            var result = await ItemService.UpdateAsync(Id, request);
+            if (result is not null)
+            {
+                _item = result;
+                _editing = false;
+            }
+            else
+            {
+                _saveError = "保存失败，请重试";
+            }
+        }
+        catch
+        {
+            _saveError = "保存失败，请重试";
+        }
+        finally
+        {
+            _isSaving = false;
         }
     }
 
