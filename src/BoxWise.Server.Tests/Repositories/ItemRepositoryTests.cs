@@ -14,6 +14,12 @@ public class ItemRepositoryTests
         await db.SaveChangesAsync();
     }
 
+    private static async Task SeedUser(AppDbContext db, string userId = "user-1", string userName = "test")
+    {
+        db.Users.Add(new AppUser { Id = userId, UserName = userName });
+        await db.SaveChangesAsync();
+    }
+
     [Fact]
     public async Task CreateAsync_ValidInput_Succeeds()
     {
@@ -306,4 +312,152 @@ public class ItemRepositoryTests
         Assert.True(db.Tags.Any(t => t.Id == 2));
     }
 
+    // ──────────── UpdateAsync ────────────
+
+    [Fact]
+    public async Task UpdateAsync_ValidInput_Succeeds()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        await SeedUser(db, "user-1", "tester");
+        var repo = new ItemRepository(db);
+        var created = await repo.CreateAsync("旧名称", 1, [1], "旧备注", "user-1");
+
+        var updated = await repo.UpdateAsync(created.Id, "新名称", 1, [2], "新备注");
+
+        Assert.NotNull(updated);
+        Assert.Equal("新名称", updated.Name);
+        Assert.Equal("新备注", updated.Note);
+        Assert.Single(updated.Tags);
+        Assert.Equal(2, updated.Tags.First().Id);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NonExistent_ReturnsNull()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        await SeedUser(db, "user-1", "tester");
+        var repo = new ItemRepository(db);
+
+        var result = await repo.UpdateAsync(999, "名称", 1, [], null);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_EmptyName_ThrowsArgumentException()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        var repo = new ItemRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            repo.UpdateAsync(1, "", 1, [], null));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NameExceedsMaxLength_ThrowsArgumentException()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        var repo = new ItemRepository(db);
+        var longName = new string('x', 201);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            repo.UpdateAsync(1, longName, 1, [], null));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_InvalidLocationId_ThrowsArgumentException()
+    {
+        using var db = TestDbContextFactory.Create();
+        var repo = new ItemRepository(db);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            repo.UpdateAsync(1, "物品", 999, [], null));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NonExistentTag_ThrowsArgumentException()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        var repo = new ItemRepository(db);
+        var created = await repo.CreateAsync("物品", 1, [], null, "user-1");
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            repo.UpdateAsync(created.Id, "物品", 1, [999], null));
+    }
+
+    [Fact]
+    public async Task UpdateAsync_UpdateTags_ReplacesTagsCorrectly()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        await SeedUser(db, "user-1", "tester");
+        var repo = new ItemRepository(db);
+        var created = await repo.CreateAsync("物品", 1, [1, 2], null, "user-1");
+
+        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [1], null);
+
+        Assert.NotNull(updated);
+        Assert.Single(updated.Tags);
+        Assert.Equal(1, updated.Tags.First().Id);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NoteEmpty_StoredAsNull()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        await SeedUser(db, "user-1", "tester");
+        var repo = new ItemRepository(db);
+        var created = await repo.CreateAsync("物品", 1, [], "旧备注", "user-1");
+
+        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [], "");
+
+        Assert.NotNull(updated);
+        Assert.Null(updated.Note);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NoteWhiteSpace_StoredAsNull()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        await SeedUser(db, "user-1", "tester");
+        var repo = new ItemRepository(db);
+        var created = await repo.CreateAsync("物品", 1, [], null, "user-1");
+
+        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [], "   ");
+
+        Assert.NotNull(updated);
+        Assert.Null(updated.Note);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PreservesPhotoPaths()
+    {
+        using var db = TestDbContextFactory.Create();
+        await SeedLocationAndTags(db);
+        await SeedUser(db, "user-1", "tester");
+        var repo = new ItemRepository(db);
+        var created = await repo.CreateAsync("物品", 1, [], null, "user-1");
+
+        // 模拟已有照片路径（直接设 DB）
+        db.Attach(created);
+        created.PhotoPath = "images/1/original.jpg";
+        created.ThumbPath = "images/1/thumb.jpg";
+        created.MediumPath = "images/1/medium.jpg";
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var updated = await repo.UpdateAsync(created.Id, "新名称", 1, [], null);
+
+        Assert.NotNull(updated);
+        Assert.Equal("images/1/original.jpg", updated.PhotoPath);
+        Assert.Equal("images/1/thumb.jpg", updated.ThumbPath);
+        Assert.Equal("images/1/medium.jpg", updated.MediumPath);
+    }
 }

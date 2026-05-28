@@ -169,4 +169,78 @@ public class ItemEndpointsTests : IAsyncLifetime
         Assert.Single(results);
         Assert.Equal("双标签物品", results[0].Name);
     }
+
+    // ──────────── UpdateItemAsync ────────────
+
+    [Fact]
+    public async Task UpdateItemAsync_Valid_ReturnsOk()
+    {
+        using var db = TestDbContextFactory.Create();
+        var (loc, tag) = SeedDb(db);
+        var userId = _userManager.GetUserId(_httpContext.User)!;
+        db.Users.Add(new AppUser { Id = userId, UserName = "tester" });
+        await db.SaveChangesAsync();
+        var repo = new ItemRepository(db);
+        var lr = new LocationRepository(db);
+        var created = await repo.CreateAsync("旧名称", loc.Id, [tag.Id], "旧备注", userId);
+
+        var (status, body) = await InvokeWithBodyAsync("UpdateItemAsync",
+            created.Id, new UpdateItemRequest("新名称", loc.Id, [tag.Id], "新备注"), repo, lr, CancellationToken.None);
+        Assert.Equal(200, status);
+
+        var dto = JsonSerializer.Deserialize<ItemDto>(body,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        Assert.NotNull(dto);
+        Assert.Equal("新名称", dto.Name);
+        Assert.Equal("新备注", dto.Note);
+    }
+
+    [Fact]
+    public async Task UpdateItemAsync_NonExistent_ReturnsNotFound()
+    {
+        using var db = TestDbContextFactory.Create();
+        var (loc, tag) = SeedDb(db);
+        var repo = new ItemRepository(db);
+        var lr = new LocationRepository(db);
+        Assert.Equal(404, await InvokeAsync("UpdateItemAsync", 999,
+            new UpdateItemRequest("名称", loc.Id, [tag.Id], null), repo, lr, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UpdateItemAsync_EmptyName_ReturnsProblem()
+    {
+        using var db = TestDbContextFactory.Create();
+        var (loc, tag) = SeedDb(db);
+        var repo = new ItemRepository(db);
+        var lr = new LocationRepository(db);
+        var created = await repo.CreateAsync("旧名称", loc.Id, [tag.Id], null, _userManager.GetUserId(_httpContext.User)!);
+
+        Assert.Equal(400, await InvokeAsync("UpdateItemAsync", created.Id,
+            new UpdateItemRequest("", loc.Id, [tag.Id], null), repo, lr, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UpdateItemAsync_InvalidLocationId_ReturnsProblem()
+    {
+        using var db = TestDbContextFactory.Create();
+        var (loc, tag) = SeedDb(db);
+        var repo = new ItemRepository(db);
+        var lr = new LocationRepository(db);
+
+        Assert.Equal(400, await InvokeAsync("UpdateItemAsync", 999,
+            new UpdateItemRequest("名称", 999, [tag.Id], null), repo, lr, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task UpdateItemAsync_NonExistentTag_ReturnsProblem()
+    {
+        using var db = TestDbContextFactory.Create();
+        var (loc, tag) = SeedDb(db);
+        var repo = new ItemRepository(db);
+        var lr = new LocationRepository(db);
+        var created = await repo.CreateAsync("旧名称", loc.Id, [tag.Id], null, _userManager.GetUserId(_httpContext.User)!);
+
+        Assert.Equal(400, await InvokeAsync("UpdateItemAsync", created.Id,
+            new UpdateItemRequest("名称", loc.Id, [999], null), repo, lr, CancellationToken.None));
+    }
 }
