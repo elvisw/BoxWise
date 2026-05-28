@@ -115,7 +115,15 @@ public class IndexModel : PageModel
         Users = allUsers.Select(u => new UserListItemDto(
             u.Id,
             u.UserName ?? "",
-            adminUserNames.Contains(u.UserName ?? "")
+            adminUserNames.Contains(u.UserName ?? ""),
+            u.TwoFactorEnabled,
+            u.TwoFactorMethod switch
+            {
+                TwoFactorMethod.TOTP => "TOTP",
+                TwoFactorMethod.Email => "Email",
+                TwoFactorMethod.WebAuthn => "WebAuthn",
+                _ => null
+            }
         )).ToList();
     }
 }

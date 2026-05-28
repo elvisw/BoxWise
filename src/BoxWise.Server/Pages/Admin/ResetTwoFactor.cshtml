@@ -1,0 +1,22 @@
+@page "/admin/{id}/reset-2fa"
+@model BoxWise.Server.Pages.Admin.ResetTwoFactorModel
+@{
+    ViewData["Title"] = "重置双因素认证";
+}
+
+<h2>重置双因素认证</h2>
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="error-message">@Model.ErrorMessage</div>
+}
+
+<div class="warning-banner">
+    <p>确认重置 <strong>@Model.TargetUsername</strong> 的双因素认证？</p>
+    <p>用户将需要重新设置双因素认证，所有已注册的安全密钥和恢复码将立即失效。</p>
+</div>
+
+<form method="post">
+    <button type="submit" class="btn btn-danger">确认重置</button>
+    <a href="/admin" class="btn btn-link">取消</a>
+</form>

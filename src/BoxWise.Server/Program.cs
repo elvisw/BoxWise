@@ -316,8 +316,75 @@ app.MapAiEndpoints();
 app.MapTwoFactorEndpoints();
 app.MapWebAuthnEndpoints();
 app.MapQrCodeEndpoints();
+app.MapAdminTwoFactorEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
 app.MapFallbackToFile("index.html").AllowAnonymous();
 
+// CLI: dotnet run -- admin reset-2fa --user <username>
+if (args.Length >= 3 && args[0] == "admin" && args[1] == "reset-2fa")
+{
+    var userIndex = Array.IndexOf(args, "--user");
+    if (userIndex >= 0 && userIndex + 1 < args.Length)
+    {
+        var username = args[userIndex + 1];
+        await ResetTwoFactorCli(app, username);
+        return; // 退出进程，不启动 Web 服务器
+    }
+    else
+    {
+        Console.Error.WriteLine("Usage: dotnet run -- admin reset-2fa --user <username>");
+        return;
+    }
+}
+
 app.Run();
+
+static async Task ResetTwoFactorCli(WebApplication app, string username)
+{
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+
+    try
+    {
+        var userManager = services.GetRequiredService<UserManager<AppUser>>();
+        var db = services.GetRequiredService<AppDbContext>();
+        var logger = services.GetRequiredService<ILogger<Program>>();
+
+        var user = await userManager.FindByNameAsync(username);
+        if (user is null)
+        {
+            Console.Error.WriteLine($"Error: User '{username}' not found.");
+            Environment.Exit(1);
+            return;
+        }
+
+        // 清除 2FA 设置
+        user.TwoFactorMethod = TwoFactorMethod.None;
+        user.TotpSecretKey = null;
+        user.TwoFactorEnabled = false;
+        user.TwoFactorSetupCompletedAt = null;
+        user.TwoFactorGracePeriodUntil = null;
+        user.EmailForTwoFactor = null;
+
+        // 删除恢复码
+        var recoveryCodes = db.RecoveryCodes.Where(rc => rc.UserId == user.Id);
+        db.RecoveryCodes.RemoveRange(recoveryCodes);
+
+        // 删除 WebAuthn 凭证
+        var webAuthnCreds = db.WebAuthnCredentials.Where(wc => wc.UserId == user.Id);
+        db.WebAuthnCredentials.RemoveRange(webAuthnCreds);
+
+        await userManager.UpdateAsync(user);
+        await db.SaveChangesAsync();
+
+        // 审计日志
+        logger.LogWarning("CLI 2FA reset for user {Username} at {Timestamp}", username, DateTime.UtcNow);
+        Console.WriteLine($"2FA successfully reset for user '{username}'.");
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Error: {ex.Message}");
+        Environment.Exit(1);
+    }
+}
