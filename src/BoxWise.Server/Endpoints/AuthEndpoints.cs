@@ -44,8 +44,17 @@ public static class AuthEndpoints
         LoginAsync(LoginRequest request, SignInManager<AppUser> signInManager, UserManager<AppUser> userManager,
         IConfiguration config)
     {
+        var user = await userManager.FindByNameAsync(request.Username);
+        if (user is null)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "credentials", new[] { "用户名或密码错误" } }
+            });
+        }
+
         var result = await signInManager.PasswordSignInAsync(
-            request.Username, request.Password, isPersistent: true, lockoutOnFailure: false);
+            user, request.Password, isPersistent: true, lockoutOnFailure: false);
 
         if (!result.Succeeded)
         {
@@ -55,8 +64,7 @@ public static class AuthEndpoints
             });
         }
 
-        var user = await userManager.FindByNameAsync(request.Username);
-        var isAdmin = user != null && await userManager.IsInRoleAsync(user, "Admin");
+        var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
         var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
         var isSpecificAdmin = adminConfigured
             && string.Equals(request.Username, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);

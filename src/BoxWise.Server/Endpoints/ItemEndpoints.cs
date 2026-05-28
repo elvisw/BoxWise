@@ -128,6 +128,7 @@ public static class ItemEndpoints
                 i.CreatedAt);
         }).ToArray();
 
+        httpContext.Response.Headers["X-Total-Count"] = dtos.Length.ToString();
         return TypedResults.Ok(dtos);
     }
 

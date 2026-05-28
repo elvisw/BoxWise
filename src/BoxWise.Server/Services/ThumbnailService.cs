@@ -24,6 +24,10 @@ public class ThumbnailService
             {
                 await GenerateAsync(itemId, scopeFactory);
             }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Background thumbnail generation failed for item {ItemId}", itemId);
+            }
             finally
             {
                 semaphore.Release();

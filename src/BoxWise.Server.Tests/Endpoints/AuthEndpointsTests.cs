@@ -12,20 +12,20 @@ using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Tests.Endpoints;
 
-public class AuthEndpointsTests : IAsyncDisposable
+public class AuthEndpointsTests : IAsyncLifetime
 {
-    private readonly TestIdentityContext _ctx;
-    private readonly UserManager<AppUser> _userManager;
-    private readonly IConfiguration _config;
+    private TestIdentityContext _ctx = null!;
+    private UserManager<AppUser> _userManager = null!;
+    private IConfiguration _config = null!;
 
-    public AuthEndpointsTests()
+    public async Task InitializeAsync()
     {
-        _ctx = Task.Run(async () => await TestIdentityFactory.CreateAsync()).GetAwaiter().GetResult();
+        _ctx = await TestIdentityFactory.CreateAsync();
         _userManager = _ctx.UserManager;
         _config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
     }
 
-    public async ValueTask DisposeAsync() => await _ctx.DisposeAsync();
+    public async Task DisposeAsync() => await _ctx.DisposeAsync();
 
     private static async Task<int> InvokeAsync(string methodName, params object?[] args)
     {
@@ -87,25 +87,28 @@ public class AuthEndpointsTests : IAsyncDisposable
     {
         var u = new AppUser { UserName = "wrongpwuser" };
         await _userManager.CreateAsync(u, "Test1234!");
-        var result = await InvokeAsync("LoginAsync", new LoginRequest("wrongpwuser", "WrongPass1!"),
+        var (status, body) = await InvokeWithBodyAsync("LoginAsync", new LoginRequest("wrongpwuser", "WrongPass1!"),
             _ctx.SignInManager, _userManager, _config);
-        Assert.Equal(400, result);
+        Assert.Equal(400, status);
+        Assert.Contains("credentials", body);
     }
 
     [Fact]
     public async Task LoginAsync_EmptyUsername_ReturnsValidationProblem()
     {
-        var result = await InvokeAsync("LoginAsync", new LoginRequest("", "Test1234!"),
+        var (status, body) = await InvokeWithBodyAsync("LoginAsync", new LoginRequest("", "Test1234!"),
             _ctx.SignInManager, _userManager, _config);
-        Assert.Equal(400, result);
+        Assert.Equal(400, status);
+        Assert.Contains("credentials", body);
     }
 
     [Fact]
     public async Task LoginAsync_NonexistentUser_ReturnsValidationProblem()
     {
-        var result = await InvokeAsync("LoginAsync", new LoginRequest("nouser", "Test1234!"),
+        var (status, body) = await InvokeWithBodyAsync("LoginAsync", new LoginRequest("nouser", "Test1234!"),
             _ctx.SignInManager, _userManager, _config);
-        Assert.Equal(400, result);
+        Assert.Equal(400, status);
+        Assert.Contains("credentials", body);
     }
 
     [Fact]

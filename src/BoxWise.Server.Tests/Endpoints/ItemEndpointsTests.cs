@@ -16,24 +16,24 @@ using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Tests.Endpoints;
 
-public class ItemEndpointsTests : IAsyncDisposable
+public class ItemEndpointsTests : IAsyncLifetime
 {
-    private readonly TestIdentityContext _identity;
-    private readonly UserManager<AppUser> _userManager;
-    private readonly HttpContext _httpContext;
+    private TestIdentityContext _identity = null!;
+    private UserManager<AppUser> _userManager = null!;
+    private HttpContext _httpContext = null!;
 
-    public ItemEndpointsTests()
+    public async Task InitializeAsync()
     {
-        _identity = Task.Run(async () => await TestIdentityFactory.CreateAsync()).GetAwaiter().GetResult();
+        _identity = await TestIdentityFactory.CreateAsync();
         _userManager = _identity.UserManager;
         var user = new AppUser { UserName = "tester" };
-        _userManager.CreateAsync(user, "Test1234!").GetAwaiter().GetResult();
+        await _userManager.CreateAsync(user, "Test1234!");
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"));
         _httpContext = new DefaultHttpContext { User = principal };
     }
 
-    public async ValueTask DisposeAsync() => await _identity.DisposeAsync();
+    public async Task DisposeAsync() => await _identity.DisposeAsync();
 
     private static async Task<int> InvokeAsync(string methodName, params object?[] args)
     {
@@ -69,19 +69,22 @@ public class ItemEndpointsTests : IAsyncDisposable
         return (httpContext.Response.StatusCode, body);
     }
 
-    private static void SeedDb(AppDbContext db)
+    private static (Location Location, Tag Tag) SeedDb(AppDbContext db)
     {
-        db.Locations.Add(new Location { Name = "客厅", Path = "/1/" });
-        db.Tags.Add(new Tag { Name = "工具" });
+        var location = new Location { Name = "客厅", Path = "/placeholder/" };
+        db.Locations.Add(location);
+        var tag = new Tag { Name = "工具" };
+        db.Tags.Add(tag);
         db.SaveChanges();
+        return (location, tag);
     }
 
-    [Fact] public async Task CreateItemAsync_Valid_ReturnsCreated() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); Assert.Equal(201, await InvokeAsync("CreateItemAsync", new CreateItemRequest("螺丝刀", 1, [1], "蓝色"), r, _userManager, _httpContext, lr)); }
-    [Fact] public async Task CreateItemAsync_EmptyName_ReturnsProblem() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); Assert.Equal(400, await InvokeAsync("CreateItemAsync", new CreateItemRequest("", 1, [], null), r, _userManager, _httpContext, lr)); }
+    [Fact] public async Task CreateItemAsync_Valid_ReturnsCreated() { using var db = TestDbContextFactory.Create(); var (loc, tag) = SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); Assert.Equal(201, await InvokeAsync("CreateItemAsync", new CreateItemRequest("螺丝刀", loc.Id, [tag.Id], "蓝色"), r, _userManager, _httpContext, lr)); }
+    [Fact] public async Task CreateItemAsync_EmptyName_ReturnsProblem() { using var db = TestDbContextFactory.Create(); var (loc, _) = SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); Assert.Equal(400, await InvokeAsync("CreateItemAsync", new CreateItemRequest("", loc.Id, [], null), r, _userManager, _httpContext, lr)); }
     [Fact] public async Task CreateItemAsync_BadLocation_ReturnsProblem() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); Assert.Equal(400, await InvokeAsync("CreateItemAsync", new CreateItemRequest("测试", 999, [], null), r, _userManager, _httpContext, lr)); }
-    [Fact] public async Task SearchItemsAsync_NoParams_ReturnsOk() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); await r.CreateAsync("螺丝刀", 1, [], null, "tester"); Assert.Equal(200, await InvokeAsync("SearchItemsAsync", null, null, null, r, lr, _httpContext)); }
-    [Fact] public async Task SearchItemsAsync_ByKeyword_ReturnsMatching() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); await r.CreateAsync("螺丝刀", 1, [], null, "tester"); await r.CreateAsync("锤子", 1, [], null, "tester"); Assert.Equal(200, await InvokeAsync("SearchItemsAsync", "螺丝", null, null, r, lr, _httpContext)); }
-    [Fact] public async Task SearchItemsAsync_ByLocation_ReturnsSubtree() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); var child = await lr.CreateAsync("电视机柜", 1); await r.CreateAsync("螺丝刀", child.Id, [], null, "tester"); await r.CreateAsync("遥控器", 1, [], null, "tester"); Assert.Equal(200, await InvokeAsync("SearchItemsAsync", null, 1, null, r, lr, _httpContext)); }
+    [Fact] public async Task SearchItemsAsync_NoParams_ReturnsOk() { using var db = TestDbContextFactory.Create(); var (loc, _) = SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); await r.CreateAsync("螺丝刀", loc.Id, [], null, "tester"); Assert.Equal(200, await InvokeAsync("SearchItemsAsync", null, null, null, r, lr, _httpContext)); }
+    [Fact] public async Task SearchItemsAsync_ByKeyword_ReturnsMatching() { using var db = TestDbContextFactory.Create(); var (loc, _) = SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); await r.CreateAsync("螺丝刀", loc.Id, [], null, "tester"); await r.CreateAsync("锤子", loc.Id, [], null, "tester"); Assert.Equal(200, await InvokeAsync("SearchItemsAsync", "螺丝", null, null, r, lr, _httpContext)); }
+    [Fact] public async Task SearchItemsAsync_ByLocation_ReturnsSubtree() { using var db = TestDbContextFactory.Create(); var (loc, _) = SeedDb(db); var r = new ItemRepository(db); var lr = new LocationRepository(db); var child = await lr.CreateAsync("电视机柜", loc.Id); await r.CreateAsync("螺丝刀", child.Id, [], null, "tester"); await r.CreateAsync("遥控器", loc.Id, [], null, "tester"); Assert.Equal(200, await InvokeAsync("SearchItemsAsync", null, loc.Id, null, r, lr, _httpContext)); }
     [Fact] public async Task GetItemByIdAsync_NonExistent_ReturnsNotFound() { using var db = TestDbContextFactory.Create(); var r = new ItemRepository(db); var lr = new LocationRepository(db); Assert.Equal(404, await InvokeAsync("GetItemByIdAsync", 999, r, lr)); }
     [Fact]
     public async Task GetItemByIdAsync_Exists_ReturnsOk()
@@ -115,21 +118,21 @@ public class ItemEndpointsTests : IAsyncDisposable
         Assert.Equal("creator", dto.CreatedByUserName);
         Assert.Equal("客厅", dto.LocationName);
     }
-    [Fact] public async Task DeleteItemAsync_Exists_ReturnsNoContent() { using var db = TestDbContextFactory.Create(); SeedDb(db); var r = new ItemRepository(db); var c = await r.CreateAsync("待删除", 1, [], null, "tester"); var s = new ImageStorageService(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DataDirectory"] = Path.GetTempPath() }).Build()); Assert.Equal(204, await InvokeAsync("DeleteItemAsync", c.Id, r, s)); Assert.False(db.Items.Any(i => i.Id == c.Id)); }
+    [Fact] public async Task DeleteItemAsync_Exists_ReturnsNoContent() { using var db = TestDbContextFactory.Create(); var (loc, _) = SeedDb(db); var r = new ItemRepository(db); var c = await r.CreateAsync("待删除", loc.Id, [], null, "tester"); var s = new ImageStorageService(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DataDirectory"] = Path.GetTempPath() }).Build()); Assert.Equal(204, await InvokeAsync("DeleteItemAsync", c.Id, r, s)); Assert.False(db.Items.Any(i => i.Id == c.Id)); }
 
     [Fact]
     public async Task SearchItemsAsync_ByTagId_ReturnsFiltered()
     {
         using var db = TestDbContextFactory.Create();
-        SeedDb(db);
+        var (loc, _) = SeedDb(db);
         var repo = new ItemRepository(db);
         var lr = new LocationRepository(db);
 
         var tag1 = await new TagRepository(db).CreateAsync("标签A");
         var tag2 = await new TagRepository(db).CreateAsync("标签B");
 
-        await repo.CreateAsync("物品A", 1, [tag1.Id], null, "tester");
-        await repo.CreateAsync("物品B", 1, [tag2.Id], null, "tester");
+        await repo.CreateAsync("物品A", loc.Id, [tag1.Id], null, "tester");
+        await repo.CreateAsync("物品B", loc.Id, [tag2.Id], null, "tester");
 
         var (status, body) = await InvokeWithBodyAsync("SearchItemsAsync",
             null, null, new string?[] { tag1.Id.ToString() }, repo, lr, _httpContext);
@@ -146,15 +149,15 @@ public class ItemEndpointsTests : IAsyncDisposable
     public async Task SearchItemsAsync_ByMultipleTagIds_ReturnsIntersection()
     {
         using var db = TestDbContextFactory.Create();
-        SeedDb(db);
+        var (loc, _) = SeedDb(db);
         var repo = new ItemRepository(db);
         var lr = new LocationRepository(db);
 
         var tag1 = await new TagRepository(db).CreateAsync("标签A");
         var tag2 = await new TagRepository(db).CreateAsync("标签B");
 
-        await repo.CreateAsync("双标签物品", 1, [tag1.Id, tag2.Id], null, "tester");
-        await repo.CreateAsync("单标签物品", 1, [tag1.Id], null, "tester");
+        await repo.CreateAsync("双标签物品", loc.Id, [tag1.Id, tag2.Id], null, "tester");
+        await repo.CreateAsync("单标签物品", loc.Id, [tag1.Id], null, "tester");
 
         var (status, body) = await InvokeWithBodyAsync("SearchItemsAsync",
             null, null, new string?[] { tag1.Id.ToString(), tag2.Id.ToString() }, repo, lr, _httpContext);

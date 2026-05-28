@@ -43,30 +43,30 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   epic-1: done
-  1-1-project-scaffolding: review
-  1-2-identity-auth: review
-  1-3-admin-account-management: review
+  1-1-project-scaffolding: done
+  1-2-identity-auth: done
+  1-3-admin-account-management: done
   epic-1-retrospective: done
   epic-2: done
-  2-1-location-entity-crud: review
-  2-2-location-tree-api: review
-  2-3-tag-system: review
-  2-4-location-tag-selector: review
+  2-1-location-entity-crud: done
+  2-2-location-tree-api: done
+  2-3-tag-system: done
+  2-4-location-tag-selector: done
   epic-2-retrospective: done
   epic-3: done
-  3-1-item-image-upload: review
-  3-2-item-entry-api: review
+  3-1-item-image-upload: done
+  3-2-item-entry-api: done
   3-3-ai-recognition: done
-  3-4-item-entry-ui: review
+  3-4-item-entry-ui: done
   3-5-item-detail: done
   epic-3-retrospective: done
   epic-4: done
-  4-1-search-functionality: review
+  4-1-search-functionality: done
   4-2-thumbnail-grid-browse: done
-  4-3-location-tag-filter: review
-  4-4-item-detail-delete: review
-  4-5-pwa-offline: review
-  4-6-docker-deployment: review
+  4-3-location-tag-filter: done
+  4-4-item-detail-delete: done
+  4-5-pwa-offline: done
+  4-6-docker-deployment: done
   epic-4-retrospective: done
   epic-5: done
   5-1-admin-user-management: done
