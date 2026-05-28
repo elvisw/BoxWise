@@ -7,7 +7,7 @@
       <Output TaskParameter="ConsoleOutput" PropertyName="GitDescribe" />
     </Exec>
     <Warning Condition="'$(GitDescribe)' == ''"
-             Text="git describe 失败，版本号回退到 1.0.0。请确认 git 可用并已 git fetch --tags。" />
+             Text="git describe 失败，版本号回退到 v1.0.0。请确认 git 可用并已 git fetch --tags。" />
     <PropertyGroup>
       <!-- 禁止 SDK 自动追加 SourceRevisionId，避免版本号变成 vv0.3.0+长hash -->
       <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
