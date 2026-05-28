@@ -504,3 +504,13 @@ appsettings.*.local.json
 # 用户机密（应通过环境变量注入）
 **/secrets.*
 *.env.local
+
+# Claude Code 工作树（临时隔离环境）
+.claude/worktrees/
+
+# Superpowers 本地配置
+.superpowers/
+
+# 文档工具中间产物
+docs/project-scan-report.json
+docs/superpowers/
