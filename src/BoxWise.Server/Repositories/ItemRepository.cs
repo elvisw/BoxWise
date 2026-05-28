@@ -39,7 +39,7 @@ public class ItemRepository
         {
             Name = name,
             LocationId = locationId,
-            Note = note?.Trim(),
+            Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
             CreatedByUserId = userId,
             CreatedAt = DateTime.UtcNow,
             Tags = tags
@@ -70,6 +70,46 @@ public class ItemRepository
         _db.Items.Remove(item);
         await _db.SaveChangesAsync(ct);
         return true;
+    }
+
+    public async Task<Item?> UpdateAsync(int id, string name, int locationId, List<int> tagIds, string? note, CancellationToken ct = default)
+    {
+        tagIds ??= [];
+        tagIds = tagIds.Distinct().ToList();
+
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("物品名称不能为空");
+        name = name.Trim();
+        if (name.Length > 200)
+            throw new ArgumentException("物品名称不能超过 200 个字符");
+
+        if (note is not null && note.Length > 2000)
+            throw new ArgumentException("备注不能超过 2000 个字符");
+
+        var locationExists = await _db.Locations.AnyAsync(l => l.Id == locationId, ct);
+        if (!locationExists)
+            throw new ArgumentException("位置不存在");
+
+        var tags = await _db.Tags.Where(t => tagIds.Contains(t.Id)).ToListAsync(ct);
+        if (tags.Count != tagIds.Count)
+            throw new ArgumentException("部分标签不存在");
+
+        var item = await _db.Items
+            .Include(i => i.Location)
+            .Include(i => i.CreatedByUser)
+            .Include(i => i.Tags)
+            .FirstOrDefaultAsync(i => i.Id == id, ct);
+
+        if (item is null) return null;
+
+        item.Name = name;
+        item.LocationId = locationId;
+        item.Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        item.Tags.Clear();
+        foreach (var tag in tags) item.Tags.Add(tag);
+
+        await _db.SaveChangesAsync(ct);
+        return item;
     }
 
     public async Task<List<Item>> GetFilteredAsync(int? locationId, List<int>? tagIds, string? query)

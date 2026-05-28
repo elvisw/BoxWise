@@ -12,6 +12,13 @@ public class ItemService
         _http = http;
     }
 
+    public async Task<ItemDto?> UpdateAsync(int id, UpdateItemRequest request, CancellationToken cancellationToken = default)
+    {
+        var response = await _http.PutAsJsonAsync($"api/items/{id}", request, cancellationToken);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadFromJsonAsync<ItemDto>(cancellationToken);
+    }
+
     public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         var response = await _http.DeleteAsync($"api/items/{id}", cancellationToken);

@@ -24,3 +24,9 @@
 - [x] ~~Null 输入未测试 — `IsNullOrWhiteSpace` 守卫也捕获 null，但当前测试仅覆盖 `""` 和超长字符串 [TagRepositoryTests/LocationRepositoryTests]~~ → 已有 `NullName` + `WhitespaceName` Theory 测试
 - [x] ~~纯空白输入未测试 — `"   "`、`"\t"` 同样触发 `IsNullOrWhiteSpace`，未覆盖 [TagRepositoryTests/LocationRepositoryTests]~~ → 已有 `[InlineData("   ")] [InlineData("\t")]` Theory
 - [x] ~~失败后状态未验证 — RenameAsync 抛异常后未断言 DB 中实体名称未变 [LocationRepositoryTests]~~ → 已有 `RenameAsync_ThrowsArgumentException_NameUnchanged`
+
+## Deferred from: code review of 7-1-item-edit-backend (2026-05-28)
+
+- [ ] 无并发控制（最后写入胜出） — `Item` 实体无并发令牌，多用户同时编辑同一物品会静默覆盖。v1：≤5 用户、编辑频率低，可接受
+- [ ] 无编辑人/修改时间追踪 — `Item` 实体无 `UpdatedByUserId`/`UpdatedAt` 字段。v1：PRD 未要求编辑人追踪
+- [ ] 空 Tag 列表清空所有标签 — 与 `CreateAsync` 行为一致。若需强制标签应作为产品决策统一处理
