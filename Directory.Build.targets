@@ -12,7 +12,7 @@
       <!-- 禁止 SDK 自动追加 SourceRevisionId，避免版本号变成 vv0.3.0+长hash -->
       <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
       <InformationalVersion Condition="'$(GitDescribe)' != ''">$(GitDescribe.Trim())</InformationalVersion>
-      <InformationalVersion Condition="'$(GitDescribe)' == ''">1.0.0</InformationalVersion>
+      <InformationalVersion Condition="'$(GitDescribe)' == ''">v1.0.0</InformationalVersion>
       <Version Condition="'$(GitDescribe)' != ''">$([System.Text.RegularExpressions.Regex]::Match('$(GitDescribe.Trim())', &quot;\d+\.\d+\.\d+&quot;).Value)</Version>
       <Version Condition="'$(Version)' == ''">1.0.0</Version>
       <AssemblyVersion Condition="'$(Version)' != ''">$(Version).0</AssemblyVersion>

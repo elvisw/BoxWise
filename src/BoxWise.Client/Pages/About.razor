@@ -9,7 +9,7 @@
     <img src="logo.svg" alt="BoxWise Logo" class="bw-about-logo mb-3" />
     <MudText Typo="Typo.h6" Style="font-weight:600;">箱知 BoxWise</MudText>
     <MudText Typo="Typo.body2" Color="Color.Default" Class="mb-2">家庭物品管理，一目了然</MudText>
-    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">v@(_version)</MudChip>
+    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@(_version)</MudChip>
 </div>
 
 <MudText Typo="Typo.subtitle2" Class="mb-2">运行环境</MudText>
@@ -92,7 +92,7 @@
     {
         var infoVersion = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        _version = infoVersion ?? "1.0.0";
+        _version = infoVersion ?? "v1.0.0";
         _framework = RuntimeInformation.FrameworkDescription;
     }
 }

@@ -187,7 +187,7 @@ dotnet build
 git push --tags
 ```
 
-**Docker 构建注意事项：** CI/CD 中需要在 `docker build` 前执行 `git fetch --tags`，否则 `git describe` 找不到标签，版本号会回退到 `1.0.0`。
+**Docker 构建注意事项：** CI/CD 中需要在 `docker build` 前执行 `git fetch --tags`，否则 `git describe` 找不到标签，版本号会回退到 `v1.0.0`。
 
 ## MudBlazor 9.x API 参考
 
