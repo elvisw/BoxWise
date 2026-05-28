@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using BoxWise.Server.Models;
@@ -8,7 +10,6 @@ namespace BoxWise.Server.Endpoints;
 
 public static class AuthEndpoints
 {
-    // 2FA 端点（Story 8-2a-2）将在 Phase 2 通过 MapTwoFactorEndpoints 扩展方法添加
     public static RouteGroupBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/auth");
@@ -17,7 +18,8 @@ public static class AuthEndpoints
             .AllowAnonymous()
             .WithTags("Auth")
             .WithDescription("用户登录")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .RequireRateLimiting("login-per-ip");
 
         group.MapPost("/logout", LogoutAsync)
             .WithTags("Auth")
@@ -42,7 +44,7 @@ public static class AuthEndpoints
         return group;
     }
 
-    private static async Task<Results<Ok<AuthUserDto>, UnauthorizedHttpResult, ValidationProblem>>
+    private static async Task<Results<Ok<LoginResponse>, UnauthorizedHttpResult, ValidationProblem>>
         LoginAsync(LoginRequest request, SignInManager<AppUser> signInManager, UserManager<AppUser> userManager,
         IConfiguration config)
     {
@@ -55,8 +57,8 @@ public static class AuthEndpoints
             });
         }
 
-        var result = await signInManager.PasswordSignInAsync(
-            user, request.Password, isPersistent: true, lockoutOnFailure: false);
+        var result = await signInManager.CheckPasswordSignInAsync(
+            user, request.Password, lockoutOnFailure: false);
 
         if (!result.Succeeded)
         {
@@ -66,15 +68,50 @@ public static class AuthEndpoints
             });
         }
 
+        // 检查 2FA 状态
+        if (user.TwoFactorEnabled)
+        {
+            // 已启用 2FA → 签发 TwoFactorUserId Cookie，进入阶段二
+            await IssueTwoFactorUserIdCookieAsync(signInManager, user);
+            return TypedResults.Ok(new LoginResponse(null, null, null, false, RequiresTwoFactor: true));
+        }
+
+        // 检查强制 2FA 宽限期
+        if (user.TwoFactorGracePeriodUntil.HasValue
+            && user.TwoFactorGracePeriodUntil.Value <= DateTime.UtcNow)
+        {
+            // 宽限期已过且 2FA 未启用 → 要求设置 2FA
+            await IssueTwoFactorUserIdCookieAsync(signInManager, user);
+            return TypedResults.Ok(new LoginResponse(null, null, null, false, RequiresTwoFactor: true));
+        }
+
+        // 宽限期未设置或未到期 → 非强制 2FA，直接登录
+        await signInManager.SignInAsync(user, isPersistent: true);
+
         var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
         var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
         var isSpecificAdmin = adminConfigured
             && string.Equals(request.Username, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
 
-        return TypedResults.Ok(new AuthUserDto(request.Username, isAdmin, isSpecificAdmin,
+        return TypedResults.Ok(new LoginResponse(request.Username, isAdmin, isSpecificAdmin,
             PasswordRequiresChange: request.Password.Length < 8
                 || request.Password.All(char.IsDigit)
-                || CommonPasswordValidator.IsCommon(request.Password)));
+                || CommonPasswordValidator.IsCommon(request.Password),
+            RequiresTwoFactor: false));
+    }
+
+    /// <summary>
+    /// 签发 TwoFactorUserId Cookie（标记密码已验证，等待 2FA）。
+    /// </summary>
+    private static async Task IssueTwoFactorUserIdCookieAsync(SignInManager<AppUser> signInManager, AppUser user)
+    {
+        var twoFactorIdentity = new ClaimsIdentity(IdentityConstants.TwoFactorUserIdScheme);
+        twoFactorIdentity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
+        twoFactorIdentity.AddClaim(new Claim(ClaimTypes.Name, user.UserName ?? ""));
+
+        await signInManager.Context.SignInAsync(IdentityConstants.TwoFactorUserIdScheme,
+            new ClaimsPrincipal(twoFactorIdentity),
+            new AuthenticationProperties { IsPersistent = true });
     }
 
     private static async Task<Ok> LogoutAsync(SignInManager<AppUser> signInManager)

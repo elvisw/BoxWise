@@ -10,4 +10,5 @@ public class AppUser : IdentityUser
     public string? EmailForTwoFactor { get; set; }
     public DateTime? TwoFactorSetupCompletedAt { get; set; }
     public DateTime? TwoFactorGracePeriodUntil { get; set; }
+    public ICollection<RecoveryCode> RecoveryCodes { get; set; } = new List<RecoveryCode>();
 }

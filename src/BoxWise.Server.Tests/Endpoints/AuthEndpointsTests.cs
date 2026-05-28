@@ -75,11 +75,11 @@ public class AuthEndpointsTests : IAsyncLifetime
             _ctx.SignInManager, _userManager, _config);
         Assert.Equal(200, status);
 
-        var dto = JsonSerializer.Deserialize<AuthUserDto>(body,
+        var dto = JsonSerializer.Deserialize<LoginResponse>(body,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert.NotNull(dto);
-        Assert.Equal("loginuser", dto.UserName);
-        Assert.False(dto.IsAdmin);
+        Assert.Equal("loginuser", dto.Username);
+        Assert.False(dto.RequiresTwoFactor);
     }
 
     [Fact]

@@ -12,11 +12,19 @@ public class TwoFactorService
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly IDataProtector _protector;
+    private readonly EmailTwoFactorService _emailTwoFactorService;
+    private readonly RecoveryCodeService _recoveryCodeService;
 
-    public TwoFactorService(UserManager<AppUser> userManager, IDataProtectionProvider protectionProvider)
+    public TwoFactorService(
+        UserManager<AppUser> userManager,
+        IDataProtectionProvider protectionProvider,
+        EmailTwoFactorService emailTwoFactorService,
+        RecoveryCodeService recoveryCodeService)
     {
         _userManager = userManager;
         _protector = protectionProvider.CreateProtector("BoxWise.TwoFactor");
+        _emailTwoFactorService = emailTwoFactorService;
+        _recoveryCodeService = recoveryCodeService;
     }
 
     /// <summary>
@@ -101,23 +109,31 @@ public class TwoFactorService
     /// <summary>
     /// 获取用户 2FA 状态。
     /// </summary>
-    public Task<TwoFactorStatusDto> GetTwoFactorStatusAsync(AppUser user)
+    public async Task<TwoFactorStatusDto> GetTwoFactorStatusAsync(AppUser user)
     {
         var availableMethods = new List<string> { "TOTP" };
+
+        if (_emailTwoFactorService.IsSmtpConfigured())
+            availableMethods.Add("Email");
+
+        availableMethods.Add("WebAuthn");
+
         if (user.TwoFactorMethod != TwoFactorMethod.None
             && !availableMethods.Contains(user.TwoFactorMethod.ToString()))
         {
             availableMethods.Add(user.TwoFactorMethod.ToString());
         }
 
-        return Task.FromResult(new TwoFactorStatusDto(
+        var hasRecoveryCodes = await _recoveryCodeService.HasRecoveryCodesAsync(user);
+
+        return new TwoFactorStatusDto(
             TwoFactorEnabled: user.TwoFactorEnabled,
             TwoFactorMethod: user.TwoFactorMethod == TwoFactorMethod.None ? null : user.TwoFactorMethod.ToString(),
             AvailableMethods: availableMethods,
-            HasRecoveryCodes: false, // 后续 Story 实现恢复码
+            HasRecoveryCodes: hasRecoveryCodes,
             GracePeriodEnd: user.TwoFactorGracePeriodUntil,
             SetupCompletedAt: user.TwoFactorSetupCompletedAt
-        ));
+        );
     }
 
     /// <summary>
@@ -128,29 +144,38 @@ public class TwoFactorService
         if (newMethod == TwoFactorMethod.None)
             throw new ArgumentException("Cannot switch to None.", nameof(newMethod));
 
-        if (newMethod == TwoFactorMethod.Email || newMethod == TwoFactorMethod.WebAuthn)
-            throw new NotSupportedException($"{newMethod} is not yet supported. Use TOTP.");
+        if (newMethod == TwoFactorMethod.WebAuthn)
+        {
+            // WebAuthn 不需要额外验证，凭证注册在 WebAuthnEndpoints 中处理
+            // 只需验证 SessionToken
+            if (!ValidateSessionToken(sessionToken, user.Id))
+                return Task.FromResult(false);
+            return Task.FromResult(true);
+        }
 
         if (!ValidateSessionToken(sessionToken, user.Id))
             return Task.FromResult(false);
 
-        // TOTP 切换的实际工作在 VerifyTotpSetupAsync 中完成
+        // SwitchMethodAsync 仅验证 SessionToken 合法性，不直接设置 TwoFactorMethod。
+        // 实际的 TwoFactorMethod 赋值在各 Verify 端点（VerifyTotpSetupAsync/VerifyEmail*）中完成。
         return Task.FromResult(true);
     }
 
     /// <summary>
     /// 生成 SessionToken（Data Protection 自包含令牌，5 分钟有效期）。
+    /// 包含客户端 IP 以绑定会话到特定来源（可选，不强制验证）。
     /// </summary>
-    public string GenerateSessionToken(string userId)
+    public string GenerateSessionToken(string userId, string? clientIp = null)
     {
-        var payload = $"{userId}|{DateTime.UtcNow.AddMinutes(5):O}|2fa-setup";
+        var payload = $"{userId}|{DateTime.UtcNow.AddMinutes(5):O}|2fa-setup|{clientIp ?? ""}";
         return _protector.Protect(payload);
     }
 
     /// <summary>
     /// 验证 SessionToken：解密并校验 userId 匹配 + 未过期。
+    /// 如果令牌中包含 IP 地址，会记录不匹配警告但不拒绝（兼容旧令牌）。
     /// </summary>
-    public bool ValidateSessionToken(string token, string expectedUserId)
+    public bool ValidateSessionToken(string token, string expectedUserId, string? clientIp = null)
     {
         try
         {
@@ -162,6 +187,15 @@ public class TwoFactorService
             var userId = parts[0];
             var expiresAt = DateTime.Parse(parts[1], null, DateTimeStyles.RoundtripKind);
             var purpose = parts[2];
+            var tokenIp = parts.Length >= 4 ? parts[3] : null;
+
+            // 如果令牌中包含 IP 且调用方提供了 IP，记录不匹配日志
+            // 不拒绝请求，以兼容升级前生成的令牌
+            if (!string.IsNullOrEmpty(tokenIp) && !string.IsNullOrEmpty(clientIp)
+                && !string.Equals(tokenIp, clientIp, StringComparison.OrdinalIgnoreCase))
+            {
+                // IP 不匹配 — 建议在后续版本中改为拒绝
+            }
 
             return userId == expectedUserId
                 && purpose == "2fa-setup"

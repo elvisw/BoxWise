@@ -41,7 +41,7 @@ public class AuthServiceTests
     [Fact]
     public async Task LoginAsync_Success_SetsAppState()
     {
-        var dto = new AuthUserDto("elvis", true, false);
+        var dto = new LoginResponse("elvis", IsAdmin: true, IsSpecificAdmin: false, PasswordRequiresChange: false, RequiresTwoFactor: false);
         var json = JsonSerializer.Serialize(dto);
         var (service, appState, _) = CreateService(responseContent: json);
 
@@ -55,7 +55,7 @@ public class AuthServiceTests
     [Fact]
     public async Task LoginAsync_Success_FiresAppStateEvent()
     {
-        var dto = new AuthUserDto("elvis", false, false);
+        var dto = new LoginResponse("elvis", IsAdmin: false, IsSpecificAdmin: false, PasswordRequiresChange: false, RequiresTwoFactor: false);
         var json = JsonSerializer.Serialize(dto);
         var (service, appState, _) = CreateService(responseContent: json);
         var fired = false;
@@ -90,20 +90,21 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task LoginAsync_NullResponse_UsesUsername()
+    public async Task LoginAsync_NullResponse_ReturnsFailure()
     {
-        // 返回 null JSON → ReadFromJsonAsync 返回 null → 使用 username 参数
+        // 返回 null JSON → ReadFromJsonAsync 返回 null → LoginResult.Failure
         var (service, appState, _) = CreateService(responseContent: "null");
 
-        await service.LoginAsync("elvis", "pass");
+        var result = await service.LoginAsync("elvis", "pass");
 
-        Assert.Equal("elvis", appState.CurrentUserName);
+        Assert.Equal(LoginResult.Failure, result);
+        Assert.Null(appState.CurrentUserName);
     }
 
     [Fact]
     public async Task LogoutAsync_ClearsAppState()
     {
-        var dto = new AuthUserDto("elvis", false, false);
+        var dto = new LoginResponse("elvis", IsAdmin: false, IsSpecificAdmin: false, PasswordRequiresChange: false, RequiresTwoFactor: false);
         var json = JsonSerializer.Serialize(dto);
         var (service, appState, _) = CreateService(responseContent: json);
         await service.LoginAsync("elvis", "pass");

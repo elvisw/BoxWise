@@ -1,7 +1,10 @@
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
 using BoxWise.Server.Endpoints;
@@ -9,6 +12,7 @@ using BoxWise.Server.Models;
 using BoxWise.Server.Configuration;
 using BoxWise.Server.Repositories;
 using BoxWise.Server.Services;
+using Fido2NetLib;
 using BoxWise.Server.Services.PasswordValidators;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -99,7 +103,111 @@ builder.Services.AddOptions<LlmOptions>()
 builder.Services.AddHttpClient<LlmClient>();
 builder.Services.AddSingleton<ImageStorageService>();
 builder.Services.AddSingleton<ThumbnailService>();
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<TwoFactorService>();
+builder.Services.AddScoped<EmailTwoFactorService>();
+builder.Services.AddScoped<RecoveryCodeService>();
+builder.Services.AddScoped<WebAuthnService>();
+
+// FIDO2 WebAuthn
+var fido2Config = new Fido2Configuration
+{
+    ServerDomain = builder.Configuration["WebAuthn:ServerDomain"]
+        ?? new Uri(builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001").Host,
+    ServerName = "BoxWise",
+    Origins = new HashSet<string>
+    {
+        builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001"
+    }
+};
+builder.Services.AddSingleton<IFido2>(new Fido2NetLib.Fido2(fido2Config));
+
+// Session (WebAuthn 端点需要)
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(5);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+});
+
+// Rate Limiting
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // 登录端点 - 按 IP
+    options.AddFixedWindowLimiter(policyName: "login-per-ip", config =>
+    {
+        config.PermitLimit = builder.Configuration.GetValue<int>("RateLimit:LoginPermitLimit");
+        config.Window = TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("RateLimit:LoginWindowMinutes"));
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        config.QueueLimit = 0;
+    });
+
+    // 登录端点 - 按账户（从已认证用户 ID 提取分区键）
+    options.AddPolicy<string>("login-per-account", httpContext =>
+    {
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown";
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        return RateLimitPartition.GetFixedWindowLimiter(userId,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = config.GetValue<int>("RateLimit:LoginPermitLimit"),
+                Window = TimeSpan.FromMinutes(config.GetValue<int>("RateLimit:LoginWindowMinutes")),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
+
+    // 2FA TOTP 验证 - 按账户
+    options.AddPolicy<string>("2fa-totp", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(userId,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = config.GetValue<int>("RateLimit:TwoFactorTotpPermitLimit"),
+                Window = TimeSpan.FromSeconds(config.GetValue<int>("RateLimit:TwoFactorTotpWindowSeconds")),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
+
+    // 2FA 邮箱验证 - 按账户
+    options.AddPolicy<string>("2fa-email", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(userId,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = config.GetValue<int>("RateLimit:TwoFactorEmailPermitLimit"),
+                Window = TimeSpan.FromMinutes(config.GetValue<int>("RateLimit:TwoFactorEmailWindowMinutes")),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
+
+    // 2FA 恢复码验证 - 按账户
+    options.AddPolicy<string>("2fa-recovery", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(userId,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = config.GetValue<int>("RateLimit:TwoFactorRecoveryPermitLimit"),
+                Window = TimeSpan.FromMinutes(config.GetValue<int>("RateLimit:TwoFactorRecoveryWindowMinutes")),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
+});
+
+builder.Services.AddScoped<CsrfValidationFilter>();
 
 builder.Services.AddRazorPages();
 
@@ -192,6 +300,10 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.MapStaticAssets().AllowAnonymous();
 
+app.UseRateLimiter();
+
+app.UseSession();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -201,6 +313,9 @@ app.MapImageEndpoints();
 app.MapItemEndpoints();
 app.MapTagEndpoints();
 app.MapAiEndpoints();
+app.MapTwoFactorEndpoints();
+app.MapWebAuthnEndpoints();
+app.MapQrCodeEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
 app.MapFallbackToFile("index.html").AllowAnonymous();

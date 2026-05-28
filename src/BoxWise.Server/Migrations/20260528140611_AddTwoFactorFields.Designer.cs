@@ -3,6 +3,7 @@ using System;
 using BoxWise.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BoxWise.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260528140611_AddTwoFactorFields")]
+    partial class AddTwoFactorFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
@@ -185,29 +188,6 @@ namespace BoxWise.Server.Migrations
                     b.ToTable("Locations");
                 });
 
-            modelBuilder.Entity("BoxWise.Server.Models.RecoveryCode", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("CodeHash")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("RecoveryCodes", (string)null);
-                });
-
             modelBuilder.Entity("BoxWise.Server.Models.Tag", b =>
                 {
                     b.Property<int>("Id")
@@ -225,41 +205,6 @@ namespace BoxWise.Server.Migrations
                         .IsUnique();
 
                     b.ToTable("Tags");
-                });
-
-            modelBuilder.Entity("BoxWise.Server.Models.WebAuthnCredential", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CredentialId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DeviceName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PublicKey")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SignCount")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("WebAuthnCredentials");
                 });
 
             modelBuilder.Entity("ItemTag", b =>
@@ -440,28 +385,6 @@ namespace BoxWise.Server.Migrations
                     b.Navigation("Parent");
                 });
 
-            modelBuilder.Entity("BoxWise.Server.Models.RecoveryCode", b =>
-                {
-                    b.HasOne("BoxWise.Server.Models.AppUser", "User")
-                        .WithMany("RecoveryCodes")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("BoxWise.Server.Models.WebAuthnCredential", b =>
-                {
-                    b.HasOne("BoxWise.Server.Models.AppUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("ItemTag", b =>
                 {
                     b.HasOne("BoxWise.Server.Models.Item", null)
@@ -526,11 +449,6 @@ namespace BoxWise.Server.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("BoxWise.Server.Models.AppUser", b =>
-                {
-                    b.Navigation("RecoveryCodes");
                 });
 
             modelBuilder.Entity("BoxWise.Server.Models.Location", b =>

@@ -37,6 +37,22 @@
     <MudDivider Class="my-3" />
 
     <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
+         @onclick="OpenTwoFactorSetupDialog" @onkeydown="HandleTwoFactorKey" @onkeydown:preventDefault>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Medium" Class="mr-3" Color="Color.Tertiary" />
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.body1" Style="font-weight:500;">双因素认证</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">
+                    @_twoFactorStatusText
+                </MudText>
+            </div>
+            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+        </div>
+    </div>
+
+    <MudDivider Class="my-3" />
+
+    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
          @onclick="OpenLocationManageDialog" @onkeydown="HandleLocationKey" @onkeydown:preventDefault>
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
@@ -91,6 +107,42 @@
 </div>
 
 @code {
+    private string _twoFactorStatusText = "加载中...";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTwoFactorStatusAsync();
+    }
+
+    private async Task LoadTwoFactorStatusAsync()
+    {
+        try
+        {
+            var status = await AuthService.GetTwoFactorStatusAsync();
+            if (status is null)
+            {
+                _twoFactorStatusText = "设置 TOTP 两步验证";
+            }
+            else if (status.TwoFactorEnabled)
+            {
+                var methodName = status.TwoFactorMethod switch
+                {
+                    "TOTP" => "TOTP 验证器",
+                    _ => status.TwoFactorMethod ?? "未知"
+                };
+                _twoFactorStatusText = $"已启用（{methodName}）";
+            }
+            else
+            {
+                _twoFactorStatusText = "设置 TOTP 两步验证";
+            }
+        }
+        catch
+        {
+            _twoFactorStatusText = "设置 TOTP 两步验证";
+        }
+    }
+
     private async Task OpenAccountInfoDialog()
     {
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
@@ -101,6 +153,18 @@
     {
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
         await DialogService.ShowAsync<ChangePasswordDialog>("修改密码", options);
+    }
+
+    private async Task OpenTwoFactorSetupDialog()
+    {
+        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<TwoFactorSetup>("双因素认证", options);
+        var result = await dialog.Result;
+        if (result?.Canceled == false)
+        {
+            await LoadTwoFactorStatusAsync();
+            StateHasChanged();
+        }
     }
 
     private async Task OpenLocationManageDialog()
@@ -132,6 +196,11 @@
     private async void HandlePasswordKey(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenChangePasswordDialog); }
+    }
+
+    private async void HandleTwoFactorKey(KeyboardEventArgs e)
+    {
+        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenTwoFactorSetupDialog); }
     }
 
     private async void HandleLocationKey(KeyboardEventArgs e)
