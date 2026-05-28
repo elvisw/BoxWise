@@ -3,6 +3,9 @@
 ##
 ## Get latest from `dotnet new gitignore`
 
+# Data Protection keys (runtime generated)
+**/Data/keys/
+
 # dotenv files
 .env
 
