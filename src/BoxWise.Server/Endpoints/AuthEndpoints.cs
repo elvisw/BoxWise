@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+
 using BoxWise.Server.Models;
 using BoxWise.Server.Services.PasswordValidators;
 using BoxWise.Shared.Dtos;
@@ -19,7 +20,7 @@ public static class AuthEndpoints
             .WithTags("Auth")
             .WithDescription("用户登录")
             .ProducesProblem(401)
-            .RequireRateLimiting("login-per-ip");
+            .RequireRateLimiting("login-per-account");
 
         group.MapPost("/logout", LogoutAsync)
             .WithTags("Auth")
@@ -46,11 +47,14 @@ public static class AuthEndpoints
 
     private static async Task<Results<Ok<LoginResponse>, UnauthorizedHttpResult, ValidationProblem>>
         LoginAsync(LoginRequest request, SignInManager<AppUser> signInManager, UserManager<AppUser> userManager,
-        IConfiguration config)
+        IConfiguration config, ILoggerFactory loggerFactory, HttpContext httpContext)
     {
+        var logger = loggerFactory.CreateLogger("BoxWise.Auth");
         var user = await userManager.FindByNameAsync(request.Username);
         if (user is null)
         {
+            logger.LogWarning("Failed login attempt from {IpAddress} for non-existent user {Username}",
+                GetClientIp(httpContext), request.Username);
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
                 { "credentials", new[] { "用户名或密码错误" } }
@@ -62,10 +66,19 @@ public static class AuthEndpoints
 
         if (!result.Succeeded)
         {
+            logger.LogWarning("Failed login attempt from {IpAddress} for user {Username}",
+                GetClientIp(httpContext), request.Username);
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
                 { "credentials", new[] { "用户名或密码错误" } }
             });
+        }
+
+        // 首次登录初始化 2FA 宽限期（24 小时）
+        if (!user.TwoFactorEnabled && !user.TwoFactorGracePeriodUntil.HasValue)
+        {
+            user.TwoFactorGracePeriodUntil = DateTime.UtcNow.AddHours(24);
+            await userManager.UpdateAsync(user);
         }
 
         // 检查 2FA 状态
@@ -73,7 +86,10 @@ public static class AuthEndpoints
         {
             // 已启用 2FA → 签发 TwoFactorUserId Cookie，进入阶段二
             await IssueTwoFactorUserIdCookieAsync(signInManager, user);
-            return TypedResults.Ok(new LoginResponse(null, null, null, false, RequiresTwoFactor: true));
+            var pwdNeedsChange = request.Password.Length < 8
+                || request.Password.All(char.IsDigit)
+                || CommonPasswordValidator.IsCommon(request.Password);
+            return TypedResults.Ok(new LoginResponse(null, null, null, pwdNeedsChange, RequiresTwoFactor: true));
         }
 
         // 检查强制 2FA 宽限期
@@ -82,7 +98,10 @@ public static class AuthEndpoints
         {
             // 宽限期已过且 2FA 未启用 → 要求设置 2FA
             await IssueTwoFactorUserIdCookieAsync(signInManager, user);
-            return TypedResults.Ok(new LoginResponse(null, null, null, false, RequiresTwoFactor: true));
+            var pwdNeedsChange2 = request.Password.Length < 8
+                || request.Password.All(char.IsDigit)
+                || CommonPasswordValidator.IsCommon(request.Password);
+            return TypedResults.Ok(new LoginResponse(null, null, null, pwdNeedsChange2, RequiresTwoFactor: true));
         }
 
         // 宽限期未设置或未到期 → 非强制 2FA，直接登录
@@ -108,10 +127,11 @@ public static class AuthEndpoints
         var twoFactorIdentity = new ClaimsIdentity(IdentityConstants.TwoFactorUserIdScheme);
         twoFactorIdentity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
         twoFactorIdentity.AddClaim(new Claim(ClaimTypes.Name, user.UserName ?? ""));
+        twoFactorIdentity.AddClaim(new Claim("SessionToken", Guid.NewGuid().ToString()));
 
         await signInManager.Context.SignInAsync(IdentityConstants.TwoFactorUserIdScheme,
             new ClaimsPrincipal(twoFactorIdentity),
-            new AuthenticationProperties { IsPersistent = true });
+            new AuthenticationProperties { IsPersistent = false });
     }
 
     private static async Task<Ok> LogoutAsync(SignInManager<AppUser> signInManager)
@@ -207,11 +227,11 @@ public static class AuthEndpoints
             });
         }
 
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8 || request.NewPassword.Length > 128)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                { "newPassword", new[] { "新密码长度至少为 8 个字符" } }
+                { "newPassword", new[] { "新密码长度须在 8 到 128 个字符之间" } }
             });
         }
 
@@ -234,6 +254,9 @@ public static class AuthEndpoints
 
         return TypedResults.Ok();
     }
+
+    private static string GetClientIp(HttpContext httpContext)
+        => httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
     private static ValidationProblem Unauthorized()
         => TypedResults.ValidationProblem(new Dictionary<string, string[]>

@@ -122,6 +122,10 @@
                 // 获取支持的 2FA 方法
                 await LoadTwoFactorChallengeAsync();
             }
+            else if (result == LoginResult.PasswordRequiresChange)
+            {
+                _error = "您的密码不符合新的安全要求（至少 8 位，不能为纯数字或常见密码）。登录成功后请在设置页面修改密码。";
+            }
             else
             {
                 _error = "用户名或密码错误";

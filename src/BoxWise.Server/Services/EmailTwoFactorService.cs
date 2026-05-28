@@ -1,6 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.Caching.Memory;
 using MailKit.Net.Smtp;
 using MimeKit;
 
@@ -9,68 +9,58 @@ namespace BoxWise.Server.Services;
 public class EmailTwoFactorService
 {
     private readonly IDataProtector _protector;
-    private readonly IMemoryCache _cache;
     private readonly IConfiguration _config;
     private readonly ILogger<EmailTwoFactorService> _logger;
 
     public EmailTwoFactorService(
         IDataProtectionProvider protectionProvider,
-        IMemoryCache cache,
         IConfiguration config,
         ILogger<EmailTwoFactorService> logger)
     {
         _protector = protectionProvider.CreateProtector("BoxWise.EmailTwoFactor");
-        _cache = cache;
         _config = config;
         _logger = logger;
     }
 
     /// <summary>
-    /// 生成 6 位验证码，用 Data Protection 加密后存入内存缓存，返回明文验证码。
-    /// 缓存 5 分钟后过期。
+    /// 生成 6 位验证码 + 自包含加密令牌（Data Protection，零服务端存储）。
+    /// 令牌内含 userId + email + code + 过期时间，验证时解密比对。
     /// </summary>
-    public string GenerateAndCacheCode(string userId, string email)
+    public (string Code, string Token) GenerateCode(string userId, string email)
     {
-        var code = Random.Shared.Next(100000, 999999).ToString();
+        var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
         var payload = $"{userId}|{email}|{code}|{DateTime.UtcNow.AddMinutes(5):O}";
-        var encrypted = _protector.Protect(payload);
-        _cache.Set(CacheKey(userId), encrypted, TimeSpan.FromMinutes(5));
-        return code;
+        var token = _protector.Protect(payload);
+        return (code, token);
     }
 
     /// <summary>
-    /// 验证邮箱验证码：查找缓存、解密、校验 userId/email/code 匹配且未过期。
+    /// 验证邮箱验证码：解密令牌，校验 userId/email/code 匹配且未过期。
+    /// 自包含令牌，无需服务端缓存。
     /// </summary>
-    public bool VerifyCode(string userId, string email, string code)
+    public bool VerifyCode(string userId, string email, string code, string token)
     {
-        var key = CacheKey(userId);
-        if (!_cache.TryGetValue(key, out string? encrypted) || encrypted is null)
-            return false;
-
         try
         {
-            var payload = _protector.Unprotect(encrypted);
+            var payload = _protector.Unprotect(token);
             var parts = payload.Split('|');
             if (parts.Length < 4)
                 return false;
 
-            var cachedUserId = parts[0];
-            var cachedEmail = parts[1];
-            var cachedCode = parts[2];
+            var tokenUserId = parts[0];
+            var tokenEmail = parts[1];
+            var tokenCode = parts[2];
             var expiresAt = DateTime.Parse(parts[3], null, DateTimeStyles.RoundtripKind);
 
-            if (cachedUserId == userId && cachedEmail == email && cachedCode == code && expiresAt > DateTime.UtcNow)
-            {
-                _cache.Remove(key);
-                return true;
-            }
+            return tokenUserId == userId
+                && tokenEmail == email
+                && tokenCode == code
+                && expiresAt > DateTime.UtcNow;
         }
         catch
         {
-            // 解密失败视为无效
+            return false;
         }
-
-        return false;
     }
 
     /// <summary>
@@ -142,14 +132,4 @@ BoxWise 安全团队"
     {
         return !string.IsNullOrWhiteSpace(_config["Smtp:Host"]);
     }
-
-    /// <summary>
-    /// 清除缓存的验证码（用于手动清理）。
-    /// </summary>
-    public void ClearCachedCode(string userId)
-    {
-        _cache.Remove(CacheKey(userId));
-    }
-
-    private static string CacheKey(string userId) => $"2fa_email_{userId}";
 }

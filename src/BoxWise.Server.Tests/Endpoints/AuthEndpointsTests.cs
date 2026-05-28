@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using BoxWise.Server.Endpoints;
 using BoxWise.Server.Models;
 using BoxWise.Shared.Dtos;
@@ -17,6 +18,7 @@ public class AuthEndpointsTests : IAsyncLifetime
     private TestIdentityContext _ctx = null!;
     private UserManager<AppUser> _userManager = null!;
     private IConfiguration _config = null!;
+    private ILoggerFactory _loggerFactory = NullLoggerFactory.Instance;
 
     public async Task InitializeAsync()
     {
@@ -72,7 +74,7 @@ public class AuthEndpointsTests : IAsyncLifetime
         var u = new AppUser { UserName = "loginuser" };
         await _userManager.CreateAsync(u, "Test1234!");
         var (status, body) = await InvokeWithBodyAsync("LoginAsync", new LoginRequest("loginuser", "Test1234!"),
-            _ctx.SignInManager, _userManager, _config);
+            _ctx.SignInManager, _userManager, _config, _loggerFactory, new DefaultHttpContext());
         Assert.Equal(200, status);
 
         var dto = JsonSerializer.Deserialize<LoginResponse>(body,
@@ -88,7 +90,7 @@ public class AuthEndpointsTests : IAsyncLifetime
         var u = new AppUser { UserName = "wrongpwuser" };
         await _userManager.CreateAsync(u, "Test1234!");
         var (status, body) = await InvokeWithBodyAsync("LoginAsync", new LoginRequest("wrongpwuser", "WrongPass1!"),
-            _ctx.SignInManager, _userManager, _config);
+            _ctx.SignInManager, _userManager, _config, _loggerFactory, new DefaultHttpContext());
         Assert.Equal(400, status);
         Assert.Contains("credentials", body);
     }
@@ -97,7 +99,7 @@ public class AuthEndpointsTests : IAsyncLifetime
     public async Task LoginAsync_EmptyUsername_ReturnsValidationProblem()
     {
         var (status, body) = await InvokeWithBodyAsync("LoginAsync", new LoginRequest("", "Test1234!"),
-            _ctx.SignInManager, _userManager, _config);
+            _ctx.SignInManager, _userManager, _config, _loggerFactory, new DefaultHttpContext());
         Assert.Equal(400, status);
         Assert.Contains("credentials", body);
     }
@@ -106,7 +108,7 @@ public class AuthEndpointsTests : IAsyncLifetime
     public async Task LoginAsync_NonexistentUser_ReturnsValidationProblem()
     {
         var (status, body) = await InvokeWithBodyAsync("LoginAsync", new LoginRequest("nouser", "Test1234!"),
-            _ctx.SignInManager, _userManager, _config);
+            _ctx.SignInManager, _userManager, _config, _loggerFactory, new DefaultHttpContext());
         Assert.Equal(400, status);
         Assert.Contains("credentials", body);
     }

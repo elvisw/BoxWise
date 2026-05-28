@@ -72,11 +72,13 @@ public class ResetTwoFactorModel : PageModel
             .ToListAsync();
         _db.WebAuthnCredentials.RemoveRange(credentials);
 
-        await _db.SaveChangesAsync();
+        await _userManager.UpdateAsync(targetUser);
+        await _userManager.UpdateSecurityStampAsync(targetUser);
 
         _logger.LogWarning(
-            "Admin {Admin} reset 2FA for user {User} at {Time}",
-            User.Identity?.Name, targetUser.UserName, DateTime.UtcNow);
+            "Admin {Admin} (Id={AdminId}) reset 2FA for user {User} (Id={UserId}) at {Timestamp}",
+            User.Identity?.Name, User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+            targetUser.UserName, targetUser.Id, DateTime.UtcNow);
 
         TempData["StatusMessage"] = $"已重置 '{targetUser.UserName}' 的双因素认证";
         return RedirectToPage("/Admin/Index");

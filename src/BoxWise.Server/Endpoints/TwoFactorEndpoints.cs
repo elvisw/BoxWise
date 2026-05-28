@@ -2,8 +2,8 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using BoxWise.Server.Data;
+
+
 using BoxWise.Server.Models;
 using BoxWise.Server.Services;
 using BoxWise.Shared.Dtos;
@@ -39,7 +39,8 @@ public static class TwoFactorEndpoints
 
         group.MapPost("/verify", VerifyAsync)
             .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .RequireRateLimiting("2fa-totp");
 
         group.MapGet("/status", GetStatusAsync)
             .WithTags("2FA")
@@ -53,20 +54,24 @@ public static class TwoFactorEndpoints
         // Story 8-2b: 邮箱验证码 2FA
         group.MapPost("/setup-email", SetupEmailAsync)
             .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .AddEndpointFilter<CsrfValidationFilter>();
 
         group.MapPost("/verify-email", VerifyEmailAsync)
             .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .AddEndpointFilter<CsrfValidationFilter>();
 
         // Story 8-2b: 恢复码
         group.MapPost("/recovery/verify", VerifyRecoveryCodeDuringLoginAsync)
             .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .RequireRateLimiting("2fa-recovery");
 
         group.MapPost("/recovery/regenerate", RegenerateRecoveryCodesAsync)
             .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .AddEndpointFilter<CsrfValidationFilter>();
 
         // 登录阶段发送邮箱验证码（邮箱 2FA 挑战时使用）
         group.MapPost("/send-challenge-code", SendChallengeCodeAsync)
@@ -193,19 +198,21 @@ public static class TwoFactorEndpoints
             return TypedResults.Unauthorized();
 
         var methods = new List<string>();
+        string? emailToken = null;
+
         if (user.TwoFactorMethod == TwoFactorMethod.TOTP)
             methods.Add("TOTP");
 
         if (user.TwoFactorMethod == TwoFactorMethod.Email && !string.IsNullOrEmpty(user.EmailForTwoFactor))
         {
             methods.Add("Email");
-            // 自动发送验证码
-            var code = emailTwoFactorService.GenerateAndCacheCode(user.Id, user.EmailForTwoFactor);
+            var (code, token) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
+            emailToken = token;
             _ = emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName)
                 .ContinueWith(t => { if (t.IsFaulted) { /* SMTP 不可用，用户需手动输入 TOTP */ } });
         }
 
-        return TypedResults.Ok(new TwoFactorChallengeResponse(methods));
+        return TypedResults.Ok(new TwoFactorChallengeResponse(methods, emailToken));
     }
 
     /// <summary>
@@ -222,7 +229,7 @@ public static class TwoFactorEndpoints
         if (string.IsNullOrEmpty(user.EmailForTwoFactor))
             return TypedResults.Ok();
 
-        var code = emailTwoFactorService.GenerateAndCacheCode(user.Id, user.EmailForTwoFactor);
+        var (code, _) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
         _ = emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName)
             .ContinueWith(t => { if (t.IsFaulted) { /* SMTP 不可用，用户需检查邮箱配置 */ } });
 
@@ -244,7 +251,12 @@ public static class TwoFactorEndpoints
         bool valid;
         if (user.TwoFactorMethod == TwoFactorMethod.Email && !string.IsNullOrEmpty(user.EmailForTwoFactor))
         {
-            valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code);
+            if (string.IsNullOrEmpty(request.Token))
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "token", new[] { "缺少验证令牌" } }
+                });
+            valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
         }
         else
         {
@@ -264,7 +276,7 @@ public static class TwoFactorEndpoints
 
         // 颁发完整认证 Cookie，添加 2FA 已验证声明
         await signInManager.SignInWithClaimsAsync(user, isPersistent: true,
-            new[] { new Claim("2fa", "verified") });
+            new[] { new Claim("amr", "2fa") });
 
         var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
         var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
@@ -334,7 +346,7 @@ public static class TwoFactorEndpoints
     /// <summary>
     /// 设置邮箱 2FA：保存邮箱地址并发送验证码。
     /// </summary>
-    private static async Task<Results<Ok, UnauthorizedHttpResult, ValidationProblem>>
+    private static async Task<Results<Ok<EmailTwoFactorSetupResponse>, UnauthorizedHttpResult, ValidationProblem>>
         SetupEmailAsync(SetupEmailTwoFactorRequest request, HttpContext httpContext,
             UserManager<AppUser> userManager, TwoFactorService twoFactorService,
             EmailTwoFactorService emailTwoFactorService)
@@ -362,7 +374,7 @@ public static class TwoFactorEndpoints
         }
 
         var email = request.Email.Trim();
-        if (string.IsNullOrWhiteSpace(email) || email.Length > 256)
+        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !email.Contains('@'))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
@@ -371,9 +383,10 @@ public static class TwoFactorEndpoints
         }
 
         user.EmailForTwoFactor = email;
+        await userManager.UpdateAsync(user);
 
-        // 生成并发送验证码
-        var code = emailTwoFactorService.GenerateAndCacheCode(user.Id, email);
+        // 生成自包含令牌并发送验证码
+        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, email);
         var sent = await emailTwoFactorService.SendVerificationEmailAsync(email, code, user.UserName);
 
         if (!sent)
@@ -384,8 +397,7 @@ public static class TwoFactorEndpoints
             });
         }
 
-        await userManager.UpdateAsync(user);
-        return TypedResults.Ok();
+        return TypedResults.Ok(new EmailTwoFactorSetupResponse(token));
     }
 
     /// <summary>
@@ -428,7 +440,15 @@ public static class TwoFactorEndpoints
             });
         }
 
-        var valid = emailTwoFactorService.VerifyCode(user.Id, email, request.Code);
+        if (string.IsNullOrEmpty(request.Token))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "token", new[] { "缺少验证令牌" } }
+            });
+        }
+
+        var valid = emailTwoFactorService.VerifyCode(user.Id, email, request.Code, request.Token);
         if (!valid)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>

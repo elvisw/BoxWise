@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -140,22 +142,30 @@ builder.Services.AddRateLimiter(options =>
     // 登录端点 - 按 IP
     options.AddFixedWindowLimiter(policyName: "login-per-ip", config =>
     {
-        config.PermitLimit = builder.Configuration.GetValue<int>("RateLimit:LoginPermitLimit");
-        config.Window = TimeSpan.FromMinutes(builder.Configuration.GetValue<int>("RateLimit:LoginWindowMinutes"));
+        config.PermitLimit = builder.Configuration.GetValue("RateLimit:LoginPermitLimit", 5);
+        config.Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("RateLimit:LoginWindowMinutes", 15));
         config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });
 
-    // 登录端点 - 按账户（从已认证用户 ID 提取分区键）
+    // 登录端点 - 按账户（从已认证用户 ID 或请求体用户名提取分区键）
     options.AddPolicy<string>("login-per-account", httpContext =>
     {
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown";
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
+        // 对于未认证的登录请求，尝试从请求体提取用户名以实现账户级限流
+        // 注意：读取请求体可能影响性能，仅用于登录端点
+        var partitionKey = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(partitionKey))
+        {
+            partitionKey = TryExtractUsernameFromBody(httpContext)
+                ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                ?? "anon";
+        }
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey,
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = config.GetValue<int>("RateLimit:LoginPermitLimit"),
-                Window = TimeSpan.FromMinutes(config.GetValue<int>("RateLimit:LoginWindowMinutes")),
+                PermitLimit = config.GetValue("RateLimit:LoginPermitLimit", 5),
+                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:LoginWindowMinutes", 15)),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
             });
@@ -169,8 +179,8 @@ builder.Services.AddRateLimiter(options =>
         return RateLimitPartition.GetFixedWindowLimiter(userId,
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = config.GetValue<int>("RateLimit:TwoFactorTotpPermitLimit"),
-                Window = TimeSpan.FromSeconds(config.GetValue<int>("RateLimit:TwoFactorTotpWindowSeconds")),
+                PermitLimit = config.GetValue("RateLimit:TwoFactorTotpPermitLimit", 3),
+                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:TwoFactorTotpWindowSeconds", 30)),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
             });
@@ -184,8 +194,8 @@ builder.Services.AddRateLimiter(options =>
         return RateLimitPartition.GetFixedWindowLimiter(userId,
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = config.GetValue<int>("RateLimit:TwoFactorEmailPermitLimit"),
-                Window = TimeSpan.FromMinutes(config.GetValue<int>("RateLimit:TwoFactorEmailWindowMinutes")),
+                PermitLimit = config.GetValue("RateLimit:TwoFactorEmailPermitLimit", 3),
+                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorEmailWindowMinutes", 5)),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
             });
@@ -199,8 +209,8 @@ builder.Services.AddRateLimiter(options =>
         return RateLimitPartition.GetFixedWindowLimiter(userId,
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = config.GetValue<int>("RateLimit:TwoFactorRecoveryPermitLimit"),
-                Window = TimeSpan.FromMinutes(config.GetValue<int>("RateLimit:TwoFactorRecoveryWindowMinutes")),
+                PermitLimit = config.GetValue("RateLimit:TwoFactorRecoveryPermitLimit", 5),
+                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorRecoveryWindowMinutes", 15)),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
             });
@@ -340,6 +350,29 @@ if (args.Length >= 3 && args[0] == "admin" && args[1] == "reset-2fa")
 
 app.Run();
 
+static string? TryExtractUsernameFromBody(HttpContext httpContext)
+{
+    try
+    {
+        if (!httpContext.Request.HasJsonContentType())
+            return null;
+
+        httpContext.Request.EnableBuffering();
+        using var reader = new StreamReader(httpContext.Request.Body, Encoding.UTF8, leaveOpen: true);
+        var body = reader.ReadToEnd();
+        httpContext.Request.Body.Position = 0;
+
+        using var doc = JsonDocument.Parse(body);
+        if (doc.RootElement.TryGetProperty("username", out var prop))
+            return prop.GetString();
+    }
+    catch
+    {
+        // Body reading failed — fall back to IP-based partitioning
+    }
+    return null;
+}
+
 static async Task ResetTwoFactorCli(WebApplication app, string username)
 {
     using var scope = app.Services.CreateScope();
@@ -376,11 +409,12 @@ static async Task ResetTwoFactorCli(WebApplication app, string username)
         db.WebAuthnCredentials.RemoveRange(webAuthnCreds);
 
         await userManager.UpdateAsync(user);
-        await db.SaveChangesAsync();
 
         // 审计日志
-        logger.LogWarning("CLI 2FA reset for user {Username} at {Timestamp}", username, DateTime.UtcNow);
-        Console.WriteLine($"2FA successfully reset for user '{username}'.");
+        logger.LogWarning("CLI 2FA reset by {Operator} for user {Username} (Id={UserId}) at {Timestamp}",
+            Environment.UserName, username, user.Id, DateTime.UtcNow);
+        var result = System.Text.Json.JsonSerializer.Serialize(new { success = true, username });
+        Console.WriteLine(result);
     }
     catch (Exception ex)
     {

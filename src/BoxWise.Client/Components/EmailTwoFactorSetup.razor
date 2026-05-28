@@ -77,6 +77,7 @@ else
 
     private string _email = string.Empty;
     private string _code = string.Empty;
+    private string? _emailToken;
     private string? _error;
     private bool _isLoading;
     private bool _codeSent;
@@ -89,7 +90,7 @@ else
 
         try
         {
-            await AuthService.SetupEmailTwoFactorAsync(SessionToken, _email);
+            _emailToken = await AuthService.SetupEmailTwoFactorAsync(SessionToken, _email);
             _codeSent = true;
             Snackbar.Add("验证码已发送到您的邮箱", Severity.Info);
             StateHasChanged();
@@ -111,7 +112,7 @@ else
 
         try
         {
-            var result = await AuthService.VerifyEmailTwoFactorAsync(SessionToken, _code);
+            var result = await AuthService.VerifyEmailTwoFactorAsync(SessionToken, _code, _emailToken ?? "");
             if (result.Success)
             {
                 _isVerified = true;

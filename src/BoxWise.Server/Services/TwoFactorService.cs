@@ -1,7 +1,7 @@
 using System.Globalization;
-using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
 using OtpNet;
 using BoxWise.Server.Models;
 using BoxWise.Shared.Dtos;
@@ -14,17 +14,20 @@ public class TwoFactorService
     private readonly IDataProtector _protector;
     private readonly EmailTwoFactorService _emailTwoFactorService;
     private readonly RecoveryCodeService _recoveryCodeService;
+    private readonly IMemoryCache _cache;
 
     public TwoFactorService(
         UserManager<AppUser> userManager,
         IDataProtectionProvider protectionProvider,
         EmailTwoFactorService emailTwoFactorService,
-        RecoveryCodeService recoveryCodeService)
+        RecoveryCodeService recoveryCodeService,
+        IMemoryCache cache)
     {
         _userManager = userManager;
         _protector = protectionProvider.CreateProtector("BoxWise.TwoFactor");
         _emailTwoFactorService = emailTwoFactorService;
         _recoveryCodeService = recoveryCodeService;
+        _cache = cache;
     }
 
     /// <summary>
@@ -50,6 +53,9 @@ public class TwoFactorService
     /// </summary>
     public async Task<bool> VerifyTotpSetupAsync(AppUser user, string code, string sessionToken)
     {
+        if (user is null)
+            return false;
+
         if (!ValidateSessionToken(sessionToken, user.Id))
             return false;
 
@@ -69,8 +75,14 @@ public class TwoFactorService
         var secretBytes = Base32Encoding.ToBytes(base32);
         var totp = new Totp(secretBytes);
 
-        if (!totp.VerifyTotp(code, out _, new VerificationWindow(1, 1)))
+        if (!totp.VerifyTotp(code, out long timeStepMatched, new VerificationWindow(1, 1)))
             return false;
+
+        // 防重放：同一用户 + 同一时间步长 2 分钟内不可重复使用
+        var replayKey = $"totp_replay_{user.Id}:{timeStepMatched}";
+        if (_cache.TryGetValue(replayKey, out _))
+            return false;
+        _cache.Set(replayKey, true, TimeSpan.FromMinutes(2));
 
         user.TwoFactorEnabled = true;
         user.TwoFactorMethod = TwoFactorMethod.TOTP;
@@ -86,6 +98,9 @@ public class TwoFactorService
     /// </summary>
     public Task<bool> VerifyTotpChallengeAsync(AppUser user, string code)
     {
+        if (user is null)
+            return Task.FromResult(false);
+
         if (string.IsNullOrWhiteSpace(user.TotpSecretKey))
             return Task.FromResult(false);
 
@@ -102,8 +117,16 @@ public class TwoFactorService
         var secretBytes = Base32Encoding.ToBytes(base32);
         var totp = new Totp(secretBytes);
 
-        var valid = totp.VerifyTotp(code, out _, new VerificationWindow(1, 1));
-        return Task.FromResult(valid);
+        if (!totp.VerifyTotp(code, out long timeStepMatched, new VerificationWindow(1, 1)))
+            return Task.FromResult(false);
+
+        // 防重放：同一用户 + 同一时间步长 2 分钟内不可重复使用
+        var replayKey2 = $"totp_replay_{user.Id}:{timeStepMatched}";
+        if (_cache.TryGetValue(replayKey2, out _))
+            return Task.FromResult(false);
+        _cache.Set(replayKey2, true, TimeSpan.FromMinutes(2));
+
+        return Task.FromResult(true);
     }
 
     /// <summary>
@@ -111,6 +134,9 @@ public class TwoFactorService
     /// </summary>
     public async Task<TwoFactorStatusDto> GetTwoFactorStatusAsync(AppUser user)
     {
+        if (user is null)
+            throw new ArgumentNullException(nameof(user));
+
         var availableMethods = new List<string> { "TOTP" };
 
         if (_emailTwoFactorService.IsSmtpConfigured())
@@ -137,27 +163,23 @@ public class TwoFactorService
     }
 
     /// <summary>
-    /// 切换 2FA 方法。TOTP 切换由 VerifyTotpSetupAsync 完成，此处为验证入口。
+    /// 验证切换 2FA 方法的权限（仅校验 SessionToken，不修改 TwoFactorMethod）。
+    /// 实际的 TwoFactorMethod 赋值在各 Verify 端点（VerifyTotpSetupAsync/VerifyEmail*）中完成。
     /// </summary>
     public Task<bool> SwitchMethodAsync(AppUser user, TwoFactorMethod newMethod, string sessionToken)
     {
-        if (newMethod == TwoFactorMethod.None)
-            throw new ArgumentException("Cannot switch to None.", nameof(newMethod));
+        if (user is null)
+            return Task.FromResult(false);
 
-        if (newMethod == TwoFactorMethod.WebAuthn)
-        {
-            // WebAuthn 不需要额外验证，凭证注册在 WebAuthnEndpoints 中处理
-            // 只需验证 SessionToken
-            if (!ValidateSessionToken(sessionToken, user.Id))
-                return Task.FromResult(false);
-            return Task.FromResult(true);
-        }
+        if (newMethod == TwoFactorMethod.None)
+            return Task.FromResult(false);
+
+        if (newMethod == TwoFactorMethod.Email)
+            return Task.FromResult(false); // 未实现，由 Phase 2 完成
 
         if (!ValidateSessionToken(sessionToken, user.Id))
             return Task.FromResult(false);
 
-        // SwitchMethodAsync 仅验证 SessionToken 合法性，不直接设置 TwoFactorMethod。
-        // 实际的 TwoFactorMethod 赋值在各 Verify 端点（VerifyTotpSetupAsync/VerifyEmail*）中完成。
         return Task.FromResult(true);
     }
 
@@ -199,7 +221,7 @@ public class TwoFactorService
 
             return userId == expectedUserId
                 && purpose == "2fa-setup"
-                && expiresAt > DateTime.UtcNow;
+                && expiresAt.AddSeconds(30) > DateTime.UtcNow; // 30s 时钟偏差容差
         }
         catch
         {

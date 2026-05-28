@@ -32,6 +32,11 @@ public class AuthService
                 return LoginResult.RequiresTwoFactor;
             }
 
+            if (loginResponse.PasswordRequiresChange)
+            {
+                return LoginResult.PasswordRequiresChange;
+            }
+
             _appState.SetUser(loginResponse.Username ?? username, loginResponse.IsAdmin ?? false, false);
             _authStateProvider.NotifyAuthenticationStateChanged();
             return LoginResult.Success;
@@ -40,9 +45,9 @@ public class AuthService
         return LoginResult.Failure;
     }
 
-    public async Task<LoginResult> VerifyTwoFactorAsync(string code)
+    public async Task<LoginResult> VerifyTwoFactorAsync(string code, string? token = null)
     {
-        var response = await _http.PostAsJsonAsync("api/auth/2fa/verify", new VerifyTwoFactorRequest(code));
+        var response = await _http.PostAsJsonAsync("api/auth/2fa/verify", new VerifyTwoFactorRequest(code, token));
 
         if (response.IsSuccessStatusCode)
         {
@@ -137,7 +142,7 @@ public class AuthService
         return false;
     }
 
-    public async Task SetupEmailTwoFactorAsync(string sessionToken, string email)
+    public async Task<string?> SetupEmailTwoFactorAsync(string sessionToken, string email)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/setup-email");
         request.Headers.Add("X-Session-Token", sessionToken);
@@ -146,17 +151,20 @@ public class AuthService
         var response = await _http.SendAsync(request);
 
         if (response.IsSuccessStatusCode)
-            return;
+        {
+            var result = await response.Content.ReadFromJsonAsync<EmailTwoFactorSetupResponse>();
+            return result?.Token;
+        }
 
         var error = await TryGetErrorAsync(response);
         throw new InvalidOperationException(error ?? "发送验证码失败");
     }
 
-    public async Task<(bool Success, List<string>? RecoveryCodes)> VerifyEmailTwoFactorAsync(string sessionToken, string code)
+    public async Task<(bool Success, List<string>? RecoveryCodes)> VerifyEmailTwoFactorAsync(string sessionToken, string code, string token)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/verify-email");
         request.Headers.Add("X-Session-Token", sessionToken);
-        request.Content = JsonContent.Create(new VerifyTwoFactorRequest(code));
+        request.Content = JsonContent.Create(new VerifyTwoFactorRequest(code, token));
 
         var response = await _http.SendAsync(request);
 
@@ -334,5 +342,6 @@ public enum LoginResult
 {
     Success,
     Failure,
-    RequiresTwoFactor
+    RequiresTwoFactor,
+    PasswordRequiresChange
 }

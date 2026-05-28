@@ -22,7 +22,9 @@ public static class AdminTwoFactorEndpoints
         group.MapPost("/reset", ResetTwoFactorAsync)
             .WithTags("Admin/2FA")
             .ProducesProblem(401)
-            .ProducesProblem(403);
+            .ProducesProblem(403)
+            .AddEndpointFilter<CsrfValidationFilter>()
+            .RequireRateLimiting("login-per-account");
 
         return group;
     }
@@ -30,13 +32,15 @@ public static class AdminTwoFactorEndpoints
     /// <summary>
     /// 获取目标用户的 2FA 状态详情（管理员操作）。
     /// </summary>
-    private static async Task<Results<Ok<AdminTwoFactorStatusResponse>, UnauthorizedHttpResult, NotFound>>
+    private static async Task<Results<Ok<AdminTwoFactorStatusResponse>, UnauthorizedHttpResult, ForbidHttpResult, NotFound>>
         GetTwoFactorStatusAsync(string userId, HttpContext httpContext,
             UserManager<AppUser> userManager, TwoFactorService twoFactorService)
     {
         var caller = await userManager.GetUserAsync(httpContext.User);
-        if (caller is null || !await userManager.IsInRoleAsync(caller, "Admin"))
+        if (caller is null)
             return TypedResults.Unauthorized();
+        if (!await userManager.IsInRoleAsync(caller, "Admin"))
+            return TypedResults.Forbid();
 
         var targetUser = await userManager.FindByIdAsync(userId);
         if (targetUser is null)
@@ -53,14 +57,16 @@ public static class AdminTwoFactorEndpoints
     /// 重置目标用户的 2FA（管理员操作）。
     /// 清除所有 2FA 设置、恢复码和 WebAuthn 凭证。
     /// </summary>
-    private static async Task<Results<Ok, UnauthorizedHttpResult, NotFound>>
+    private static async Task<Results<Ok, UnauthorizedHttpResult, ForbidHttpResult, NotFound>>
         ResetTwoFactorAsync(string userId, HttpContext httpContext,
             UserManager<AppUser> userManager, AppDbContext db,
             ILoggerFactory loggerFactory)
     {
         var caller = await userManager.GetUserAsync(httpContext.User);
-        if (caller is null || !await userManager.IsInRoleAsync(caller, "Admin"))
+        if (caller is null)
             return TypedResults.Unauthorized();
+        if (!await userManager.IsInRoleAsync(caller, "Admin"))
+            return TypedResults.Forbid();
 
         var targetUser = await userManager.FindByIdAsync(userId);
         if (targetUser is null)
@@ -86,12 +92,13 @@ public static class AdminTwoFactorEndpoints
             .ToListAsync();
         db.WebAuthnCredentials.RemoveRange(credentials);
 
-        await db.SaveChangesAsync();
+        await userManager.UpdateAsync(targetUser);
+        await userManager.UpdateSecurityStampAsync(targetUser);
 
-        var logger = loggerFactory.CreateLogger("BoxWise.Server.Endpoints.AdminTwoFactorEndpoints");
+        var logger = loggerFactory.CreateLogger("BoxWise.Admin");
         logger.LogWarning(
-            "Admin {Admin} reset 2FA for user {User} at {Time}",
-            caller.UserName, targetUser.UserName, DateTime.UtcNow);
+            "Admin {Admin} (Id={AdminId}) reset 2FA for user {User} (Id={UserId}) at {Timestamp}",
+            caller.UserName, caller.Id, targetUser.UserName, targetUser.Id, DateTime.UtcNow);
 
         return TypedResults.Ok();
     }

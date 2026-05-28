@@ -8,6 +8,7 @@ public class CookieHandler : HttpClientHandler
     {
         ArgumentNullException.ThrowIfNull(request);
         request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
+        request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
         return base.SendAsync(request, cancellationToken);
     }
 }

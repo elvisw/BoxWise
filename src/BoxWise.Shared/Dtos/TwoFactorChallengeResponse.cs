@@ -1,3 +1,3 @@
 namespace BoxWise.Shared.Dtos;
 
-public record TwoFactorChallengeResponse(List<string> AllowedMethods);
+public record TwoFactorChallengeResponse(List<string> AllowedMethods, string? Token = null);

@@ -80,10 +80,18 @@ public class RecoveryCodeService
         user.TotpSecretKey = null;
         user.EmailForTwoFactor = null;
         user.TwoFactorSetupCompletedAt = null;
-        user.TwoFactorGracePeriodUntil = null;
+        user.TwoFactorGracePeriodUntil = DateTime.UtcNow.AddHours(24);
 
-        await userManager.UpdateAsync(user);
-        await _db.SaveChangesAsync();
+        try
+        {
+            await userManager.UpdateAsync(user);
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // 并发请求已消耗恢复码
+            return false;
+        }
 
         return true;
     }
