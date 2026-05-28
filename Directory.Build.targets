@@ -1,3 +1,20 @@
 <Project>
-  <!-- 预留：自定义构建目标在后续 Story 中添加 -->
+  <Target Name="SetVersionFromGit" BeforeTargets="BeforeBuild">
+    <Exec Command="git describe --tags --abbrev=7 --always"
+          ConsoleToMSBuild="true"
+          StandardOutputImportance="low"
+          IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitDescribe" />
+    </Exec>
+    <Warning Condition="'$(GitDescribe)' == ''"
+             Text="git describe 失败，版本号回退到 1.0.0。请确认 git 可用并已 git fetch --tags。" />
+    <PropertyGroup>
+      <InformationalVersion Condition="'$(GitDescribe)' != ''">$(GitDescribe.Trim())</InformationalVersion>
+      <InformationalVersion Condition="'$(GitDescribe)' == ''">1.0.0</InformationalVersion>
+      <Version Condition="'$(GitDescribe)' != ''">$([System.Text.RegularExpressions.Regex]::Match('$(GitDescribe.Trim())', &quot;\d+\.\d+\.\d+&quot;).Value)</Version>
+      <Version Condition="'$(Version)' == ''">1.0.0</Version>
+      <AssemblyVersion Condition="'$(Version)' != ''">$(Version).0</AssemblyVersion>
+      <FileVersion Condition="'$(Version)' != ''">$(Version).0</FileVersion>
+    </PropertyGroup>
+  </Target>
 </Project>

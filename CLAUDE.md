@@ -96,6 +96,7 @@ BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 │   └── BoxWise.Shared/             # 共享 DTO（record 类型）
 │       └── Dtos/
 ├── Directory.Build.props           # 根级：net10.0, Nullable, ImplicitUsings, WarningsAsErrors
+├── Directory.Build.targets         # 根级：git describe 自动版本号
 ├── Directory.Packages.props        # CPM 集中包版本管理
 └── data/                           # SQLite 数据库文件
 ```
@@ -155,6 +156,38 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredServ
 - 端口不匹配排查：如遇 `ERR_CONNECTION_REFUSED`，检查 `Properties/launchSettings.json` 与 `Program.cs` 中的端口是否一致
 
 **Admin 跨端口访问：** Admin 后台是 Server 端 Razor Pages，仅在 5000 端口可用。Home.razor 的"管理后台"按钮通过 `Http.BaseAddress` 判断环境：有值时拼绝对路径指向 Server，无值时（生产同源）走根路径 `/admin`。
+
+## 版本管理
+
+版本号由 `Directory.Build.targets` 中的 MSBuild Target `SetVersionFromGit` 在构建时自动从 Git 标签获取。
+
+**工作原理：**
+
+1. `dotnet build` 触发 `SetVersionFromGit`（`BeforeTargets="BeforeBuild"`）
+2. 执行 `git describe --tags --abbrev=7 --always` 获取版本描述
+3. 解析结果，自动设置 `Version` 和 `InformationalVersion` 属性
+4. 关于页面（`About.razor`）通过 `AssemblyInformationalVersionAttribute` 读取并显示
+
+**版本号映射规则：**
+
+| Git 状态 | git describe 输出 | Version | 关于页面显示 |
+|----------|-------------------|---------|-------------|
+| HEAD = v0.2.1 tag | `v0.2.1` | `0.2.1` | `v0.2.1` |
+| v0.2.1 之后 4 个 commit | `v0.2.1-4-gabcdef1` | `0.2.1` | `v0.2.1-4-gabcdef1` |
+| 无 tag | `abcdef1` | `1.0.0`（fallback） | `abcdef1` |
+
+**发版流程：**
+
+```bash
+# 1. 打标签
+git tag v0.3.0
+# 2. 构建时自动生效——版本号 = 0.3.0
+dotnet build
+# 3. 推送标签到远程（CI/CD 需要 git fetch --tags）
+git push --tags
+```
+
+**Docker 构建注意事项：** CI/CD 中需要在 `docker build` 前执行 `git fetch --tags`，否则 `git describe` 找不到标签，版本号会回退到 `1.0.0`。
 
 ## MudBlazor 9.x API 参考
 
