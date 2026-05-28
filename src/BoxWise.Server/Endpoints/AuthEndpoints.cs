@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using BoxWise.Server.Models;
+using BoxWise.Server.Services.PasswordValidators;
 using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Endpoints;
 
 public static class AuthEndpoints
 {
+    // 2FA 端点（Story 8-2a-2）将在 Phase 2 通过 MapTwoFactorEndpoints 扩展方法添加
     public static RouteGroupBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/auth");
@@ -69,7 +71,10 @@ public static class AuthEndpoints
         var isSpecificAdmin = adminConfigured
             && string.Equals(request.Username, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
 
-        return TypedResults.Ok(new AuthUserDto(request.Username, isAdmin, isSpecificAdmin));
+        return TypedResults.Ok(new AuthUserDto(request.Username, isAdmin, isSpecificAdmin,
+            PasswordRequiresChange: request.Password.Length < 8
+                || request.Password.All(char.IsDigit)
+                || CommonPasswordValidator.IsCommon(request.Password)));
     }
 
     private static async Task<Ok> LogoutAsync(SignInManager<AppUser> signInManager)
@@ -165,11 +170,11 @@ public static class AuthEndpoints
             });
         }
 
-        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 4)
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                { "newPassword", new[] { "新密码长度至少为 4 个字符" } }
+                { "newPassword", new[] { "新密码长度至少为 8 个字符" } }
             });
         }
 
@@ -177,11 +182,18 @@ public static class AuthEndpoints
 
         if (!result.Succeeded)
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "currentPassword", result.Errors.Select(e => e.Description).ToArray() }
-            });
+            var passwordErrors = result.Errors.ToList();
+            var currentPwdErrors = passwordErrors.Where(e => e.Code == "PasswordMismatch").ToArray();
+            var newPwdErrors = passwordErrors.Where(e => e.Code != "PasswordMismatch").ToArray();
+            var errors = new Dictionary<string, string[]>();
+            if (currentPwdErrors.Length > 0)
+                errors["currentPassword"] = currentPwdErrors.Select(e => e.Description).ToArray();
+            if (newPwdErrors.Length > 0)
+                errors["newPassword"] = newPwdErrors.Select(e => e.Description).ToArray();
+            return TypedResults.ValidationProblem(errors);
         }
+
+        await userManager.UpdateSecurityStampAsync(user);
 
         return TypedResults.Ok();
     }

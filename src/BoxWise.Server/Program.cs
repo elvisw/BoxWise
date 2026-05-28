@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
@@ -8,6 +9,7 @@ using BoxWise.Server.Models;
 using BoxWise.Server.Configuration;
 using BoxWise.Server.Repositories;
 using BoxWise.Server.Services;
+using BoxWise.Server.Services.PasswordValidators;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,14 +27,18 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Identity
 builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 {
+    options.Password.RequiredLength = 8;
+    options.Password.RequiredUniqueChars = 0;
     options.Password.RequireDigit = false;
     options.Password.RequireLowercase = false;
     options.Password.RequireNonAlphanumeric = false;
     options.Password.RequireUppercase = false;
-    options.Password.RequiredLength = 4;
 })
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<IPasswordValidator<AppUser>, NoNumericOnlyValidator>();
+builder.Services.AddScoped<IPasswordValidator<AppUser>, CommonPasswordValidator>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -64,6 +70,12 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole("Admin"));
 });
 
+// Data Protection - 持久化到文件系统（TOTP 密钥加密依赖）
+var dataProtectionKeysPath = Path.Combine(
+    builder.Configuration["DataDirectory"] ?? "data", "keys");
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+
 // CORS for Blazor WASM dev
 builder.Services.AddCors(options =>
 {
@@ -87,6 +99,7 @@ builder.Services.AddOptions<LlmOptions>()
 builder.Services.AddHttpClient<LlmClient>();
 builder.Services.AddSingleton<ImageStorageService>();
 builder.Services.AddSingleton<ThumbnailService>();
+builder.Services.AddScoped<TwoFactorService>();
 
 builder.Services.AddRazorPages();
 

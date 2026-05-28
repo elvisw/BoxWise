@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-23
-last_updated: 2026-05-28
+last_updated: 2026-05-29
 project: BoxWise
 project_key: NOKEY
 tracking_system: file-system
@@ -85,3 +85,14 @@ development_status:
   7-2-item-edit-ui: done
   7-3-item-edit-tests: done
   epic-7-retrospective: done
+  epic-8: in-progress
+  8-1-password-rules: done
+  8-2a-1-two-factor-model-service: done
+  8-2a-2-two-factor-api-ui-login: backlog
+  8-2b-email-verification-recovery-codes: backlog
+  8-3-webauthn-integration: backlog
+  8-4-rate-limiting-csrf-session: backlog
+  8-5a-admin-two-factor-panel: backlog
+  8-5b-deployment-config: done
+  8-5c-cli-two-factor-reset: backlog
+  epic-8-retrospective: optional
