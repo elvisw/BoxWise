@@ -323,7 +323,7 @@ public class ItemRepositoryTests
         var repo = new ItemRepository(db);
         var created = await repo.CreateAsync("旧名称", 1, [1], "旧备注", "user-1");
 
-        var updated = await repo.UpdateAsync(created.Id, "新名称", 1, [2], "新备注");
+        var updated = await repo.UpdateAsync(created.Id, "新名称", 1, [2], "新备注", "user-1");
 
         Assert.NotNull(updated);
         Assert.Equal("新名称", updated.Name);
@@ -340,7 +340,7 @@ public class ItemRepositoryTests
         await SeedUser(db, "user-1", "tester");
         var repo = new ItemRepository(db);
 
-        var result = await repo.UpdateAsync(999, "名称", 1, [], null);
+        var result = await repo.UpdateAsync(999, "名称", 1, [], null, "user-1");
 
         Assert.Null(result);
     }
@@ -353,7 +353,7 @@ public class ItemRepositoryTests
         var repo = new ItemRepository(db);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            repo.UpdateAsync(1, "", 1, [], null));
+            repo.UpdateAsync(1, "", 1, [], null, "user-1"));
     }
 
     [Fact]
@@ -365,7 +365,7 @@ public class ItemRepositoryTests
         var longName = new string('x', 201);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            repo.UpdateAsync(1, longName, 1, [], null));
+            repo.UpdateAsync(1, longName, 1, [], null, "user-1"));
     }
 
     [Fact]
@@ -375,7 +375,7 @@ public class ItemRepositoryTests
         var repo = new ItemRepository(db);
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            repo.UpdateAsync(1, "物品", 999, [], null));
+            repo.UpdateAsync(1, "物品", 999, [], null, "user-1"));
     }
 
     [Fact]
@@ -387,7 +387,7 @@ public class ItemRepositoryTests
         var created = await repo.CreateAsync("物品", 1, [], null, "user-1");
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            repo.UpdateAsync(created.Id, "物品", 1, [999], null));
+            repo.UpdateAsync(created.Id, "物品", 1, [999], null, "user-1"));
     }
 
     [Fact]
@@ -399,7 +399,7 @@ public class ItemRepositoryTests
         var repo = new ItemRepository(db);
         var created = await repo.CreateAsync("物品", 1, [1, 2], null, "user-1");
 
-        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [1], null);
+        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [1], null, "user-1");
 
         Assert.NotNull(updated);
         Assert.Single(updated.Tags);
@@ -415,7 +415,7 @@ public class ItemRepositoryTests
         var repo = new ItemRepository(db);
         var created = await repo.CreateAsync("物品", 1, [], "旧备注", "user-1");
 
-        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [], "");
+        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [], "", "user-1");
 
         Assert.NotNull(updated);
         Assert.Null(updated.Note);
@@ -430,7 +430,7 @@ public class ItemRepositoryTests
         var repo = new ItemRepository(db);
         var created = await repo.CreateAsync("物品", 1, [], null, "user-1");
 
-        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [], "   ");
+        var updated = await repo.UpdateAsync(created.Id, "物品", 1, [], "   ", "user-1");
 
         Assert.NotNull(updated);
         Assert.Null(updated.Note);
@@ -453,7 +453,7 @@ public class ItemRepositoryTests
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
 
-        var updated = await repo.UpdateAsync(created.Id, "新名称", 1, [], null);
+        var updated = await repo.UpdateAsync(created.Id, "新名称", 1, [], null, "user-1");
 
         Assert.NotNull(updated);
         Assert.Equal("images/1/original.jpg", updated.PhotoPath);

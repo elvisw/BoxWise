@@ -117,6 +117,8 @@ public class ItemEndpointsTests : IAsyncLifetime
         Assert.Equal("螺丝刀", dto.Name);
         Assert.Equal("creator", dto.CreatedByUserName);
         Assert.Equal("客厅", dto.LocationName);
+        Assert.Null(dto.UpdatedByUserName);
+        Assert.Null(dto.UpdatedAt);
     }
     [Fact] public async Task DeleteItemAsync_Exists_ReturnsNoContent() { using var db = TestDbContextFactory.Create(); var (loc, _) = SeedDb(db); var r = new ItemRepository(db); var c = await r.CreateAsync("待删除", loc.Id, [], null, "tester"); var s = new ImageStorageService(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["DataDirectory"] = Path.GetTempPath() }).Build()); Assert.Equal(204, await InvokeAsync("DeleteItemAsync", c.Id, r, s)); Assert.False(db.Items.Any(i => i.Id == c.Id)); }
 
@@ -185,7 +187,7 @@ public class ItemEndpointsTests : IAsyncLifetime
         var created = await repo.CreateAsync("旧名称", loc.Id, [tag.Id], "旧备注", userId);
 
         var (status, body) = await InvokeWithBodyAsync("UpdateItemAsync",
-            created.Id, new UpdateItemRequest("新名称", loc.Id, [tag.Id], "新备注"), repo, lr, CancellationToken.None);
+            created.Id, new UpdateItemRequest("新名称", loc.Id, [tag.Id], "新备注"), repo, lr, _userManager, _httpContext, CancellationToken.None);
         Assert.Equal(200, status);
 
         var dto = JsonSerializer.Deserialize<ItemDto>(body,
@@ -193,6 +195,8 @@ public class ItemEndpointsTests : IAsyncLifetime
         Assert.NotNull(dto);
         Assert.Equal("新名称", dto.Name);
         Assert.Equal("新备注", dto.Note);
+        Assert.Equal("tester", dto.UpdatedByUserName);
+        Assert.NotNull(dto.UpdatedAt);
     }
 
     [Fact]
@@ -203,7 +207,7 @@ public class ItemEndpointsTests : IAsyncLifetime
         var repo = new ItemRepository(db);
         var lr = new LocationRepository(db);
         Assert.Equal(404, await InvokeAsync("UpdateItemAsync", 999,
-            new UpdateItemRequest("名称", loc.Id, [tag.Id], null), repo, lr, CancellationToken.None));
+            new UpdateItemRequest("名称", loc.Id, [tag.Id], null), repo, lr, _userManager, _httpContext, CancellationToken.None));
     }
 
     [Fact]
@@ -216,7 +220,7 @@ public class ItemEndpointsTests : IAsyncLifetime
         var created = await repo.CreateAsync("旧名称", loc.Id, [tag.Id], null, _userManager.GetUserId(_httpContext.User)!);
 
         Assert.Equal(400, await InvokeAsync("UpdateItemAsync", created.Id,
-            new UpdateItemRequest("", loc.Id, [tag.Id], null), repo, lr, CancellationToken.None));
+            new UpdateItemRequest("", loc.Id, [tag.Id], null), repo, lr, _userManager, _httpContext, CancellationToken.None));
     }
 
     [Fact]
@@ -228,7 +232,7 @@ public class ItemEndpointsTests : IAsyncLifetime
         var lr = new LocationRepository(db);
 
         Assert.Equal(400, await InvokeAsync("UpdateItemAsync", 999,
-            new UpdateItemRequest("名称", 999, [tag.Id], null), repo, lr, CancellationToken.None));
+            new UpdateItemRequest("名称", 999, [tag.Id], null), repo, lr, _userManager, _httpContext, CancellationToken.None));
     }
 
     [Fact]
@@ -241,6 +245,6 @@ public class ItemEndpointsTests : IAsyncLifetime
         var created = await repo.CreateAsync("旧名称", loc.Id, [tag.Id], null, _userManager.GetUserId(_httpContext.User)!);
 
         Assert.Equal(400, await InvokeAsync("UpdateItemAsync", created.Id,
-            new UpdateItemRequest("名称", loc.Id, [999], null), repo, lr, CancellationToken.None));
+            new UpdateItemRequest("名称", loc.Id, [999], null), repo, lr, _userManager, _httpContext, CancellationToken.None));
     }
 }

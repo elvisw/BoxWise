@@ -42,6 +42,7 @@ public class ItemRepository
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
             CreatedByUserId = userId,
             CreatedAt = DateTime.UtcNow,
+            Version = Guid.NewGuid(),
             Tags = tags
         };
 
@@ -57,6 +58,7 @@ public class ItemRepository
     {
         return await _db.Items
             .Include(i => i.CreatedByUser)
+            .Include(i => i.UpdatedByUser)
             .Include(i => i.Location)
             .Include(i => i.Tags)
             .FirstOrDefaultAsync(i => i.Id == id);
@@ -72,7 +74,7 @@ public class ItemRepository
         return true;
     }
 
-    public async Task<Item?> UpdateAsync(int id, string name, int locationId, List<int> tagIds, string? note, CancellationToken ct = default)
+    public async Task<Item?> UpdateAsync(int id, string name, int locationId, List<int> tagIds, string? note, string userId, CancellationToken ct = default)
     {
         tagIds ??= [];
         tagIds = tagIds.Distinct().ToList();
@@ -97,6 +99,7 @@ public class ItemRepository
         var item = await _db.Items
             .Include(i => i.Location)
             .Include(i => i.CreatedByUser)
+            .Include(i => i.UpdatedByUser)
             .Include(i => i.Tags)
             .FirstOrDefaultAsync(i => i.Id == id, ct);
 
@@ -107,6 +110,10 @@ public class ItemRepository
         item.Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
         item.Tags.Clear();
         foreach (var tag in tags) item.Tags.Add(tag);
+        item.UpdatedByUserId = userId;
+        item.UpdatedByUser = await _db.Users.FindAsync([userId], ct);
+        item.UpdatedAt = DateTime.UtcNow;
+        item.Version = Guid.NewGuid();
 
         await _db.SaveChangesAsync(ct);
         return item;

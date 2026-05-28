@@ -36,6 +36,14 @@ public class ItemConfiguration : IEntityTypeConfiguration<Item>
             .HasForeignKey(x => x.CreatedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(x => x.UpdatedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.UpdatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(x => x.Version)
+            .IsConcurrencyToken();
+
         builder.HasMany(x => x.Tags)
             .WithMany(t => t.Items)
             .UsingEntity("ItemTag");

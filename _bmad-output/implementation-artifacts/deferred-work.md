@@ -1,7 +1,7 @@
 # Deferred Work
 
 > **清偿日期：** 2026-05-28
-> **状态：** 全部 17 条已清偿（5 条修复 + 9 条验证已修复 + 3 条已验证无需改动）
+> **状态：** 全部 19 条已清偿（7 条修复 + 9 条验证已修复 + 3 条已验证无需改动）
 
 ## Deferred from: code review of tech-debt-epic6 (2026-05-27)
 
@@ -27,6 +27,6 @@
 
 ## Deferred from: code review of 7-1-item-edit-backend (2026-05-28)
 
-- [ ] 无并发控制（最后写入胜出） — `Item` 实体无并发令牌，多用户同时编辑同一物品会静默覆盖。v1：≤5 用户、编辑频率低，可接受
-- [ ] 无编辑人/修改时间追踪 — `Item` 实体无 `UpdatedByUserId`/`UpdatedAt` 字段。v1：PRD 未要求编辑人追踪
-- [ ] 空 Tag 列表清空所有标签 — 与 `CreateAsync` 行为一致。若需强制标签应作为产品决策统一处理
+- [x] ~~无并发控制（最后写入胜出）~~ → 添加 `Version` GUID 并发令牌（`IsConcurrencyToken`），冲突时返回 409 Conflict
+- [x] ~~无编辑人/修改时间追踪~~ → 添加 `UpdatedByUserId`/`UpdatedAt` 字段，编辑时自动写入，详情页展示
+- [x] ~~空 Tag 列表清空所有标签~~ → 已验证：与 CreateAsync 行为一致，无需修改

@@ -107,6 +107,15 @@ else if (_item is not null)
         <MudText Typo="Typo.caption" Color="Color.Default">
             录入时间: @_item.CreatedAt.ToString("yyyy-MM-dd HH:mm")
         </MudText>
+        @if (_item.UpdatedAt is not null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-1">
+                <strong>最近编辑:</strong> @(_item.UpdatedByUserName ?? "未知")
+            </MudText>
+            <MudText Typo="Typo.caption" Color="Color.Default">
+                编辑时间: @_item.UpdatedAt.Value.ToString("yyyy-MM-dd HH:mm")
+            </MudText>
+        }
 
         <div class="d-flex" style="gap:8px;">
             <MudButton Variant="Variant.Filled" Color="Color.Primary"

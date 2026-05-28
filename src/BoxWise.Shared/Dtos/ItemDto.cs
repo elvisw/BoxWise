@@ -12,4 +12,6 @@ public record ItemDto(
     string? LocationPath,
     IReadOnlyList<string> TagNames,
     string CreatedByUserName,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? UpdatedByUserName,
+    DateTime? UpdatedAt);

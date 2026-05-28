@@ -171,7 +171,7 @@ public class ItemServiceTests
     [Fact]
     public async Task GetByIdAsync_Success_ReturnsDto()
     {
-        var dto = new ItemDto(1, "扳手", null, null, null, null, null, null, null, Array.Empty<string>(), "elvis", DateTime.UtcNow);
+        var dto = new ItemDto(1, "扳手", null, null, null, null, null, null, null, Array.Empty<string>(), "elvis", DateTime.UtcNow, null, null);
         var json = JsonSerializer.Serialize(dto);
         var (service, _) = CreateService(responseContent: json);
 
