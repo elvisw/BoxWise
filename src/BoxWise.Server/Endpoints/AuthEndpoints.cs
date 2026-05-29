@@ -163,7 +163,8 @@ public static class AuthEndpoints
 
     private static async Task<Results<Ok<AuthUserDto>, ValidationProblem>>
         UpdateProfileAsync(UpdateProfileRequest request,
-        UserManager<AppUser> userManager, HttpContext httpContext, IConfiguration config)
+        UserManager<AppUser> userManager, HttpContext httpContext, IConfiguration config,
+        ILoggerFactory loggerFactory)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
         if (user?.UserName is null)
@@ -240,7 +241,6 @@ public static class AuthEndpoints
                     });
                 }
 
-                var oldEmail = user.Email;
                 try
                 {
                     var emailResult = await userManager.SetEmailAsync(user, email);
@@ -252,28 +252,30 @@ public static class AuthEndpoints
                         });
                     }
                 }
-                catch (DbUpdateException)
+                catch (DbUpdateException ex)
                 {
+                    // TOCTOU 并发防护：FindByEmailAsync 和 SetEmailAsync 之间的窗口期
+                    // 内另有请求设置了相同邮箱。NormalizedEmail 唯一索引确保数据完整性。
+                    var logger = loggerFactory.CreateLogger("BoxWise.Auth");
+                    logger.LogWarning(ex, "Email uniqueness conflict for user {UserId} when setting email", user.Id);
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
                         { "email", new[] { "此邮箱已被其他用户使用" } }
                     });
                 }
 
-                if (user.EmailForTwoFactor == oldEmail)
-                {
-                    user.EmailForTwoFactor = email;
-                }
-
+                // 邮箱变更后需清除已验证标记，并要求重新确认
                 user.EmailConfirmed = false;
                 try
                 {
                     await userManager.UpdateAsync(user);
                 }
-                catch (DbUpdateException)
+                catch (DbUpdateException ex)
                 {
-                    // EmailForTwoFactor/EmailConfirmed 同步失败不阻断主流程
+                    // EmailConfirmed 同步失败不阻断主流程
                     // ——核心邮箱更改已通过 SetEmailAsync 持久化
+                    var logger = loggerFactory.CreateLogger("BoxWise.Auth");
+                    logger.LogWarning(ex, "Failed to update EmailConfirmed for user {UserId}", user.Id);
                 }
             }
         }
@@ -330,6 +332,20 @@ public static class AuthEndpoints
         return TypedResults.Ok();
     }
 
+    private static bool IsValidEmail(string email)
+    {
+        if (email is null) return false;
+        try
+        {
+            var addr = new MailAddress(email);
+            return addr.Address == email;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
     private static string GetClientIp(HttpContext httpContext)
         => httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
@@ -338,17 +354,4 @@ public static class AuthEndpoints
         {
             { "auth", new[] { "未登录" } }
         });
-
-    private static bool IsValidEmail(string email)
-    {
-        try
-        {
-            _ = new MailAddress(email);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

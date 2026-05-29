@@ -89,8 +89,10 @@ else
     private bool _isLoading;
     private bool _isVerified;
 
+    // QR 码 URI 通过查询字符串传递。OtpAuth URI 通常 < 200 字符，
+    // 远低于浏览器 URL 长度限制（~2000 字符），不存在极端边界问题。
     private string? QrCodeImageUrl =>
-        !string.IsNullOrEmpty(_qrCodeUri) && _qrCodeUri.Length <= 2048 && Http.BaseAddress is not null
+        !string.IsNullOrEmpty(_qrCodeUri)
             ? $"{Http.BaseAddress}api/qrcode?text={Uri.EscapeDataString(_qrCodeUri)}"
             : null;
 

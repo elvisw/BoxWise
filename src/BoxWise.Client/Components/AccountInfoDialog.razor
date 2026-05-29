@@ -16,11 +16,13 @@
                       Variant="Variant.Outlined" Disabled="@_saving" />
         <MudTextField @bind-Value="_email" Label="邮箱"
                       Variant="Variant.Outlined" Disabled="@_saving" Class="mt-3"
-                      HelperText="用于双因素认证的邮箱验证码" />
+                      HelperText="用于双因素认证的邮箱验证码"
+                      Validation="@(new Func<string, string?>(ValidateEmail))" />
     </DialogContent>
     <DialogActions>
+        @* 保存按钮：saving 时禁用；未修改时禁用（服务器错误后需修改字段重新激活） *@
         <MudButton OnClick="SaveAsync" Color="Color.Primary"
-                   Variant="Variant.Filled" Disabled="@(_saving || (!_hasError && _username == _originalName && _email == _originalEmail))">保存</MudButton>
+                   Variant="Variant.Filled" Disabled="@(_saving || (_username == _originalName && _email == _originalEmail))">保存</MudButton>
         <MudButton OnClick="Cancel">取消</MudButton>
     </DialogActions>
 </MudDialog>
@@ -35,7 +37,6 @@
     private string _originalEmail = "";
     private string? _error;
     private bool _saving;
-    private bool _hasError;
 
     protected override void OnInitialized()
     {
@@ -48,21 +49,9 @@
     private async Task SaveAsync()
     {
         _error = null;
-        _hasError = false;
+        _saving = true;
 
         var newEmail = _email != _originalEmail ? _email : null;
-        if (!string.IsNullOrEmpty(newEmail))
-        {
-            var atIndex = newEmail.IndexOf('@');
-            if (atIndex <= 0 || atIndex >= newEmail.Length - 1)
-            {
-                _error = "邮箱格式不正确，请检查是否包含 @ 和域名部分";
-                _hasError = true;
-                return;
-            }
-        }
-
-        _saving = true;
         var (success, error) = await AuthService.UpdateProfileAsync(_username, newEmail);
         _saving = false;
 
@@ -73,7 +62,22 @@
         else
         {
             _error = error;
-            _hasError = true;
+        }
+    }
+
+    private static string? ValidateEmail(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null; // 邮箱可选
+        var trimmed = value.Trim();
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(trimmed);
+            return addr.Address == trimmed ? null : "邮箱格式无效";
+        }
+        catch (FormatException)
+        {
+            return "邮箱格式无效";
         }
     }
 

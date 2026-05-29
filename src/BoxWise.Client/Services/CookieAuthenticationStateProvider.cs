@@ -25,9 +25,11 @@ public class CookieAuthenticationStateProvider : AuthenticationStateProvider
                 var user = await response.Content.ReadFromJsonAsync<AuthUser>();
                 if (user is { UserName: not null and not "" })
                 {
+                    // 版本回滚兼容：旧 API 不返回 Email 时保留现有值
+                    var email = user.Email ?? _appState.CurrentUserEmail;
                     if (_appState.CurrentUserName != user.UserName
-                        || (user.Email is not null && _appState.CurrentUserEmail != user.Email))
-                        _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email ?? _appState.CurrentUserEmail);
+                        || _appState.CurrentUserEmail != email)
+                        _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, email);
 
                     var identity = new ClaimsIdentity(
                         claims: new[]
