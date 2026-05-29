@@ -20,7 +20,7 @@
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="SaveAsync" Color="Color.Primary"
-                   Variant="Variant.Filled" Disabled="@(_saving || (_username == _originalName && _email == _originalEmail))">保存</MudButton>
+                   Variant="Variant.Filled" Disabled="@(_saving || (!_hasError && _username == _originalName && _email == _originalEmail))">保存</MudButton>
         <MudButton OnClick="Cancel">取消</MudButton>
     </DialogActions>
 </MudDialog>
@@ -35,6 +35,7 @@
     private string _originalEmail = "";
     private string? _error;
     private bool _saving;
+    private bool _hasError;
 
     protected override void OnInitialized()
     {
@@ -47,9 +48,21 @@
     private async Task SaveAsync()
     {
         _error = null;
-        _saving = true;
+        _hasError = false;
 
         var newEmail = _email != _originalEmail ? _email : null;
+        if (!string.IsNullOrEmpty(newEmail))
+        {
+            var atIndex = newEmail.IndexOf('@');
+            if (atIndex <= 0 || atIndex >= newEmail.Length - 1)
+            {
+                _error = "邮箱格式不正确，请检查是否包含 @ 和域名部分";
+                _hasError = true;
+                return;
+            }
+        }
+
+        _saving = true;
         var (success, error) = await AuthService.UpdateProfileAsync(_username, newEmail);
         _saving = false;
 
@@ -60,6 +73,7 @@
         else
         {
             _error = error;
+            _hasError = true;
         }
     }
 

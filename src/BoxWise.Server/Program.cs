@@ -255,18 +255,29 @@ if (app.Environment.IsDevelopment())
         if (adminUser is null)
         {
             adminUser = new AppUser { UserName = adminUsername };
-            // 管理员账户创建跳过密码验证器（种子数据，配置来源可信）
+            // 管理员种子账户使用手动密码哈希，而非 CreateAsync(user, password)：
+            // 种子密码来自管理员配置（可信来源），不受面向终端用户的密码验证器
+            // （NoNumericOnlyValidator、CommonPasswordValidator）限制——否则强密码如
+            // "bd7f2a3c1e" 可能被拒绝。这是有意的设计决策。
             adminUser.PasswordHash = userManager.PasswordHasher.HashPassword(adminUser, adminPassword);
-            var result = await userManager.CreateAsync(adminUser);
-            if (!result.Succeeded)
+            try
             {
-                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                app.Logger.LogWarning("Failed to create admin user: {Errors}", errors);
-                adminUser = null;
+                var result = await userManager.CreateAsync(adminUser);
+                if (!result.Succeeded)
+                {
+                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                    app.Logger.LogWarning("Failed to create admin user: {Errors}", errors);
+                    adminUser = null;
+                }
+                else
+                {
+                    app.Logger.LogInformation("Admin user '{Username}' created", adminUsername);
+                }
             }
-            else
+            catch (DbUpdateException)
             {
-                app.Logger.LogInformation("Admin user '{Username}' created", adminUsername);
+                app.Logger.LogInformation("Admin user '{Username}' already created by another instance", adminUsername);
+                adminUser = await userManager.FindByNameAsync(adminUsername);
             }
         }
         else
@@ -277,14 +288,23 @@ if (app.Environment.IsDevelopment())
                 != PasswordVerificationResult.Success;
             if (passwordChanged)
             {
-                var token = await userManager.GeneratePasswordResetTokenAsync(adminUser);
-                var resetResult = await userManager.ResetPasswordAsync(adminUser, token, adminPassword);
-                if (resetResult.Succeeded)
-                    app.Logger.LogInformation("Admin password updated for '{Username}'", adminUsername);
-                else
+                try
                 {
-                    var errors = string.Join(", ", resetResult.Errors.Select(e => e.Description));
-                    app.Logger.LogWarning("Failed to reset admin password: {Errors}", errors);
+                    // 管理员密码更新同样使用手动密码哈希，
+                    // 与创建路径保持一致——种子密码为特权操作，不受验证器限制。
+                    adminUser.PasswordHash = userManager.PasswordHasher.HashPassword(adminUser, adminPassword);
+                    var updateResult = await userManager.UpdateAsync(adminUser);
+                    if (updateResult.Succeeded)
+                        app.Logger.LogInformation("Admin password updated for '{Username}'", adminUsername);
+                    else
+                    {
+                        var errors = string.Join(", ", updateResult.Errors.Select(e => e.Description));
+                        app.Logger.LogWarning("Failed to update admin password: {Errors}", errors);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    app.Logger.LogError(ex, "Failed to update admin password for '{Username}'", adminUsername);
                 }
             }
         }
@@ -293,8 +313,19 @@ if (app.Environment.IsDevelopment())
         if (adminUser is not null
             && !await userManager.IsInRoleAsync(adminUser, "Admin"))
         {
-            await userManager.AddToRoleAsync(adminUser, "Admin");
-            app.Logger.LogInformation("Admin role assigned to '{Username}'", adminUsername);
+            try
+            {
+                await userManager.AddToRoleAsync(adminUser, "Admin");
+                app.Logger.LogInformation("Admin role assigned to '{Username}'", adminUsername);
+            }
+            catch (DbUpdateException)
+            {
+                app.Logger.LogInformation("Admin role already assigned to '{Username}' by another instance", adminUsername);
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogWarning(ex, "Failed to assign Admin role to '{Username}'", adminUsername);
+            }
         }
     }
     else

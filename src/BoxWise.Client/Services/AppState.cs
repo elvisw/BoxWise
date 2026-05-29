@@ -2,6 +2,8 @@ namespace BoxWise.Client.Services;
 
 public class AppState
 {
+    private readonly object _lock = new();
+
     public string? CurrentUserName { get; private set; }
     public string? CurrentUserEmail { get; private set; }
     public bool IsAdmin { get; private set; }
@@ -15,33 +17,45 @@ public class AppState
 
     public void SetUser(string userName, bool isAdmin, bool isPasswordManagedByEnv = false, string? email = null)
     {
-        CurrentUserName = userName;
-        IsAdmin = isAdmin;
-        IsPasswordManagedByEnv = isPasswordManagedByEnv;
-        CurrentUserEmail = email;
-        StateChanged?.Invoke();
+        lock (_lock)
+        {
+            CurrentUserName = userName;
+            IsAdmin = isAdmin;
+            IsPasswordManagedByEnv = isPasswordManagedByEnv;
+            CurrentUserEmail = email;
+            StateChanged?.Invoke();
+        }
     }
 
     public void Clear()
     {
-        CurrentUserName = null;
-        CurrentUserEmail = null;
-        IsAdmin = false;
-        IsPasswordManagedByEnv = false;
-        StateChanged?.Invoke();
+        lock (_lock)
+        {
+            CurrentUserName = null;
+            CurrentUserEmail = null;
+            IsAdmin = false;
+            IsPasswordManagedByEnv = false;
+            StateChanged?.Invoke();
+        }
     }
 
     public void SetContinuousLocation(int locationId, string locationName)
     {
-        ContinuousLocationId = locationId;
-        ContinuousLocationName = locationName;
-        StateChanged?.Invoke();
+        lock (_lock)
+        {
+            ContinuousLocationId = locationId;
+            ContinuousLocationName = locationName;
+            StateChanged?.Invoke();
+        }
     }
 
     public void ClearContinuousLocation()
     {
-        ContinuousLocationId = null;
-        ContinuousLocationName = null;
-        StateChanged?.Invoke();
+        lock (_lock)
+        {
+            ContinuousLocationId = null;
+            ContinuousLocationName = null;
+            StateChanged?.Invoke();
+        }
     }
 }

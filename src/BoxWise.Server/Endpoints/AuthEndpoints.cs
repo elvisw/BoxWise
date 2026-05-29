@@ -1,7 +1,9 @@
+using System.Net.Mail;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 using BoxWise.Server.Models;
 using BoxWise.Server.Services.PasswordValidators;
@@ -89,7 +91,7 @@ public static class AuthEndpoints
             var pwdNeedsChange = request.Password.Length < 8
                 || request.Password.All(char.IsDigit)
                 || CommonPasswordValidator.IsCommon(request.Password);
-            return TypedResults.Ok(new LoginResponse(null, null, null, pwdNeedsChange, RequiresTwoFactor: true));
+            return TypedResults.Ok(new LoginResponse(null, null, null, pwdNeedsChange, RequiresTwoFactor: true, Email: user.Email));
         }
 
         // 检查强制 2FA 宽限期
@@ -101,7 +103,7 @@ public static class AuthEndpoints
             var pwdNeedsChange2 = request.Password.Length < 8
                 || request.Password.All(char.IsDigit)
                 || CommonPasswordValidator.IsCommon(request.Password);
-            return TypedResults.Ok(new LoginResponse(null, null, null, pwdNeedsChange2, RequiresTwoFactor: true));
+            return TypedResults.Ok(new LoginResponse(null, null, null, pwdNeedsChange2, RequiresTwoFactor: true, Email: user.Email));
         }
 
         // 宽限期未设置或未到期 → 非强制 2FA，直接登录
@@ -116,7 +118,8 @@ public static class AuthEndpoints
             PasswordRequiresChange: request.Password.Length < 8
                 || request.Password.All(char.IsDigit)
                 || CommonPasswordValidator.IsCommon(request.Password),
-            RequiresTwoFactor: false));
+            RequiresTwoFactor: false,
+            Email: user.Email));
     }
 
     /// <summary>
@@ -166,7 +169,7 @@ public static class AuthEndpoints
         if (user?.UserName is null)
             return Unauthorized();
 
-        var newUsername = request.NewUsername.Trim();
+        var newUsername = request.NewUsername?.Trim() ?? "";
 
         if (string.IsNullOrWhiteSpace(newUsername))
         {
@@ -220,7 +223,7 @@ public static class AuthEndpoints
             }
             else
             {
-                if (!email.Contains('@') || email.Length > 256)
+                if (email.Length > 256 || !IsValidEmail(email))
                 {
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
@@ -237,16 +240,41 @@ public static class AuthEndpoints
                     });
                 }
 
-                var emailResult = await userManager.SetEmailAsync(user, email);
-                if (!emailResult.Succeeded)
+                var oldEmail = user.Email;
+                try
+                {
+                    var emailResult = await userManager.SetEmailAsync(user, email);
+                    if (!emailResult.Succeeded)
+                    {
+                        return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                        {
+                            { "email", emailResult.Errors.Select(e => e.Description).ToArray() }
+                        });
+                    }
+                }
+                catch (DbUpdateException)
                 {
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
-                        { "email", emailResult.Errors.Select(e => e.Description).ToArray() }
+                        { "email", new[] { "此邮箱已被其他用户使用" } }
                     });
                 }
 
+                if (user.EmailForTwoFactor == oldEmail)
+                {
+                    user.EmailForTwoFactor = email;
+                }
+
                 user.EmailConfirmed = false;
+                try
+                {
+                    await userManager.UpdateAsync(user);
+                }
+                catch (DbUpdateException)
+                {
+                    // EmailForTwoFactor/EmailConfirmed 同步失败不阻断主流程
+                    // ——核心邮箱更改已通过 SetEmailAsync 持久化
+                }
             }
         }
 
@@ -310,4 +338,17 @@ public static class AuthEndpoints
         {
             { "auth", new[] { "未登录" } }
         });
+
+    private static bool IsValidEmail(string email)
+    {
+        try
+        {
+            _ = new MailAddress(email);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

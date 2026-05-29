@@ -32,7 +32,7 @@ public class AuthService
                 return LoginResult.RequiresTwoFactor;
             }
 
-            _appState.SetUser(loginResponse.Username ?? username, loginResponse.IsAdmin ?? false, false);
+            _appState.SetUser(loginResponse.Username ?? username, loginResponse.IsAdmin ?? false, false, loginResponse.Email);
             _authStateProvider.NotifyAuthenticationStateChanged();
 
             if (loginResponse.PasswordRequiresChange)

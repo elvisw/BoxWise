@@ -26,8 +26,8 @@ public class CookieAuthenticationStateProvider : AuthenticationStateProvider
                 if (user is { UserName: not null and not "" })
                 {
                     if (_appState.CurrentUserName != user.UserName
-                        || _appState.CurrentUserEmail != user.Email)
-                        _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email);
+                        || (user.Email is not null && _appState.CurrentUserEmail != user.Email))
+                        _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email ?? _appState.CurrentUserEmail);
 
                     var identity = new ClaimsIdentity(
                         claims: new[]

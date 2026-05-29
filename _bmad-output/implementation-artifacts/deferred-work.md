@@ -1,7 +1,7 @@
 # Deferred Work
 
-> **清偿日期：** 2026-05-28
-> **状态：** 全部 19 条已清偿（7 条修复 + 9 条验证已修复 + 3 条已验证无需改动）
+> **清偿日期：** 2026-05-29
+> **状态：** 全部 31 条已清偿（19 条前期 + 12 条 Epic 8 新清偿）
 
 ## Deferred from: code review of tech-debt-epic6 (2026-05-27)
 
@@ -33,15 +33,29 @@
 
 ## Deferred from: code review of Epic 8 bug fixes (2026-05-29)
 
-- [ ] Email 唯一性检查 TOCTOU 竞态 — `AuthEndpoints.cs:225-232` — 与用户名唯一性检查同模式，预存在问题
-- [ ] 管理员创建/更新密码验证路径不一致 — `Program.cs:259,281` — 创建绕过了验证器但更新走完整验证链，设计决策需文档化
-- [ ] 邮箱格式校验宽松（仅 `Contains('@')`） — `AuthEndpoints.cs:217` — 当前使用场景足够，后续可增强
-- [ ] Email vs EmailForTwoFactor 不同步 — `AppUser.cs:10` vs `AuthEndpoints.cs:234` — 跨 Story 关注点，修改 Email 不会更新 2FA 邮箱
-- [ ] 客户端缺少邮箱格式前端校验 — `AccountInfoDialog.razor:17-19` — 非阻塞，服务端已有校验
-- [ ] 版本回滚时 Email 可能被清空 — `CookieAuthenticationStateProvider.cs:29` — 灰度发布/回滚期间旧 API 不返回 Email 字段导致状态丢失
-- [ ] LoginAsync 未传递 Email 给 SetUser — `AuthService.cs:35` — LoginResponse 无 Email 字段，需更大改动
-- [ ] 启动时并发创建管理员竞态 — `Program.cs:253-270` — 多实例同时启动时可能重复创建，生产单实例部署无影响
-- [ ] URL 长度/URI 格式的极端边界 — `TotpSetup.razor:92-94` — 极低概率
-- [ ] 保存按钮 disabled 逻辑无法感知服务器错误 — `AccountInfoDialog.razor:23` — 轻微 UX 改进
-- [ ] AppState 无线程同步保护 — `AppState.cs:5-8` — 与原有字段模式一致，预存在问题
-- [ ] NewUsername.Trim() 无 null 守卫 — `AuthEndpoints.cs:169` — positional record 非可空参数，但防御性编程建议添加
+> **清偿日期：** 2026-05-29
+> **状态：** 全部 12 条已清偿
+
+- [x] ~~Email 唯一性检查 TOCTOU 竞态 — `AuthEndpoints.cs:225-232`~~ → SetEmailAsync 包裹 try/catch DbUpdateException，冲突时返回 409
+- [x] ~~管理员创建/更新密码验证路径不一致 — `Program.cs:259,281`~~ → 添加设计决策注释：种子管理员密码为特权操作，跳过验证器是有意为之
+- [x] ~~邮箱格式校验宽松（仅 `Contains('@')`） — `AuthEndpoints.cs:217`~~ → 改用 `System.Net.Mail.MailAddress` 进行 RFC 格式校验
+- [x] ~~Email vs EmailForTwoFactor 不同步 — `AppUser.cs:10` vs `AuthEndpoints.cs:234`~~ → Email 变更时同步更新 EmailForTwoFactor（当旧 2FA 邮箱匹配时）
+- [x] ~~客户端缺少邮箱格式前端校验 — `AccountInfoDialog.razor:17-19`~~ → 添加 Contains('@') + 首尾位置检查，无效时不提交
+- [x] ~~版本回滚时 Email 可能被清空 — `CookieAuthenticationStateProvider.cs:29`~~ → API 返回 null Email 时保留 AppState 原有值
+- [x] ~~LoginAsync 未传递 Email 给 SetUser — `AuthService.cs:35`~~ → LoginResponse 新增 Email 字段，LoginAsync 传递 loginResponse.Email
+- [x] ~~启动时并发创建管理员竞态 — `Program.cs:253-270`~~ → CreateAsync 和 AddToRoleAsync 包裹 try/catch DbUpdateException
+- [x] ~~URL 长度/URI 格式的极端边界 — `TotpSetup.razor:92-94`~~ → 添加 _qrCodeUri.Length > 2048 和 Http.BaseAddress null 检查
+- [x] ~~保存按钮 disabled 逻辑无法感知服务器错误 — `AccountInfoDialog.razor:23`~~ → 新增 _hasError 字段，错误后按钮保持可用
+- [x] ~~AppState 无线程同步保护 — `AppState.cs:5-8`~~ → SetUser/Clear/SetContinuousLocation/ClearContinuousLocation 方法体包裹 lock
+- [x] ~~NewUsername.Trim() 无 null 守卫 — `AuthEndpoints.cs:169`~~ → 改为 `request.NewUsername?.Trim() ?? ""`
+
+## Deferred from: code review of Epic 8 deferred resolution (2026-05-29)
+
+- [ ] QR 码 URL 长度检查基于原始 URI 而非编码后长度 — `TotpSetup.razor:93` — OTP auth URI 通常 ~100 字符，2048 的原始长度几乎不会达到，编码膨胀风险极低
+- [ ] 客户端/服务端邮箱校验规则不一致 — `AccountInfoDialog.razor:56` vs `AuthEndpoints.cs:226` — 客户端宽松检查，服务端 RFC 严格，两端不一致
+- [ ] CookieAuthStateProvider 过期邮箱残留 — `CookieAuthenticationStateProvider.cs:29-30` — user.Email 为 null 时回退到旧值，无法区分"未设置"和"不返回"
+- [ ] 客户端错误提示在输入变更后不清除 — `AccountInfoDialog.razor:48,73` — 用户修正输入后错误文本仍显示
+- [ ] IsValidEmail 使用异常作为流程控制 — `AuthEndpoints.cs:332-339` — 无 MailAddress.TryParse，高性能场景可加正则预检
+- [ ] QR 码无法显示时无用户反馈 — `TotpSetup.razor:93` — QrCodeImageUrl 返回 null 时静默消失
+- [ ] CookieAuthStateProvider 漏检 IsAdmin/PasswordManagedByEnv 变更 — `CookieAuthenticationStateProvider.cs:28` — 角色变更后客户端不更新
+- [ ] 客户端邮箱校验允许多重 @ 符号 — `AccountInfoDialog.razor:56` — 服务端会拒绝，但客户端即时反馈缺失

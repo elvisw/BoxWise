@@ -517,3 +517,7 @@ appsettings.*.local.json
 # 文档工具中间产物
 docs/project-scan-report.json
 docs/superpowers/
+
+# opencode 相关
+.agents/
+.opencode/

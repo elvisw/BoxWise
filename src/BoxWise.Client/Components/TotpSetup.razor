@@ -90,7 +90,7 @@ else
     private bool _isVerified;
 
     private string? QrCodeImageUrl =>
-        !string.IsNullOrEmpty(_qrCodeUri)
+        !string.IsNullOrEmpty(_qrCodeUri) && _qrCodeUri.Length <= 2048 && Http.BaseAddress is not null
             ? $"{Http.BaseAddress}api/qrcode?text={Uri.EscapeDataString(_qrCodeUri)}"
             : null;
 
