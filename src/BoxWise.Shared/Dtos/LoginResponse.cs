@@ -6,5 +6,6 @@ public record LoginResponse(
     bool? IsSpecificAdmin,
     bool PasswordRequiresChange,
     bool RequiresTwoFactor,
+    bool RequiresTwoFactorSetup = false,
     string? Email = null
 );

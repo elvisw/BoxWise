@@ -3,6 +3,16 @@
 > **清偿日期：** 2026-05-28
 > **状态：** 全部 19 条已清偿（7 条修复 + 9 条验证已修复 + 3 条已验证无需改动）
 
+## Deferred from: code review of 2FA-login-grace-period-fix (2026-05-30)
+
+> 以下为 pre-existing issues，非本次 2FA 登录修复引入，留待后续专项处理。
+
+- [ ] **并发首次登录 DbUpdateConcurrencyException → 500** — `AuthEndpoints.cs:86`，同一用户双请求并发到达时，第二个 `UpdateAsync` 因 ConcurrencyStamp 乐观并发抛异常，`LoginAsync` 未捕获。低流量下概率极低。建议：catch 并重试（重新读取用户后重试）
+- [ ] **Blazor WASM 版本偏差可能绕过 2FA 引导** — `LoginResponse.cs` 新增字段在旧版 WASM 客户端被 JSON 反序列化忽略，旧客户端直接视为登录成功。建议：添加版本检查或服务端降级路径
+- [ ] **IsPasswordManagedByEnv 在 AuthService 中硬编码 false** — `AuthService.cs:37`，`RequiresTwoFactorSetup` 分支（及正常路径）手动传 false。服务器端已完成 `isSpecificAdmin` 计算但未利用。建议：LoginResponse 传递该字段并由 AuthService 使用
+- [ ] **中断 TOTP 设置后残余密钥仅在首次登录清理** — `AuthEndpoints.cs:82-85`，宽限期过期路径不清理残留。建议：在宽限期过期分支中也清理或统一在 GenerateTotpSecretAsync 中覆盖
+- [ ] **TwoFactorGracePeriodUntil 在 2FA 启用后未清除** — `TwoFactorService.cs:87-91`，`VerifyTotpSetupAsync` 设置 `TwoFactorEnabled=true` 但不清除宽限期字段。建议：启用 2FA 后将 `TwoFactorGracePeriodUntil` 置 null
+
 ## Deferred from: code review of spec-smtp-config-test-email (2026-05-30)
 
 > 以下为 pre-existing issues，非本次 SMTP 配置管理功能引入，留待后续专项处理。

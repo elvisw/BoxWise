@@ -122,7 +122,7 @@
                 // 获取支持的 2FA 方法
                 await LoadTwoFactorChallengeAsync();
             }
-            else if (result == LoginResult.PasswordRequiresChange)
+            else if (result == LoginResult.RequiresTwoFactorSetup || result == LoginResult.PasswordRequiresChange)
             {
                 Navigation.NavigateTo("/settings");
             }

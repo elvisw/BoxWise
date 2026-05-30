@@ -76,50 +76,53 @@ public static class AuthEndpoints
             });
         }
 
-        // 首次登录初始化 2FA 宽限期（24 小时）
+        // 首次登录初始化 2FA 宽限期（24 小时），同时清理残留的 TOTP 密钥
         if (!user.TwoFactorEnabled && !user.TwoFactorGracePeriodUntil.HasValue)
         {
             user.TwoFactorGracePeriodUntil = DateTime.UtcNow.AddHours(24);
+            // 清理可能残留的 TOTP 密钥（例如之前开始设置但未完成的）
+            if (!string.IsNullOrEmpty(user.TotpSecretKey))
+                user.TotpSecretKey = null;
             await userManager.UpdateAsync(user);
         }
 
         // 检查 2FA 状态
+        var passwordWeak = request.Password.Length < 8
+            || request.Password.All(char.IsDigit)
+            || CommonPasswordValidator.IsCommon(request.Password);
+
         if (user.TwoFactorEnabled)
         {
             // 已启用 2FA → 签发 TwoFactorUserId Cookie，进入阶段二
             await IssueTwoFactorUserIdCookieAsync(signInManager, user);
-            var pwdNeedsChange = request.Password.Length < 8
-                || request.Password.All(char.IsDigit)
-                || CommonPasswordValidator.IsCommon(request.Password);
-            return TypedResults.Ok(new LoginResponse(null, null, null, pwdNeedsChange, RequiresTwoFactor: true, Email: user.Email));
+            return TypedResults.Ok(new LoginResponse(null, null, null, passwordWeak, RequiresTwoFactor: true, Email: user.Email));
         }
-
-        // 检查强制 2FA 宽限期
-        if (user.TwoFactorGracePeriodUntil.HasValue
-            && user.TwoFactorGracePeriodUntil.Value <= DateTime.UtcNow)
-        {
-            // 宽限期已过且 2FA 未启用 → 要求设置 2FA
-            await IssueTwoFactorUserIdCookieAsync(signInManager, user);
-            var pwdNeedsChange2 = request.Password.Length < 8
-                || request.Password.All(char.IsDigit)
-                || CommonPasswordValidator.IsCommon(request.Password);
-            return TypedResults.Ok(new LoginResponse(null, null, null, pwdNeedsChange2, RequiresTwoFactor: true, Email: user.Email));
-        }
-
-        // 宽限期未设置或未到期 → 非强制 2FA，直接登录
-        await signInManager.SignInAsync(user, isPersistent: true);
 
         var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
         var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
         var isSpecificAdmin = adminConfigured
             && string.Equals(request.Username, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
 
+        // 检查强制 2FA 宽限期
+        if (user.TwoFactorGracePeriodUntil.HasValue
+            && user.TwoFactorGracePeriodUntil.Value <= DateTime.UtcNow)
+        {
+            // 宽限期已过且 2FA 未启用 → 允许登录但引导用户前往设置页完成 2FA 配置
+            // 清理可能残留的 TOTP 密钥（例如之前开始设置但未完成的）
+            if (!string.IsNullOrEmpty(user.TotpSecretKey))
+                user.TotpSecretKey = null;
+            await userManager.UpdateAsync(user);
+            await signInManager.SignInAsync(user, isPersistent: true);
+            return TypedResults.Ok(new LoginResponse(request.Username, isAdmin, isSpecificAdmin,
+                passwordWeak, RequiresTwoFactor: false, RequiresTwoFactorSetup: true,
+                Email: user.Email));
+        }
+
+        // 宽限期未设置或未到期 → 非强制 2FA，直接登录
+        await signInManager.SignInAsync(user, isPersistent: true);
+
         return TypedResults.Ok(new LoginResponse(request.Username, isAdmin, isSpecificAdmin,
-            PasswordRequiresChange: request.Password.Length < 8
-                || request.Password.All(char.IsDigit)
-                || CommonPasswordValidator.IsCommon(request.Password),
-            RequiresTwoFactor: false,
-            Email: user.Email));
+            passwordWeak, RequiresTwoFactor: false, Email: user.Email));
     }
 
     /// <summary>

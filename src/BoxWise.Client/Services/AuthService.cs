@@ -32,8 +32,14 @@ public class AuthService
                 return LoginResult.RequiresTwoFactor;
             }
 
+            // 所有非 TwoFactor 路径均需设置用户状态
             _appState.SetUser(loginResponse.Username ?? username, loginResponse.IsAdmin ?? false, false, loginResponse.Email);
             _authStateProvider.NotifyAuthenticationStateChanged();
+
+            if (loginResponse.RequiresTwoFactorSetup)
+            {
+                return LoginResult.RequiresTwoFactorSetup;
+            }
 
             if (loginResponse.PasswordRequiresChange)
             {
@@ -344,5 +350,6 @@ public enum LoginResult
     Success,
     Failure,
     RequiresTwoFactor,
+    RequiresTwoFactorSetup,
     PasswordRequiresChange
 }

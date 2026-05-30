@@ -1,6 +1,7 @@
 @page "/settings"
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
+@using BoxWise.Shared.Dtos
 
 @inject AuthService AuthService
 @inject NavigationManager Navigation
@@ -114,7 +115,25 @@
         await LoadTwoFactorStatusAsync();
     }
 
-    private async Task LoadTwoFactorStatusAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var status = await LoadTwoFactorStatusAsync();
+
+            // 如果 2FA 宽限期已过期，自动弹出设置对话框
+            if (status is not null
+                && !status.TwoFactorEnabled
+                && status.GracePeriodEnd is not null
+                && status.GracePeriodEnd.Value <= DateTime.UtcNow)
+            {
+                await OpenTwoFactorSetupDialog();
+            }
+            StateHasChanged();
+        }
+    }
+
+    private async Task<TwoFactorStatusDto?> LoadTwoFactorStatusAsync()
     {
         try
         {
@@ -136,10 +155,12 @@
             {
                 _twoFactorStatusText = "设置 TOTP 两步验证";
             }
+            return status;
         }
         catch
         {
             _twoFactorStatusText = "设置 TOTP 两步验证";
+            return null;
         }
     }
 
