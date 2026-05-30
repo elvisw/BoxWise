@@ -279,7 +279,7 @@ public class AuthService
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<SendChallengeCodeResponse>();
+            var result = await response.Content.ReadFromJsonAsync<EmailTwoFactorSetupResponse>();
             return result?.Token;
         }
 

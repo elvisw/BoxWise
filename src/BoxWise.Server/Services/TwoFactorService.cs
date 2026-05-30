@@ -101,6 +101,8 @@ public class TwoFactorService
     {
         if (user is null)
             return Task.FromResult(false);
+        if (string.IsNullOrWhiteSpace(code))
+            return Task.FromResult(false);
 
         // 先尝试主密钥
         if (!string.IsNullOrWhiteSpace(user.TotpSecretKey))
@@ -306,12 +308,12 @@ public class TwoFactorService
     /// 验证通过后：TotpSecretKey = PendingTotpSecretKey，清除 PendingTotpSecretKey。
     /// 不改变 TwoFactorEnabled 或 ConfiguredMethods。
     /// </summary>
-    public async Task<bool> VerifyPendingTotpSetupAsync(AppUser user, string code, string sessionToken)
+    public async Task<bool> VerifyPendingTotpSetupAsync(AppUser user, string code, string sessionToken, string? clientIp = null)
     {
         if (user is null)
             return false;
 
-        if (!ValidateSessionToken(sessionToken, user.Id, expectedPurpose: "2fa-modify"))
+        if (!ValidateSessionToken(sessionToken, user.Id, clientIp, expectedPurpose: "2fa-modify"))
             return false;
 
         if (string.IsNullOrWhiteSpace(user.PendingTotpSecretKey))
@@ -334,7 +336,7 @@ public class TwoFactorService
             return false;
 
         // 防重放：同一用户 + 同一时间步长 2 分钟内不可重复使用
-        var replayKey = $"totp_replay_{user.Id}:{timeStepMatched}";
+        var replayKey = $"totp_replay_pending_{user.Id}:{timeStepMatched}";
         if (_cache.TryGetValue(replayKey, out _))
             return false;
         _cache.Set(replayKey, true, TimeSpan.FromMinutes(2));

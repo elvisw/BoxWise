@@ -120,6 +120,8 @@ public class RecoveryCodeService
     /// </summary>
     public async Task<bool> ValidateRecoveryCodeAsync(AppUser user, string code)
     {
+        if (string.IsNullOrWhiteSpace(code))
+            return false;
         var codeHash = HashCode(code);
         return await _db.RecoveryCodes.AnyAsync(rc => rc.UserId == user.Id && rc.CodeHash == codeHash);
     }

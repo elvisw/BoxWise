@@ -205,7 +205,7 @@ public static class TwoFactorModifyEndpoints
             });
         }
 
-        var email = request.Email.Trim();
+        var email = request.Email?.Trim();
         if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !email.Contains('@'))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
@@ -380,7 +380,8 @@ public static class TwoFactorModifyEndpoints
             return TypedResults.Unauthorized();
 
         // VerifyPendingTotpSetupAsync 内部校验 session token（purpose="2fa-modify"）
-        var success = await twoFactorService.VerifyPendingTotpSetupAsync(user, request.Code, sessionToken);
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
+        var success = await twoFactorService.VerifyPendingTotpSetupAsync(user, request.Code, sessionToken, clientIp);
         if (!success)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
