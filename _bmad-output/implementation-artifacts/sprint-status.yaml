@@ -96,5 +96,6 @@ development_status:
   8-5b-deployment-config: done
   8-5c-cli-two-factor-reset: done
   epic-8-retrospective: done
-  epic-9: in-progress
+  epic-9: done
   9-1-2fa-modify-settings: review
+  epic-9-retrospective: done
