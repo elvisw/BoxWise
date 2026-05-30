@@ -224,6 +224,21 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             });
     });
+
+    // 2FA modify 端点 - 按账户
+    options.AddPolicy<string>("2fa-modify", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(userId,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = config.GetValue("RateLimit:TwoFactorModifyPermitLimit", 3),
+                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorModifyWindowMinutes", 5)),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
 });
 
 builder.Services.AddScoped<CsrfValidationFilter>();
@@ -366,6 +381,7 @@ app.MapItemEndpoints();
 app.MapTagEndpoints();
 app.MapAiEndpoints();
 app.MapTwoFactorEndpoints();
+app.MapTwoFactorModifyEndpoints();
 app.MapWebAuthnEndpoints();
 app.MapQrCodeEndpoints();
 app.MapAdminTwoFactorEndpoints();

@@ -560,6 +560,11 @@ public static class TwoFactorEndpoints
     /// <summary>
     /// 重新生成恢复码（旧码全部失效），返回新恢复码明文列表。
     /// </summary>
+    /// <remarks>
+    /// 此端点已废弃，请使用 <c>POST /api/auth/2fa/modify/recovery/regenerate</c>。
+    /// 新端点需要 modify session token（X-Session-Token header），提供更强的安全性。
+    /// 旧端点保留用于向后兼容，但不再在前端使用。
+    /// </remarks>
     private static async Task<Results<Ok<RecoveryCodesResponse>, UnauthorizedHttpResult, ValidationProblem>>
         RegenerateRecoveryCodesAsync(HttpContext httpContext,
             UserManager<AppUser> userManager, RecoveryCodeService recoveryCodeService)

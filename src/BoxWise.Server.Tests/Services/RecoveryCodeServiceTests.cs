@@ -167,4 +167,63 @@ public class RecoveryCodeServiceTests
         var hasCodes = await service.HasRecoveryCodesAsync(user);
         Assert.True(hasCodes);
     }
+
+    // ────────────── ValidateRecoveryCodeAsync (non-destructive) ──────────────
+
+    [Fact]
+    public async Task ValidateRecoveryCodeAsync_ValidCode_ReturnsTrue()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var db = ctx.Scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var service = new RecoveryCodeService(db);
+        var user = new AppUser { UserName = "validate-valid@example.com" };
+        await ctx.UserManager.CreateAsync(user);
+
+        var codes = RecoveryCodeService.GenerateRecoveryCodes();
+        await service.StoreRecoveryCodesAsync(user, codes);
+
+        var result = await service.ValidateRecoveryCodeAsync(user, codes[0]);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public async Task ValidateRecoveryCodeAsync_InvalidCode_ReturnsFalse()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var db = ctx.Scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var service = new RecoveryCodeService(db);
+        var user = new AppUser { UserName = "validate-invalid@example.com" };
+        await ctx.UserManager.CreateAsync(user);
+
+        var codes = RecoveryCodeService.GenerateRecoveryCodes();
+        await service.StoreRecoveryCodesAsync(user, codes);
+
+        var result = await service.ValidateRecoveryCodeAsync(user, "INVALIDCODE123");
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task ValidateRecoveryCodeAsync_DoesNotConsumeCode()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var db = ctx.Scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var service = new RecoveryCodeService(db);
+        var user = new AppUser { UserName = "validate-noconsume@example.com" };
+        await ctx.UserManager.CreateAsync(user);
+
+        var codes = RecoveryCodeService.GenerateRecoveryCodes();
+        await service.StoreRecoveryCodesAsync(user, codes);
+
+        // Validate multiple times — should still return true
+        var first = await service.ValidateRecoveryCodeAsync(user, codes[0]);
+        Assert.True(first);
+
+        var second = await service.ValidateRecoveryCodeAsync(user, codes[0]);
+        Assert.True(second);
+
+        // Recovery codes should still be in DB
+        Assert.Equal(8, await db.RecoveryCodes.CountAsync());
+    }
 }

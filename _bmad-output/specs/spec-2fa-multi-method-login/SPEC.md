@@ -86,3 +86,4 @@ sources:
 - **WebAuthn 凭证与 TOTP/Email 的清除不一致**：`VerifyEmailAsync` 旧代码清除 TOTP 密钥但不清除 WebAuthn 凭证。本次修复后两种方法均不互相清除，WebAuthn 实现时需遵循相同的方法隔离原则。
 - **Email 验证码在用户选择 TOTP 时仍会被发送**：`ChallengeAsync` 无论用户最终选择哪种方法，只要配置了 Email 就会发送验证码。这是有意权衡——用户可能切换选择，提前发送减少等待。可接受少量 SMTP 配额浪费。
 - **`PUT /api/auth/2fa/switch-method` 端点已废弃**：返回 410 Gone。客户端（如有）需改用独立的 setup/verify 端点流程。
+- **恢复码耗尽无提前警告**：用户初始获得 8 个恢复码，使用任一恢复码登录会立即清除所有恢复码并禁用 2FA（核选项）。不存在"剩余 3 个恢复码"的提示或低余量警告。用户恢复码用完后，如同时丢失所有 2FA 设备/邮箱访问，将无法登录——需要管理员后台重置。后续可在 `TwoFactorStatusDto` 中增加 `RemainingRecoveryCodes` 字段，在设置页展示余量。

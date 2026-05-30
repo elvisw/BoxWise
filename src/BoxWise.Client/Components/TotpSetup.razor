@@ -78,6 +78,9 @@ else
     public string SessionToken { get; set; } = string.Empty;
 
     [Parameter]
+    public bool ModifyMode { get; set; } = false;
+
+    [Parameter]
     public EventCallback OnSetupComplete { get; set; }
 
     [Parameter]
@@ -109,7 +112,12 @@ else
 
         try
         {
-            var result = await AuthService.SetupTotpAsync(SessionToken);
+            (string SecretKey, string QrCodeUri)? result;
+            if (ModifyMode)
+                result = await AuthService.ModifyTotpAsync(SessionToken);
+            else
+                result = await AuthService.SetupTotpAsync(SessionToken);
+
             if (result.HasValue)
             {
                 _secretKey = result.Value.SecretKey;
@@ -133,11 +141,16 @@ else
 
         try
         {
-            var success = await AuthService.VerifyTotpSetupAsync(SessionToken, _code);
+            bool success;
+            if (ModifyMode)
+                success = await AuthService.VerifyModifyTotpAsync(SessionToken, _code);
+            else
+                success = await AuthService.VerifyTotpSetupAsync(SessionToken, _code);
+
             if (success)
             {
                 _isVerified = true;
-                Snackbar.Add("TOTP 双因素认证已启用", Severity.Success);
+                Snackbar.Add(ModifyMode ? "TOTP 已更新" : "TOTP 双因素认证已启用", Severity.Success);
                 await OnSetupComplete.InvokeAsync();
             }
             else

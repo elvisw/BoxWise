@@ -114,6 +114,16 @@ public class RecoveryCodeService
         return await _db.RecoveryCodes.AnyAsync(rc => rc.UserId == user.Id);
     }
 
+    /// <summary>
+    /// 非消耗性验证恢复码（仅校验哈希，不销毁码，不更改用户状态）。
+    /// 用于 modify 流程中的身份验证（区别于登录时的核选项 VerifyRecoveryCodeAsync）。
+    /// </summary>
+    public async Task<bool> ValidateRecoveryCodeAsync(AppUser user, string code)
+    {
+        var codeHash = HashCode(code);
+        return await _db.RecoveryCodes.AnyAsync(rc => rc.UserId == user.Id && rc.CodeHash == codeHash);
+    }
+
     private static string HashCode(string code) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(code)));
 }

@@ -250,6 +250,151 @@ public class AuthService
     /// </summary>
     public void ClearLastRecoveryCodes() => _lastRecoveryCodes = null;
 
+    // ===== 2FA Modify Methods (Story 9.1) =====
+
+    /// <summary>
+    /// 通过 2FA 验证获取 modify session token（TOTP / Email / RecoveryCode）。
+    /// </summary>
+    public async Task<string?> AuthenticateForModifyAsync(string code, string? method, string? token)
+    {
+        var response = await _http.PostAsJsonAsync("api/auth/2fa/modify/authenticate",
+            new VerifyTwoFactorRequest(code, token, method));
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<ReAuthenticateResponse>();
+            return result?.SessionToken;
+        }
+
+        var error = await TryGetErrorAsync(response);
+        throw new InvalidOperationException(error ?? "2FA 验证失败");
+    }
+
+    /// <summary>
+    /// 向已配置的 2FA 邮箱发送验证码（用于 modify 认证流程）。
+    /// </summary>
+    public async Task<string?> SendModifyCodeAsync()
+    {
+        var response = await _http.PostAsync("api/auth/2fa/modify/send-code", null);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<SendChallengeCodeResponse>();
+            return result?.Token;
+        }
+
+        var error = await TryGetErrorAsync(response);
+        throw new InvalidOperationException(error ?? "发送验证码失败");
+    }
+
+    /// <summary>
+    /// 修改 2FA 邮箱：向新邮箱发送验证码。
+    /// </summary>
+    public async Task<string?> ModifyEmailAsync(string sessionToken, string email)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/email");
+        request.Headers.Add("X-Session-Token", sessionToken);
+        request.Content = JsonContent.Create(new SetupEmailTwoFactorRequest(email));
+
+        var response = await _http.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<EmailTwoFactorSetupResponse>();
+            return result?.Token;
+        }
+
+        var error = await TryGetErrorAsync(response);
+        throw new InvalidOperationException(error ?? "修改邮箱失败");
+    }
+
+    /// <summary>
+    /// 验证新邮箱的验证码。
+    /// </summary>
+    public async Task<bool> VerifyModifyEmailAsync(string sessionToken, string code, string token)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/email/verify");
+        request.Headers.Add("X-Session-Token", sessionToken);
+        request.Content = JsonContent.Create(new VerifyTwoFactorRequest(code, token));
+
+        var response = await _http.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+            return true;
+
+        var error = await TryGetErrorAsync(response);
+        if (error is not null)
+            throw new InvalidOperationException(error);
+
+        return false;
+    }
+
+    /// <summary>
+    /// 重置 TOTP：生成新密钥和 QR 码。
+    /// </summary>
+    public async Task<(string SecretKey, string QrCodeUri)?> ModifyTotpAsync(string sessionToken)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/totp");
+        request.Headers.Add("X-Session-Token", sessionToken);
+
+        var response = await _http.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<TwoFactorSetupResponse>();
+            if (result is not null)
+                return (result.SecretKey, result.QrCodeUri);
+        }
+
+        var error = await TryGetErrorAsync(response);
+        throw new InvalidOperationException(error ?? "TOTP 重置失败");
+    }
+
+    /// <summary>
+    /// 验证新 TOTP 密钥的验证码。
+    /// </summary>
+    public async Task<bool> VerifyModifyTotpAsync(string sessionToken, string code)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/totp/verify");
+        request.Headers.Add("X-Session-Token", sessionToken);
+        request.Content = JsonContent.Create(new VerifyTwoFactorRequest(code));
+
+        var response = await _http.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+            return true;
+
+        var error = await TryGetErrorAsync(response);
+        if (error is not null)
+            throw new InvalidOperationException(error);
+
+        return false;
+    }
+
+    /// <summary>
+    /// 重新生成恢复码（旧码全部失效），需要 modify session token。
+    /// </summary>
+    public async Task<List<string>?> ModifyRegenerateRecoveryCodesAsync(string sessionToken)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/recovery/regenerate");
+        request.Headers.Add("X-Session-Token", sessionToken);
+
+        var response = await _http.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<RecoveryCodesResponse>();
+            _lastRecoveryCodes = result?.Codes;
+            return result?.Codes;
+        }
+
+        var error = await TryGetErrorAsync(response);
+        if (error is not null)
+            throw new InvalidOperationException(error);
+
+        return null;
+    }
+
     // ===== WebAuthn Methods (stubs — full implementation in Story 8-5) =====
 
     /// <summary>

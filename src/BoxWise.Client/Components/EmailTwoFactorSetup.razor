@@ -72,6 +72,9 @@ else
     public string SessionToken { get; set; } = string.Empty;
 
     [Parameter]
+    public bool ModifyMode { get; set; } = false;
+
+    [Parameter]
     public EventCallback<List<string>> OnSetupComplete { get; set; }
 
     [Parameter]
@@ -92,7 +95,9 @@ else
 
         try
         {
-            _emailToken = await AuthService.SetupEmailTwoFactorAsync(SessionToken, _email);
+            _emailToken = ModifyMode
+                ? await AuthService.ModifyEmailAsync(SessionToken, _email)
+                : await AuthService.SetupEmailTwoFactorAsync(SessionToken, _email);
             _codeSent = true;
             Snackbar.Add("验证码已发送到您的邮箱", Severity.Info);
             StateHasChanged();
@@ -114,16 +119,33 @@ else
 
         try
         {
-            var result = await AuthService.VerifyEmailTwoFactorAsync(SessionToken, _code, _emailToken ?? "");
-            if (result.Success)
+            if (ModifyMode)
             {
-                _isVerified = true;
-                Snackbar.Add("邮箱双因素认证已启用", Severity.Success);
-                await OnSetupComplete.InvokeAsync(result.RecoveryCodes);
+                var success = await AuthService.VerifyModifyEmailAsync(SessionToken, _code, _emailToken ?? "");
+                if (success)
+                {
+                    _isVerified = true;
+                    Snackbar.Add("邮箱已更新", Severity.Success);
+                    await OnSetupComplete.InvokeAsync(new List<string>());
+                }
+                else
+                {
+                    _error = "验证码无效，请确认输入的验证码正确";
+                }
             }
             else
             {
-                _error = "验证码无效，请确认输入的验证码正确";
+                var result = await AuthService.VerifyEmailTwoFactorAsync(SessionToken, _code, _emailToken ?? "");
+                if (result.Success)
+                {
+                    _isVerified = true;
+                    Snackbar.Add("邮箱双因素认证已启用", Severity.Success);
+                    await OnSetupComplete.InvokeAsync(result.RecoveryCodes);
+                }
+                else
+                {
+                    _error = "验证码无效，请确认输入的验证码正确";
+                }
             }
         }
         catch (InvalidOperationException ex)

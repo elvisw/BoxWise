@@ -109,6 +109,7 @@
 
 @code {
     private string _twoFactorStatusText = "加载中...";
+    private bool _twoFactorEnabled;
 
     protected override async Task OnInitializedAsync()
     {
@@ -141,9 +142,11 @@
             if (status is null)
             {
                 _twoFactorStatusText = "设置 TOTP 两步验证";
+                _twoFactorEnabled = false;
             }
             else if (status.TwoFactorEnabled)
             {
+                _twoFactorEnabled = true;
                 var methodName = status.TwoFactorMethod switch
                 {
                     "TOTP" => "TOTP 验证器",
@@ -156,6 +159,7 @@
             }
             else
             {
+                _twoFactorEnabled = false;
                 _twoFactorStatusText = "设置 TOTP 两步验证";
             }
             return status;
@@ -182,12 +186,26 @@
     private async Task OpenTwoFactorSetupDialog()
     {
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await DialogService.ShowAsync<TwoFactorSetup>("双因素认证", options);
-        var result = await dialog.Result;
-        if (result?.Canceled == false)
+
+        if (_twoFactorEnabled)
         {
-            await LoadTwoFactorStatusAsync();
-            StateHasChanged();
+            var dialog = await DialogService.ShowAsync<TwoFactorManage>("管理双因素认证", options);
+            var result = await dialog.Result;
+            if (result?.Canceled == false)
+            {
+                await LoadTwoFactorStatusAsync();
+                StateHasChanged();
+            }
+        }
+        else
+        {
+            var dialog = await DialogService.ShowAsync<TwoFactorSetup>("双因素认证", options);
+            var result = await dialog.Result;
+            if (result?.Canceled == false)
+            {
+                await LoadTwoFactorStatusAsync();
+                StateHasChanged();
+            }
         }
     }
 

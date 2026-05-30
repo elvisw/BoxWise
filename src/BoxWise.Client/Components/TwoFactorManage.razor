@@ -1,0 +1,542 @@
+@namespace BoxWise.Client.Components
+@using BoxWise.Shared.Dtos
+@inject AuthService AuthService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JsRuntime
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">管理双因素认证</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_manageStep == ManageStep.ChooseAction)
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
+                双因素认证已启用
+            </MudAlert>
+
+            @if (_configuredMethods.Contains("TOTP"))
+            {
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Smartphone" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;">TOTP 验证器</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                重新绑定验证器应用
+                            </MudText>
+                        </div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@_isLoading" @onclick="StartModifyTotp">
+                            修改
+                        </MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (_configuredMethods.Contains("Email"))
+            {
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;">邮箱验证码</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                修改接收验证码的邮箱
+                            </MudText>
+                        </div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@_isLoading" @onclick="StartModifyEmail">
+                            修改
+                        </MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (_hasRecoveryCodes)
+            {
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.FiberManualRecord" Size="Size.Medium" Class="mr-3" Color="Color.Warning" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;">恢复码</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                生成新的恢复码，旧码将失效
+                            </MudText>
+                        </div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                                   Disabled="@_isLoading" @onclick="StartModifyRecoveryCodes">
+                            重新生成
+                        </MudButton>
+                    </div>
+                </MudPaper>
+            }
+        }
+        else if (_manageStep == ManageStep.ModifyAuthenticate)
+        {
+            <MudText Typo="Typo.body2" Class="mb-4">
+                请先完成双因素认证以验证身份。
+            </MudText>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+                    @_error
+                </MudAlert>
+            }
+
+            @if (_configuredMethods.Contains("TOTP"))
+            {
+                <MudText Typo="Typo.body2" Class="mb-1">TOTP 验证码</MudText>
+                <div class="d-flex align-center mb-3" style="gap: 8px;">
+                    <MudTextField @bind-Value="_totpCode"
+                                  Label="验证码"
+                                  Required="true"
+                                  Immediate="true"
+                                  Variant="Variant.Outlined"
+                                  FullWidth="true"
+                                  HelperText="输入验证器应用中的 6 位验证码" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="@(_isLoading || string.IsNullOrEmpty(_totpCode) || _totpCode.Length < 6)"
+                               @onclick="VerifyTOTPAuth"
+                               Class="flex-shrink-0">
+                        @(_isLoading ? "..." : "验证")
+                    </MudButton>
+                </div>
+            }
+
+            @if (_configuredMethods.Contains("Email"))
+            {
+                <MudDivider Class="my-2" />
+                <MudText Typo="Typo.body2" Class="mb-1 mt-2">邮箱验证码</MudText>
+
+                @if (!_emailCodeSent)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               FullWidth="true"
+                               Disabled="@_isLoading"
+                               @onclick="SendEmailAuthCodeAsync">
+                        @(_isLoading ? "发送中..." : "发送验证码到邮箱")
+                    </MudButton>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Default" Class="mb-2">
+                        验证码已发送到您的邮箱，请输入 6 位验证码。
+                    </MudText>
+                    <div class="d-flex align-center" style="gap: 8px;">
+                        <MudTextField @bind-Value="_emailCode"
+                                      Label="邮箱验证码"
+                                      Required="true"
+                                      Immediate="true"
+                                      Variant="Variant.Outlined"
+                                      FullWidth="true"
+                                      HelperText="输入 6 位验证码" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@(_isLoading || string.IsNullOrEmpty(_emailCode) || _emailCode.Length < 6)"
+                                   @onclick="VerifyEmailAuth"
+                                   Class="flex-shrink-0">
+                            @(_isLoading ? "..." : "验证")
+                        </MudButton>
+                    </div>
+                }
+            }
+
+            @if (_hasRecoveryCodes)
+            {
+                <MudDivider Class="my-2" />
+                <MudText Typo="Typo.body2" Class="mb-1 mt-2">恢复码</MudText>
+                <div class="d-flex align-center" style="gap: 8px;">
+                    <MudTextField @bind-Value="_recoveryCode"
+                                  Label="恢复码"
+                                  Required="true"
+                                  Immediate="true"
+                                  Variant="Variant.Outlined"
+                                  FullWidth="true" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                               Disabled="@(_isLoading || string.IsNullOrEmpty(_recoveryCode))"
+                               @onclick="VerifyRecoveryCodeAuth"
+                               Class="flex-shrink-0">
+                        @(_isLoading ? "..." : "验证")
+                    </MudButton>
+                </div>
+            }
+        }
+        else if (_manageStep == ManageStep.ModifyTotp)
+        {
+            <TotpSetup ModifyMode="true"
+                       SessionToken="@_modifySessionToken"
+                       OnSetupComplete="OnModifyComplete"
+                       OnBack="GoToChooseAction" />
+        }
+        else if (_manageStep == ManageStep.ModifyEmail)
+        {
+            <EmailTwoFactorSetup ModifyMode="true"
+                                 SessionToken="@_modifySessionToken"
+                                 OnSetupComplete="OnModifyComplete"
+                                 OnBack="GoToChooseAction" />
+        }
+        else if (_manageStep == ManageStep.Complete)
+        {
+            <MudText Typo="Typo.h6" Align="Align.Center" Class="mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+            </MudText>
+            <MudText Typo="Typo.body1" Align="Align.Center" Class="mb-2">
+                @(_selectedAction == "RecoveryCodes" ? "恢复码已重新生成" : "双因素认证设置已更新")
+            </MudText>
+
+            @if (_recoveryCodes is { Count: > 0 })
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-3" Dense="true">
+                    <MudText Typo="Typo.body2">
+                        请立即保存以下恢复码。如果无法访问 2FA 设备，您可以使用恢复码登录。
+                    </MudText>
+                </MudAlert>
+
+                <div class="d-flex flex-column align-center" style="gap: 4px;">
+                    @foreach (var rc in _recoveryCodes)
+                    {
+                        var capturedCode = rc;
+                        <MudPaper Class="pa-2" Elevation="0" Outlined="true" Style="width: 100%; max-width: 320px;">
+                            <div class="d-flex align-center justify-space-between">
+                                <MudText Typo="Typo.body2"
+                                         Style="font-family: monospace; font-size: 1.1rem; letter-spacing: 2px;"
+                                         Color="Color.Secondary">
+                                    @rc
+                                </MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.ContentCopy"
+                                               Size="Size.Small"
+                                               Color="Color.Primary"
+                                               OnClick="@(() => CopyCode(capturedCode))" />
+                            </div>
+                        </MudPaper>
+                    }
+                </div>
+
+                <div class="d-flex justify-center mt-4" style="gap: 8px;">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.ContentCopy"
+                               Disabled="@_isLoading"
+                               OnClick="CopyAllCodes">
+                        复制全部
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.Download"
+                               Disabled="@_isLoading"
+                               OnClick="DownloadCodes">
+                        下载
+                    </MudButton>
+                </div>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Default">
+                    您可以通过设置页面继续管理双因素认证设置。
+                </MudText>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_manageStep == ManageStep.ChooseAction)
+        {
+            <MudButton OnClick="Cancel">取消</MudButton>
+        }
+        else if (_manageStep == ManageStep.ModifyAuthenticate)
+        {
+            <MudButton OnClick="GoToChooseAction">返回</MudButton>
+        }
+        else if (_manageStep == ManageStep.Complete)
+        {
+            <MudButton OnClick="CloseDialog" Color="Color.Primary" Variant="Variant.Filled">
+                完成
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private ManageStep _manageStep = ManageStep.ChooseAction;
+    private string _selectedAction = string.Empty;
+    private string? _modifySessionToken;
+    private string? _error;
+    private bool _isLoading;
+    private List<string> _configuredMethods = new();
+    private bool _hasRecoveryCodes;
+
+    // TOTP authenticate inputs
+    private string _totpCode = string.Empty;
+
+    // Email authenticate inputs
+    private string _emailCode = string.Empty;
+    private string? _emailAuthToken;
+    private bool _emailCodeSent;
+
+    // Recovery code authenticate inputs
+    private string _recoveryCode = string.Empty;
+
+    // Recovery codes for display
+    private List<string>? _recoveryCodes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var status = await AuthService.GetTwoFactorStatusAsync();
+            _configuredMethods = status?.ConfiguredMethods ?? new List<string>();
+            _hasRecoveryCodes = status?.HasRecoveryCodes ?? false;
+        }
+        catch
+        {
+            _configuredMethods = new();
+            _hasRecoveryCodes = false;
+        }
+    }
+
+    private void StartModifyTotp()
+    {
+        _selectedAction = "TOTP";
+        _error = null;
+        _manageStep = ManageStep.ModifyAuthenticate;
+        StateHasChanged();
+    }
+
+    private void StartModifyEmail()
+    {
+        _selectedAction = "Email";
+        _error = null;
+        _manageStep = ManageStep.ModifyAuthenticate;
+        StateHasChanged();
+    }
+
+    private void StartModifyRecoveryCodes()
+    {
+        _selectedAction = "RecoveryCodes";
+        _error = null;
+        _manageStep = ManageStep.ModifyAuthenticate;
+        StateHasChanged();
+    }
+
+    private async Task SendEmailAuthCodeAsync()
+    {
+        _error = null;
+        _isLoading = true;
+
+        try
+        {
+            _emailAuthToken = await AuthService.SendModifyCodeAsync();
+            _emailCodeSent = true;
+            Snackbar.Add("验证码已发送到您的邮箱", Severity.Info);
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task VerifyTOTPAuth()
+    {
+        _error = null;
+        _isLoading = true;
+
+        try
+        {
+            var sessionToken = await AuthService.AuthenticateForModifyAsync(_totpCode, "TOTP", null);
+            if (sessionToken is null)
+            {
+                _error = "验证失败，请重试";
+                return;
+            }
+
+            _modifySessionToken = sessionToken;
+            _manageStep = ManageStep.ModifyTotp;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task VerifyEmailAuth()
+    {
+        _error = null;
+        _isLoading = true;
+
+        try
+        {
+            var sessionToken = await AuthService.AuthenticateForModifyAsync(_emailCode, "Email", _emailAuthToken);
+            if (sessionToken is null)
+            {
+                _error = "验证失败，请重试";
+                return;
+            }
+
+            _modifySessionToken = sessionToken;
+            _manageStep = ManageStep.ModifyEmail;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task VerifyRecoveryCodeAuth()
+    {
+        _error = null;
+        _isLoading = true;
+
+        try
+        {
+            var sessionToken = await AuthService.AuthenticateForModifyAsync(_recoveryCode, "RecoveryCode", null);
+            if (sessionToken is null)
+            {
+                _error = "验证失败，请重试";
+                return;
+            }
+
+            _modifySessionToken = sessionToken;
+
+            if (_selectedAction == "RecoveryCodes")
+            {
+                await RegenerateCodesAsync();
+            }
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RegenerateCodesAsync()
+    {
+        try
+        {
+            _recoveryCodes = await AuthService.ModifyRegenerateRecoveryCodesAsync(_modifySessionToken!);
+            _manageStep = ManageStep.Complete;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+            _manageStep = ManageStep.ChooseAction;
+            StateHasChanged();
+        }
+    }
+
+    private void OnModifyComplete()
+    {
+        _recoveryCodes = null; // Modify mode doesn't generate new recovery codes
+        _manageStep = ManageStep.Complete;
+        StateHasChanged();
+    }
+
+    private void GoToChooseAction()
+    {
+        _error = null;
+        _modifySessionToken = null;
+        _totpCode = string.Empty;
+        _emailCode = string.Empty;
+        _emailAuthToken = null;
+        _emailCodeSent = false;
+        _recoveryCode = string.Empty;
+        _manageStep = ManageStep.ChooseAction;
+        StateHasChanged();
+    }
+
+    private async Task CopyCode(string code)
+    {
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", code);
+            Snackbar.Add("已复制到剪贴板", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("复制失败，请手动复制", Severity.Warning);
+        }
+    }
+
+    private async Task CopyAllCodes()
+    {
+        if (_recoveryCodes is not { Count: > 0 })
+        {
+            Snackbar.Add("没有可复制的恢复码", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var allCodes = string.Join(Environment.NewLine, _recoveryCodes);
+            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", allCodes);
+            Snackbar.Add($"已复制 {_recoveryCodes.Count} 个恢复码到剪贴板", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("复制失败，请手动复制", Severity.Warning);
+        }
+    }
+
+    private async Task DownloadCodes()
+    {
+        if (_recoveryCodes is not { Count: > 0 })
+        {
+            Snackbar.Add("没有可下载的恢复码", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var content = string.Join(Environment.NewLine, _recoveryCodes);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            var base64 = Convert.ToBase64String(bytes);
+            await JsRuntime.InvokeVoidAsync("downloadFile", "boxwise-recovery-codes.txt", "text/plain", base64);
+            Snackbar.Add("恢复码已下载", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("下载失败，请手动复制恢复码", Severity.Warning);
+        }
+    }
+
+    private void CloseDialog()
+    {
+        AuthService.ClearLastRecoveryCodes();
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private enum ManageStep
+    {
+        ChooseAction,
+        ModifyAuthenticate,
+        ModifyTotp,
+        ModifyEmail,
+        Complete
+    }
+}

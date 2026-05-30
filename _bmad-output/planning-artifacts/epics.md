@@ -848,3 +848,37 @@ So that Admin 后台的所有页面 handler 都有回归保护。
 **And** 使用 `TestIdentityFactory.CreateAsync()` 获取所需 Identity 服务
 **And** 新增测试 ≥ 5 个
 **And** `dotnet test` 全部通过，总数 ≥ 85
+
+## Epic 9: 2FA 设置管理
+
+> **Spec:** `_bmad-output/specs/spec-2fa-modify-settings/SPEC.md`
+> **动机:** 用户配置 2FA 后无法自行修改邮箱地址、重置 TOTP 密钥、或重新生成恢复码——所有操作需管理员后台介入，耗时且不切实际。
+> **范围:** 7 个新 API 端点（修改验证、邮箱修改、TOTP 重置、恢复码管理），1 个新 DB 字段（PendingTotpSecretKey），前端管理对话框。
+
+### Story 9.1: 2FA 设置管理 —— 服务端与客户端完整实现
+
+As a 已配置 2FA 的用户，
+I want 通过 2FA 验证后修改邮箱地址、重置 TOTP 应用、重新生成恢复码，
+So that 我可以自行管理 2FA 设置，无需管理员介入。
+
+**Acceptance Criteria:**
+
+**Given** 用户已配置 TOTP 2FA
+**When** 打开设置 → 双因素认证 → 管理对话框 → 选择重置 TOTP → 2FA 验证通过 → 扫描新 QR 码 → 输入新验证码
+**Then** TOTP 密钥已更新，旧密钥失效，2FA 保持启用状态
+
+**Given** 用户已配置 Email 2FA
+**When** 打开管理对话框 → 选择修改邮箱 → 2FA 验证通过 → 输入新邮箱 → 发送验证码 → 验证新邮箱
+**Then** EmailForTwoFactor 更新为新邮箱，后续登录验证码发送到新邮箱
+
+**Given** 用户已配置 2FA
+**When** 打开管理对话框 → 2FA 验证通过 → 点击重新生成恢复码
+**Then** 获得 8 个新恢复码，旧恢复码全部失效
+
+**Given** 用户未通过 2FA 验证
+**When** 尝试调用任何修改端点
+**Then** 返回 401 或 session token 无效错误
+
+**And** 修改任一设置后，`TwoFactorEnabled` 保持 true，已有恢复码（如未重新生成）仍有效
+**And** 所有现有 2FA 测试继续通过
+**And** 新增测试覆盖：端点正常/错误路径 + TOTP 双密钥窗口 + 恢复码非消耗验证 + session token purpose 校验

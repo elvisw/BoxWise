@@ -9,6 +9,11 @@ public class AppUser : IdentityUser
     /// </summary>
     public TwoFactorMethod ConfiguredMethods { get; set; } = TwoFactorMethod.None;
     public string? TotpSecretKey { get; set; }
+    /// <summary>
+    /// 暂存的新 TOTP 密钥（TOTP 修改流程中使用）。
+    /// 用户扫描新 QR 码后，verify 前暂存于此，verify 成功时覆盖 TotpSecretKey。
+    /// </summary>
+    public string? PendingTotpSecretKey { get; set; }
     // 预留: Email 2FA (Story 8-2b)
     // 已知限制：修改 Email 不会自动同步 EmailForTwoFactor。
     // 当用户通过 UpdateProfile 修改主邮箱后，2FA 邮箱需独立更新。
