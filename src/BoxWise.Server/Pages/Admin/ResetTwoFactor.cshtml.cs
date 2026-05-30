@@ -72,7 +72,14 @@ public class ResetTwoFactorModel : PageModel
             .ToListAsync();
         _db.WebAuthnCredentials.RemoveRange(credentials);
 
-        await _userManager.UpdateAsync(targetUser);
+        var updateResult = await _userManager.UpdateAsync(targetUser);
+        if (!updateResult.Succeeded)
+        {
+            _logger.LogWarning("Failed to update user {UserId} during 2FA reset: {Errors}",
+                id, string.Join("; ", updateResult.Errors.Select(e => e.Description)));
+            ErrorMessage = "2FA 重置失败，请稍后重试";
+            return Page();
+        }
         await _userManager.UpdateSecurityStampAsync(targetUser);
 
         _logger.LogWarning(

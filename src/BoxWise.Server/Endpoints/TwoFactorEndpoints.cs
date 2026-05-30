@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 
 using BoxWise.Server.Models;
 using BoxWise.Server.Services;
+using BoxWise.Server.Utilities;
 using BoxWise.Shared.Dtos;
 using QRCoder;
 
@@ -36,7 +37,8 @@ public static class TwoFactorEndpoints
         group.MapPost("/challenge", ChallengeAsync)
             .AllowAnonymous()  // 登录阶段二：用户仅有 TwoFactorUserId Cookie，无 Application Cookie
             .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .RequireRateLimiting("2fa-modify");
 
         group.MapPost("/verify", VerifyAsync)
             .AllowAnonymous()  // 登录阶段二：用户仅有 TwoFactorUserId Cookie
@@ -81,7 +83,8 @@ public static class TwoFactorEndpoints
         group.MapPost("/send-challenge-code", SendChallengeCodeAsync)
             .AllowAnonymous()  // 登录阶段二：用户仅有 TwoFactorUserId Cookie
             .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .RequireRateLimiting("2fa-modify");
 
         return group;
     }
@@ -219,7 +222,9 @@ public static class TwoFactorEndpoints
     private static async Task<Results<Ok<TwoFactorChallengeResponse>, UnauthorizedHttpResult>>
         ChallengeAsync(SignInManager<AppUser> signInManager,
             EmailTwoFactorService emailTwoFactorService,
-            UserManager<AppUser> userManager)
+            UserManager<AppUser> userManager,
+            RecoveryCodeService recoveryCodeService,
+            ILoggerFactory loggerFactory)
     {
         var user = await GetTwoFactorUserAsync(signInManager, userManager);
         if (user is null)
@@ -227,6 +232,7 @@ public static class TwoFactorEndpoints
 
         var methods = new List<string>();
         string? emailToken = null;
+        bool hasRecoveryCodes = false;
 
         // 防御：ConfiguredMethods=None 但 TwoFactorEnabled=true 的损坏状态
         if (user.ConfiguredMethods == TwoFactorMethod.None && user.TwoFactorEnabled)
@@ -253,18 +259,31 @@ public static class TwoFactorEndpoints
                 var (code, token) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
                 emailToken = token;
                 // 即使用户最终选择 TOTP，邮件也会发送——用户可能切换选择，提前发送减少等待
-                _ = emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName)
-                    .ContinueWith(t => { if (t.IsFaulted) { /* SMTP 不可用 */ } });
+                // 后台发送邮件，不阻塞 Challenge 响应。失败仅记录日志不影响 TOTP 路径。
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName);
+                    }
+                    catch (Exception ex)
+                    {
+                        var logger = loggerFactory.CreateLogger("BoxWise.TwoFactor");
+                        logger.LogWarning(ex, "后台邮件发送失败，用户 {UserId} 仍可使用 TOTP 验证", user.Id);
+                    }
+                });
             }
         }
 
-        return TypedResults.Ok(new TwoFactorChallengeResponse(methods, emailToken));
+        hasRecoveryCodes = await recoveryCodeService.HasRecoveryCodesAsync(user);
+
+        return TypedResults.Ok(new TwoFactorChallengeResponse(methods, emailToken, hasRecoveryCodes));
     }
 
     /// <summary>
     /// 登录阶段二：重新发送邮箱验证码（邮箱 2FA 时使用）。
     /// </summary>
-    private static async Task<Results<Ok<SendChallengeCodeResponse>, UnauthorizedHttpResult>>
+    private static async Task<Results<Ok<SendChallengeCodeResponse>, UnauthorizedHttpResult, ValidationProblem>>
         SendChallengeCodeAsync(SignInManager<AppUser> signInManager,
             EmailTwoFactorService emailTwoFactorService,
             UserManager<AppUser> userManager)
@@ -278,8 +297,15 @@ public static class TwoFactorEndpoints
             return TypedResults.Ok(new SendChallengeCodeResponse(null));
 
         var (code, newToken) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
-        _ = emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName)
-            .ContinueWith(t => { if (t.IsFaulted) { /* SMTP 不可用 */ } });
+        var sent = await emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName);
+
+        if (!sent)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "email", new[] { "验证码发送失败，请稍后重试或使用 TOTP 验证" } }
+            });
+        }
 
         return TypedResults.Ok(new SendChallengeCodeResponse(newToken));
     }
@@ -318,7 +344,12 @@ public static class TwoFactorEndpoints
                     {
                         { "token", new[] { "缺少验证令牌" } }
                     });
-                valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor!, request.Code, request.Token);
+                if (string.IsNullOrEmpty(user.EmailForTwoFactor))
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "method", new[] { "邮箱 2FA 未完整配置" } }
+                    });
+                valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
                 break;
             default:
                 // 回退兼容：单方法用户 / 旧客户端不传 method
@@ -329,7 +360,12 @@ public static class TwoFactorEndpoints
                         {
                             { "token", new[] { "缺少验证令牌" } }
                         });
-                    valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor!, request.Code, request.Token);
+                    if (string.IsNullOrEmpty(user.EmailForTwoFactor))
+                        return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                        {
+                            { "method", new[] { "邮箱 2FA 未完整配置" } }
+                        });
+                    valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
                 }
                 else
                 {
@@ -417,7 +453,7 @@ public static class TwoFactorEndpoints
         }
 
         var email = request.Email.Trim();
-        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !email.Contains('@'))
+        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !EmailValidator.IsValid(email))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
@@ -592,4 +628,5 @@ public static class TwoFactorEndpoints
 
         return Results.File(qrCodeBytes, "image/png");
     }
+
 }

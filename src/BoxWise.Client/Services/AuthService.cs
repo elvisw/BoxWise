@@ -33,7 +33,7 @@ public class AuthService
             }
 
             // 所有非 TwoFactor 路径均需设置用户状态
-            _appState.SetUser(loginResponse.Username ?? username, loginResponse.IsAdmin ?? false, false, loginResponse.Email);
+            _appState.SetUser(loginResponse.Username ?? username, loginResponse.IsAdmin ?? false, loginResponse.PasswordManagedByEnv, loginResponse.Email);
             _authStateProvider.NotifyAuthenticationStateChanged();
 
             if (loginResponse.RequiresTwoFactorSetup)

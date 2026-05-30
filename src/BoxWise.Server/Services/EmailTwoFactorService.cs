@@ -1,8 +1,11 @@
 using System.Globalization;
+using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 using BoxWise.Shared.Dtos;
 using MailKit.Net.Smtp;
+using MailKit.Security;
 using MimeKit;
 
 namespace BoxWise.Server.Services;
@@ -112,7 +115,9 @@ BoxWise 安全团队"
 
             using var client = new SmtpClient();
             client.Timeout = 30000;
-            await client.ConnectAsync(config.Host, config.Port, useSsl: config.Port == 465);
+            client.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+            await client.ConnectAsync(config.Host, config.Port,
+                config.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTlsWhenAvailable);
             if (!string.IsNullOrWhiteSpace(config.Username))
                 await client.AuthenticateAsync(config.Username, config.Password ?? "");
             await client.SendAsync(message);
@@ -121,9 +126,24 @@ BoxWise 安全团队"
             _logger.LogInformation("验证码邮件已发送到 {Email}", toEmail);
             return true;
         }
+        catch (MailKit.Security.AuthenticationException ex)
+        {
+            _logger.LogError(ex, "SMTP 认证失败，无法发送验证码邮件到 {Email}", toEmail);
+            return false;
+        }
+        catch (SmtpCommandException ex)
+        {
+            _logger.LogError(ex, "SMTP 命令错误，无法发送验证码邮件到 {Email}", toEmail);
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or SocketException)
+        {
+            _logger.LogError(ex, "SMTP 连接失败，无法发送验证码邮件到 {Email}", toEmail);
+            return false;
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "发送验证码邮件到 {Email} 失败", toEmail);
+            _logger.LogError(ex, "发送验证码邮件到 {Email} 时发生未知错误", toEmail);
             return false;
         }
     }

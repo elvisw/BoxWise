@@ -1,4 +1,3 @@
-using System.Net.Mail;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -7,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 using BoxWise.Server.Models;
 using BoxWise.Server.Services.PasswordValidators;
+using BoxWise.Server.Utilities;
 using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Endpoints;
@@ -83,7 +83,16 @@ public static class AuthEndpoints
             // 清理可能残留的 TOTP 密钥（例如之前开始设置但未完成的）
             if (!string.IsNullOrEmpty(user.TotpSecretKey))
                 user.TotpSecretKey = null;
-            await userManager.UpdateAsync(user);
+            try
+            {
+                await userManager.UpdateAsync(user);
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // 并发首次登录：另一请求已更新 ConcurrencyStamp，读取最新状态继续
+                logger.LogWarning(ex, "Concurrency conflict on first login init for user {UserId}", user.Id);
+                user = (await userManager.FindByIdAsync(user.Id)) ?? user;
+            }
         }
 
         // 检查 2FA 状态
@@ -91,17 +100,19 @@ public static class AuthEndpoints
             || request.Password.All(char.IsDigit)
             || CommonPasswordValidator.IsCommon(request.Password);
 
-        if (user.TwoFactorEnabled)
-        {
-            // 已启用 2FA → 签发 TwoFactorUserId Cookie，进入阶段二
-            await IssueTwoFactorUserIdCookieAsync(signInManager, user);
-            return TypedResults.Ok(new LoginResponse(null, null, null, passwordWeak, RequiresTwoFactor: true, Email: user.Email));
-        }
-
+        // 尽早计算管理员状态（2FA 路径和正常路径均需使用）
         var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
         var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);
         var isSpecificAdmin = adminConfigured
             && string.Equals(request.Username, config["Admin:Username"] ?? "admin", StringComparison.OrdinalIgnoreCase);
+
+        if (user.TwoFactorEnabled)
+        {
+            // 已启用 2FA → 签发 TwoFactorUserId Cookie，进入阶段二
+            await IssueTwoFactorUserIdCookieAsync(signInManager, user);
+            return TypedResults.Ok(new LoginResponse(null, null, null, passwordWeak, RequiresTwoFactor: true, Email: user.Email,
+                PasswordManagedByEnv: isAdmin && isSpecificAdmin));
+        }
 
         // 检查强制 2FA 宽限期
         if (user.TwoFactorGracePeriodUntil.HasValue
@@ -109,20 +120,28 @@ public static class AuthEndpoints
         {
             // 宽限期已过且 2FA 未启用 → 允许登录但引导用户前往设置页完成 2FA 配置
             // 清理可能残留的 TOTP 密钥（例如之前开始设置但未完成的）
-            if (!string.IsNullOrEmpty(user.TotpSecretKey))
+            var needsCleanup = !string.IsNullOrEmpty(user.TotpSecretKey);
+            if (needsCleanup)
+            {
                 user.TotpSecretKey = null;
-            await userManager.UpdateAsync(user);
+                try { await userManager.UpdateAsync(user); }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    logger.LogWarning(ex, "并发冲突：宽限期过期后清理 TOTP 密钥时失败，将在下次登录时重试。UserId: {UserId}", user.Id);
+                }
+            }
             await signInManager.SignInAsync(user, isPersistent: true);
             return TypedResults.Ok(new LoginResponse(request.Username, isAdmin, isSpecificAdmin,
                 passwordWeak, RequiresTwoFactor: false, RequiresTwoFactorSetup: true,
-                Email: user.Email));
+                Email: user.Email, PasswordManagedByEnv: isAdmin && isSpecificAdmin));
         }
 
         // 宽限期未设置或未到期 → 非强制 2FA，直接登录
         await signInManager.SignInAsync(user, isPersistent: true);
 
         return TypedResults.Ok(new LoginResponse(request.Username, isAdmin, isSpecificAdmin,
-            passwordWeak, RequiresTwoFactor: false, Email: user.Email));
+            passwordWeak, RequiresTwoFactor: false, Email: user.Email,
+            PasswordManagedByEnv: isAdmin && isSpecificAdmin));
     }
 
     /// <summary>
@@ -227,7 +246,7 @@ public static class AuthEndpoints
             }
             else
             {
-                if (email.Length > 256 || !IsValidEmail(email))
+                if (email.Length > 256 || !EmailValidator.IsValid(email))
                 {
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
@@ -333,20 +352,6 @@ public static class AuthEndpoints
         await userManager.UpdateSecurityStampAsync(user);
 
         return TypedResults.Ok();
-    }
-
-    private static bool IsValidEmail(string email)
-    {
-        if (email is null) return false;
-        try
-        {
-            var addr = new MailAddress(email);
-            return addr.Address == email;
-        }
-        catch (FormatException)
-        {
-            return false;
-        }
     }
 
     private static string GetClientIp(HttpContext httpContext)

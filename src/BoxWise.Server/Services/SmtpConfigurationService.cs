@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -5,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using BoxWise.Shared.Dtos;
 using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.AspNetCore.DataProtection;
 using MimeKit;
 
@@ -162,8 +164,9 @@ BoxWise 安全团队"
 
             using var client = new SmtpClient();
             client.Timeout = 15000;
+            client.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
             await client.ConnectAsync(snapshot.Host, snapshot.Port,
-                useSsl: snapshot.Port == 465);
+                snapshot.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTlsWhenAvailable);
             if (!string.IsNullOrWhiteSpace(snapshot.Username))
                 await client.AuthenticateAsync(snapshot.Username, snapshot.Password ?? "");
             await client.SendAsync(message);
@@ -172,7 +175,7 @@ BoxWise 安全团队"
             _logger.LogInformation("SMTP 测试邮件已发送到 {Email}", toEmail);
             return new SmtpTestResult(true, null);
         }
-        catch (AuthenticationException)
+        catch (MailKit.Security.AuthenticationException)
         {
             return new SmtpTestResult(false, "SMTP 认证失败，请检查用户名和密码");
         }
@@ -181,10 +184,15 @@ BoxWise 安全团队"
             _logger.LogError(ex, "SMTP 测试发送失败（命令错误）");
             return new SmtpTestResult(false, $"SMTP 命令错误：{ex.Message}");
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or SocketException)
         {
             _logger.LogError(ex, "SMTP 测试发送失败（连接错误）");
             return new SmtpTestResult(false, $"SMTP 连接失败：{ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SMTP 测试发送失败（未知错误）");
+            return new SmtpTestResult(false, $"发送失败：{ex.Message}");
         }
     }
 

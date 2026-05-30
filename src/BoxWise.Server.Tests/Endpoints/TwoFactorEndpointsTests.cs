@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Caching.Memory;
@@ -23,6 +24,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
     private UserManager<AppUser> _userManager = null!;
     private TwoFactorService _twoFactorService = null!;
     private EmailTwoFactorService _emailTwoFactorService = null!;
+    private RecoveryCodeService _recoveryCodeService = null!;
     private Mock<ISmtpConfigurationService> _smtpConfigMock = null!;
 
     public async Task InitializeAsync()
@@ -41,6 +43,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
         _emailTwoFactorService = new EmailTwoFactorService(
             dataProtection, _smtpConfigMock.Object, NullLogger<EmailTwoFactorService>.Instance);
         var recoveryService = new RecoveryCodeService(db);
+        _recoveryCodeService = recoveryService;
         _twoFactorService = new TwoFactorService(
             _userManager, dataProtection, _emailTwoFactorService, recoveryService, cache);
     }
@@ -178,7 +181,53 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
         // SignInManager has no TwoFactorUserId cookie, so
         // GetTwoFactorAuthenticationUserAsync() returns null → 401
         var status = await Invoke2FAAsync(
-            "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager);
+            "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager, _recoveryCodeService, NullLoggerFactory.Instance);
         Assert.Equal(401, status);
+    }
+
+    [Fact]
+    public async Task ChallengeAsync_WithRecoveryCodes_ReturnsHasRecoveryCodesTrue()
+    {
+        // Arrange
+        var user = new AppUser { UserName = "challengerecovery" };
+        await _userManager.CreateAsync(user, "Test1234!");
+
+        // Store recovery codes for user
+        var codes = RecoveryCodeService.GenerateRecoveryCodes();
+        await _recoveryCodeService.StoreRecoveryCodesAsync(user, codes);
+
+        // Issue TwoFactorUserId cookie so ChallengeAsync can find the user
+        var httpContext = _ctx.SignInManager.Context;
+        var twoFactorIdentity = new ClaimsIdentity(IdentityConstants.TwoFactorUserIdScheme);
+        twoFactorIdentity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
+        twoFactorIdentity.AddClaim(new Claim(ClaimTypes.Name, user.UserName ?? ""));
+        twoFactorIdentity.AddClaim(new Claim("SessionToken", Guid.NewGuid().ToString()));
+
+        // Use a mock authentication service that returns success for the
+        // TwoFactorUserId scheme, bypassing the cookie handler which doesn't
+        // work in unit-test context (Data Protection key isolation issue).
+        var mockAuthService = new Mock<IAuthenticationService>();
+        mockAuthService.Setup(x => x.AuthenticateAsync(httpContext, IdentityConstants.TwoFactorUserIdScheme))
+            .ReturnsAsync(AuthenticateResult.Success(new AuthenticationTicket(
+                new ClaimsPrincipal(twoFactorIdentity),
+                IdentityConstants.TwoFactorUserIdScheme)));
+
+        // Override the authentication service in the HttpContext's service provider
+        var originalProvider = httpContext.RequestServices;
+        var mockServices = new ServiceCollection();
+        mockServices.AddSingleton<IAuthenticationService>(mockAuthService.Object);
+        var mockProvider = mockServices.BuildServiceProvider();
+        httpContext.RequestServices = mockProvider;
+
+        // Act
+        var (status, body) = await Invoke2FAWithBodyAsync(
+            "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager, _recoveryCodeService, NullLoggerFactory.Instance);
+
+        // Assert
+        Assert.Equal(200, status);
+        var response = JsonSerializer.Deserialize<TwoFactorChallengeResponse>(body,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        Assert.NotNull(response);
+        Assert.True(response.HasRecoveryCodes);
     }
 }

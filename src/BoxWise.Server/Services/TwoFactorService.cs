@@ -43,7 +43,12 @@ public class TwoFactorService
         var qrCodeUri = $"otpauth://totp/BoxWise:{Uri.EscapeDataString(user.UserName ?? userId)}?secret={base32}&issuer=BoxWise";
 
         user.TotpSecretKey = _protector.Protect(base32);
-        await _userManager.UpdateAsync(user);
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Failed to save TOTP secret: {string.Join("; ", updateResult.Errors.Select(e => e.Description))}");
+        }
 
         return (base32, qrCodeUri);
     }
@@ -87,6 +92,7 @@ public class TwoFactorService
         user.TwoFactorEnabled = true;
         user.ConfiguredMethods |= TwoFactorMethod.TOTP;
         user.TwoFactorSetupCompletedAt = DateTime.UtcNow;
+        user.TwoFactorGracePeriodUntil = null;  // 2FA 已启用，清除宽限期
 
         var result = await _userManager.UpdateAsync(user);
         return result.Succeeded;
@@ -211,7 +217,10 @@ public class TwoFactorService
     }
 
     /// <summary>
-    /// 已废弃：在 [Flags] 多方法模型下语义不明确，由独立 setup/verify 端点替代。
+    /// [已废弃] SwitchMethod 在 [Flags] 多方法模型下语义不明确。
+    /// 由独立的 setup/verify 端点替代（通过 |= 添加方法，不覆盖已有配置）。
+    /// Email 方法在此返回 false，但 SetupEmailAsync 独立端点允许设置 ——
+    /// 这是有意设计：旧 API 保持不可用，新端点独立工作。
     /// </summary>
     public Task<bool> SwitchMethodAsync(AppUser user, TwoFactorMethod newMethod, string sessionToken)
     {
@@ -298,7 +307,12 @@ public class TwoFactorService
         var qrCodeUri = $"otpauth://totp/BoxWise:{Uri.EscapeDataString(user.UserName ?? userId)}?secret={base32}&issuer=BoxWise";
 
         user.PendingTotpSecretKey = _protector.Protect(base32);
-        await _userManager.UpdateAsync(user);
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Failed to save pending TOTP secret: {string.Join("; ", updateResult.Errors.Select(e => e.Description))}");
+        }
 
         return (base32, qrCodeUri);
     }

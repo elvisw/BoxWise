@@ -163,12 +163,15 @@
 
                 <MudDivider Class="my-3" />
 
+                @if (_hasRecoveryCodes)
+                {
                 <MudButton Variant="Variant.Text"
                            Color="Color.Default"
                            FullWidth="true"
                            @onclick="() => _showRecoveryCode = true">
                     使用恢复码登录
                 </MudButton>
+                }
                 }
             }
         }
@@ -186,6 +189,7 @@
     private string? _selectedMethod;
     private string? _emailToken;
     private bool _showRecoveryCode;
+    private bool _hasRecoveryCodes;
 
     private async Task HandleLogin()
     {
@@ -236,6 +240,7 @@
             {
                 _allowedMethods = response.AllowedMethods;
                 _emailToken = response.Token;
+                _hasRecoveryCodes = response.HasRecoveryCodes;
                 _selectedMethod = _allowedMethods.FirstOrDefault();
             }
         }

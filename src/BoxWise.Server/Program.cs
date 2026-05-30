@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -229,7 +230,24 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy<string>("2fa-modify", httpContext =>
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            // 对于 AllowAnonymous 端点（challenge/send-challenge-code），
+            // 用户仅持有 TwoFactorUserId Cookie，尝试从中提取用户标识
+            try
+            {
+                var authResult = httpContext.AuthenticateAsync(
+                    IdentityConstants.TwoFactorUserIdScheme).GetAwaiter().GetResult();
+                if (authResult.Succeeded && authResult.Principal is not null)
+                    userId = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            }
+            catch
+            {
+                // Cookie 损坏或认证异常时，回退到 anonymous 速率限制
+            }
+        }
+        userId ??= "anonymous";
         return RateLimitPartition.GetFixedWindowLimiter(userId,
             _ => new FixedWindowRateLimiterOptions
             {

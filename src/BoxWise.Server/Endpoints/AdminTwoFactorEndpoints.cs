@@ -57,7 +57,7 @@ public static class AdminTwoFactorEndpoints
     /// 重置目标用户的 2FA（管理员操作）。
     /// 清除所有 2FA 设置、恢复码和 WebAuthn 凭证。
     /// </summary>
-    private static async Task<Results<Ok, UnauthorizedHttpResult, ForbidHttpResult, NotFound>>
+    private static async Task<Results<Ok, ProblemHttpResult, UnauthorizedHttpResult, ForbidHttpResult, NotFound>>
         ResetTwoFactorAsync(string userId, HttpContext httpContext,
             UserManager<AppUser> userManager, AppDbContext db,
             ILoggerFactory loggerFactory)
@@ -92,10 +92,16 @@ public static class AdminTwoFactorEndpoints
             .ToListAsync();
         db.WebAuthnCredentials.RemoveRange(credentials);
 
-        await userManager.UpdateAsync(targetUser);
+        var logger = loggerFactory.CreateLogger("BoxWise.Admin");
+        var updateResult = await userManager.UpdateAsync(targetUser);
+        if (!updateResult.Succeeded)
+        {
+            logger.LogWarning("Failed to update user {UserId} during 2FA reset: {Errors}",
+                userId, string.Join("; ", updateResult.Errors.Select(e => e.Description)));
+            return TypedResults.Problem("2FA reset failed", statusCode: 500);
+        }
         await userManager.UpdateSecurityStampAsync(targetUser);
 
-        var logger = loggerFactory.CreateLogger("BoxWise.Admin");
         logger.LogWarning(
             "Admin {Admin} (Id={AdminId}) reset 2FA for user {User} (Id={UserId}) at {Timestamp}",
             caller.UserName, caller.Id, targetUser.UserName, targetUser.Id, DateTime.UtcNow);

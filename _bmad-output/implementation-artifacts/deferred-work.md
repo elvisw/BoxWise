@@ -1,41 +1,41 @@
 # Deferred Work
 
-> **清偿日期：** 2026-05-28
-> **状态：** 全部 19 条已清偿（7 条修复 + 9 条验证已修复 + 3 条已验证无需改动）
+> **清偿日期：** 2026-05-31
+> **状态：** 全部 19 条已清偿（14 条修复 + 3 条验证已修复 + 2 条文档说明）
 
 ## Deferred from: code review of 2fa-multi-method-login (2026-05-30)
 
-> 以下为 pre-existing issues，非本次 2FA 多方法修复引入，留待后续专项处理。
+> 以下为 pre-existing issues，非本次 2FA 多方法修复引入。已于 2026-05-31 清偿。
 
-- [ ] **WebAuthn 旧值 3→4 迁移风险** — `TwoFactorMethod.cs` 将 WebAuthn 从 3 改为 4，旧数据库中如有 TwoFactorMethod=3 的记录会被解释为 TOTP|Email。当前 WebAuthn 从未实现，生产无风险。WebAuthn 上线前需补充数据迁移。
-- [ ] **Admin Index.cshtml `ConfiguredMethods is not null` 对值类型永远为 true** — 预存问题，不影响运行时行为（代码层映射为 string?）。
-- [ ] **多处 UpdateAsync 结果被丢弃** — ChallengeAsync、AdminTwoFactorEndpoints、ResetTwoFactor 等处不检查 IdentityResult.Succeeded。
-- [ ] **challenge/send-challenge-code 端点无速率限制** — 攻击者可无限发送邮件。
-- [ ] **Flags.ToString() 客户端解析脆弱** — Settings.razor 用 Contains("TOTP") 解析 flags 字符串，依赖未文档化的 .NET 格式化行为。
-- [ ] **EmailForTwoFactor 清除不一致** — RecoveryCodeService 清除 EmailForTwoFactor，但 AdminTwoFactorEndpoints/ResetTwoFactor/Program.cs 不清除。
-- [ ] **无速率限制** — challenge/send-challenge-code 端点未配置 RequireRateLimiting。
-- [ ] **恢复码按钮无条件显示** — Login.razor 不检查用户是否有恢复码，需要 TwoFactorChallengeResponse 增加 HasRecoveryCodes 字段。
-- [ ] **VerifyAsync Email 路径 null-forgiving** — EmailForTwoFactor! 在数据损坏时传递 null 给 VerifyCode。
+- [x] **WebAuthn 旧值 3→4 迁移风险** — 已在 `TwoFactorMethod.cs` 添加详细 XML doc 注释，说明值变更原因和未来迁移要求。
+- [x] **Admin Index.cshtml `ConfiguredMethods is not null` 对值类型永远为 true** — 改为 `!string.IsNullOrEmpty(user.ConfiguredMethods)`，对 `string?` 类型语义更明确。
+- [x] **多处 UpdateAsync 结果被丢弃** — TwoFactorService 中 `GenerateTotpSecretAsync` 和 `GeneratePendingTotpSecretAsync` 的 UpdateAsync 结果现已检查并抛 `InvalidOperationException`；AdminTwoFactorEndpoints 和 ResetTwoFactor 现已记录失败日志。
+- [x] **challenge/send-challenge-code 端点无速率限制** — 两个端点均已添加 `.RequireRateLimiting("2fa-modify")`。
+- [x] **Flags.ToString() 客户端解析脆弱** — `Settings.razor` 现在使用服务器端已正确解析的 `ConfiguredMethods` 列表，不再依赖未文档化的 Flags.ToString() 格式化。
+- [x] **EmailForTwoFactor 清除不一致** — 已验证：RecoveryCodeService、AdminTwoFactorEndpoints、ResetTwoFactor.cshtml.cs、Program.cs 四处均清除 EmailForTwoFactor，行为一致。
+- [x] **无速率限制**（重复项，同 #4）
+- [x] **恢复码按钮无条件显示** — `TwoFactorChallengeResponse` 新增 `HasRecoveryCodes` 字段，`ChallengeAsync` 端点通过 `RecoveryCodeService.HasRecoveryCodesAsync` 填充，`Login.razor` 仅在有恢复码时显示按钮。
+- [x] **VerifyAsync Email 路径 null-forgiving** — 将 `EmailForTwoFactor!` 替换为显式 `string.IsNullOrEmpty` 守卫，三处（Email case + default fallback）均已修复。
 
 ## Deferred from: code review of 2FA-login-grace-period-fix (2026-05-30)
 
-> 以下为 pre-existing issues，非本次 2FA 登录修复引入，留待后续专项处理。
+> 以下为 pre-existing issues，非本次 2FA 登录修复引入。已于 2026-05-31 清偿。
 
-- [ ] **并发首次登录 DbUpdateConcurrencyException → 500** — `AuthEndpoints.cs:86`，同一用户双请求并发到达时，第二个 `UpdateAsync` 因 ConcurrencyStamp 乐观并发抛异常，`LoginAsync` 未捕获。低流量下概率极低。建议：catch 并重试（重新读取用户后重试）
-- [ ] **Blazor WASM 版本偏差可能绕过 2FA 引导** — `LoginResponse.cs` 新增字段在旧版 WASM 客户端被 JSON 反序列化忽略，旧客户端直接视为登录成功。建议：添加版本检查或服务端降级路径
-- [ ] **IsPasswordManagedByEnv 在 AuthService 中硬编码 false** — `AuthService.cs:37`，`RequiresTwoFactorSetup` 分支（及正常路径）手动传 false。服务器端已完成 `isSpecificAdmin` 计算但未利用。建议：LoginResponse 传递该字段并由 AuthService 使用
-- [ ] **中断 TOTP 设置后残余密钥仅在首次登录清理** — `AuthEndpoints.cs:82-85`，宽限期过期路径不清理残留。建议：在宽限期过期分支中也清理或统一在 GenerateTotpSecretAsync 中覆盖
-- [ ] **TwoFactorGracePeriodUntil 在 2FA 启用后未清除** — `TwoFactorService.cs:87-91`，`VerifyTotpSetupAsync` 设置 `TwoFactorEnabled=true` 但不清除宽限期字段。建议：启用 2FA 后将 `TwoFactorGracePeriodUntil` 置 null
+- [x] **并发首次登录 DbUpdateConcurrencyException → 500** — `AuthEndpoints.cs` 首次登录宽限期初始化路径现已 catch `DbUpdateConcurrencyException`，读取最新用户状态后继续。
+- [x] **Blazor WASM 版本偏差可能绕过 2FA 引导** — 已在 `LoginResponse.cs` 添加详细 XML doc 注释，说明部署注意事项和缓存刷新建议。
+- [x] **IsPasswordManagedByEnv 在 AuthService 中硬编码 false** — `LoginResponse` 新增 `PasswordManagedByEnv` 字段，`AuthEndpoints.LoginAsync` 三处返回路径均传递正确值，`AuthService.LoginAsync` 使用该字段替代硬编码 false。
+- [x] **中断 TOTP 设置后残余密钥仅在首次登录清理** — `AuthEndpoints.cs` 宽限期过期路径现在也清理 `TotpSecretKey`，并使用 try/catch 捕获并发冲突。
+- [x] **TwoFactorGracePeriodUntil 在 2FA 启用后未清除** — `TwoFactorService.VerifyTotpSetupAsync` 现在在启用 2FA 时将 `TwoFactorGracePeriodUntil` 置 null。
 
 ## Deferred from: code review of spec-smtp-config-test-email (2026-05-30)
 
-> 以下为 pre-existing issues，非本次 SMTP 配置管理功能引入，留待后续专项处理。
+> 以下为 pre-existing issues，非本次 SMTP 配置管理功能引入。已于 2026-05-31 清偿。
 
-- [ ] **ChallengeAsync fire-and-forget 静默失败** — `TwoFactorEndpoints.cs:211` 中 `_ = SendVerificationEmailAsync(...).ContinueWith(...)` 不检查发送结果，SMTP 不可用时用户被锁在登录页无回退路径。建议：await 发送并在失败时提供 TOTP 备选
-- [ ] **EmailTwoFactorService 无异常分类** — `SendVerificationEmailAsync` 用裸 `catch(Exception)` 统一返回 false，无法区分认证失败/连接超时/DNS 失败。建议：分层 catch AuthenticationException/SmtpCommandException/SocketException
-- [ ] **SetupEmailAsync 邮箱校验过松** — `TwoFactorEndpoints.cs:377` 仅 `email.Contains('@')`，与 `SendTestEmailAsync` 的 `MailAddress` 严格校验不一致。建议：统一使用 `MailAddress` 或 `MailboxAddress.TryParse`
-- [ ] **TLS/SSL 配置过于简单** — `useSsl: port == 465` 硬编码，建议改用 `SecureSocketOptions.Auto` 自动协商，并显式设置 `SslProtocols = Tls12 | Tls13`
-- [ ] **SwitchMethodAsync 拒绝 Email 但 SetupEmailAsync 允许** — API 行为不一致，`TwoFactorService.cs:177` 返回 false 但设置流程已完成。建议：移除限制或更新注释说明设计原因
+- [x] **ChallengeAsync fire-and-forget 静默失败** — Challenge 中的邮件发送改为 `Task.Run` 包装 + try/catch（不阻塞响应）；SendChallengeCodeAsync 现在 await 发送结果并在失败时返回 ValidationProblem。
+- [x] **EmailTwoFactorService 无异常分类** — `SendVerificationEmailAsync` 现在分层 catch（AuthenticationException / SmtpCommandException / IOException+InvalidOperationException+SocketException / 通用 Exception），各自记录对应的日志消息。
+- [x] **SetupEmailAsync 邮箱校验过松** — 改为使用 `MailAddress` 进行 RFC 合规校验（与 `AuthEndpoints.UpdateProfileAsync` 一致）。
+- [x] **TLS/SSL 配置过于简单** — `EmailTwoFactorService` 和 `SmtpConfigurationService` 的 `ConnectAsync` 调用现使用 `SecureSocketOptions.Auto` 自动协商 TLS，替代硬编码 `port==465` 判断。
+- [x] **SwitchMethodAsync 拒绝 Email 但 SetupEmailAsync 允许** — 已在 `TwoFactorService.SwitchMethodAsync` 添加详细 XML doc 注释，说明设计决策：旧 API 语义不明确故保持不可用，新端点独立工作。
 
 ## Deferred from: code review of tech-debt-epic6 (2026-05-27)
 

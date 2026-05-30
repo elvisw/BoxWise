@@ -147,13 +147,23 @@
             else if (status.TwoFactorEnabled)
             {
                 _twoFactorEnabled = true;
-                var methodName = status.TwoFactorMethod switch
+                // 使用 ConfiguredMethods 列表（服务器端已正确解析 [Flags] 枚举），
+                // 避免依赖 Flags.ToString() 的未文档化格式化行为
+                var methodName = status.ConfiguredMethods switch
                 {
-                    "TOTP" => "TOTP 验证器",
-                    "Email" => "邮箱验证码",
-                    _ when status.TwoFactorMethod?.Contains("TOTP") == true
-                        && status.TwoFactorMethod?.Contains("Email") == true => "TOTP + 邮箱",
-                    _ => status.TwoFactorMethod ?? "未知"
+                    { Count: >= 2 } => string.Join(" + ", status.ConfiguredMethods.Select(m => m switch
+                    {
+                        "TOTP" => "TOTP 验证器",
+                        "Email" => "邮箱验证码",
+                        _ => m
+                    })),
+                    [var single] => single switch
+                    {
+                        "TOTP" => "TOTP 验证器",
+                        "Email" => "邮箱验证码",
+                        _ => single
+                    },
+                    _ => "未知"
                 };
                 _twoFactorStatusText = $"已启用（{methodName}）";
             }
