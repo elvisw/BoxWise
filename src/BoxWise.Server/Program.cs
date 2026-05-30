@@ -106,6 +106,7 @@ builder.Services.AddHttpClient<LlmClient>();
 builder.Services.AddSingleton<ImageStorageService>();
 builder.Services.AddSingleton<ThumbnailService>();
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ISmtpConfigurationService, SmtpConfigurationService>();
 builder.Services.AddScoped<TwoFactorService>();
 builder.Services.AddScoped<EmailTwoFactorService>();
 builder.Services.AddScoped<RecoveryCodeService>();

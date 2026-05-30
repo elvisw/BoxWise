@@ -1,0 +1,97 @@
+@page "/admin/smtp-settings"
+@model BoxWise.Server.Pages.Admin.SmtpSettingsModel
+@{
+    ViewData["Title"] = "SMTP 设置";
+}
+
+<h2>SMTP 邮件设置</h2>
+
+@if (Model.SuccessMessage is not null)
+{
+    <div class="status-message" style="color: #155724; background: #d4edda; border: 1px solid #c3e6cb; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem;">@Model.SuccessMessage</div>
+}
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="error-message">@Model.ErrorMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Model.ConfigStatus))
+{
+    <div style="margin-bottom: 1rem;">
+        <span style="font-weight: 600;">配置状态：</span>
+        @if (Model.IsConfigured)
+        {
+            <span style="color: #155724; background: #d4edda; padding: 2px 8px; border-radius: 3px; font-size: 0.9rem;">已配置</span>
+        }
+        else
+        {
+            <span style="color: #856404; background: #fff3cd; padding: 2px 8px; border-radius: 3px; font-size: 0.9rem;">尚未配置</span>
+        }
+    </div>
+}
+
+<h3>SMTP 服务器设置</h3>
+<form method="post" asp-page-handler="Save" onsubmit="document.getElementById('saveBtn').disabled=true;">
+    @Html.AntiForgeryToken()
+
+    <div class="form-group">
+        <label for="host">SMTP 服务器地址 <span style="color: #dc3545;">*</span></label>
+        <input type="text" id="host" name="Host" value="@Model.Host" required maxlength="253" />
+    </div>
+
+    <div class="form-group">
+        <label for="port">端口号</label>
+        <input type="number" id="port" name="Port" value="@Model.Port" min="1" max="65535" />
+        <small style="color: #666;">常用端口：587（STARTTLS）、465（SSL/TLS）、25（明文，不推荐）</small>
+    </div>
+
+    <div class="form-group">
+        <label for="username">用户名（可选）</label>
+        <input type="text" id="username" name="Username" value="@Model.Username" maxlength="256" autocomplete="off" />
+    </div>
+
+    <div class="form-group">
+        <label for="password">密码</label>
+        <input type="password" id="password" name="Password" value="" autocomplete="off" />
+        @if (Model.HasPassword)
+        {
+            <small style="color: #666;">已设置密码（留空则保持现有密码）</small>
+        }
+        else
+        {
+            <small style="color: #666;">未设置密码</small>
+        }
+    </div>
+
+    <div class="form-group">
+        <label for="fromAddress">发件人地址 <span style="color: #dc3545;">*</span></label>
+        <input type="email" id="fromAddress" name="FromAddress" value="@Model.FromAddress" required maxlength="256" />
+    </div>
+
+    <div class="form-group">
+        <label for="fromName">发件人名称（可选）</label>
+        <input type="text" id="fromName" name="FromName" value="@Model.FromName" maxlength="256" />
+    </div>
+
+    <button type="submit" id="saveBtn" class="btn btn-primary">保存配置</button>
+    <a href="/admin" class="btn btn-link">返回管理后台</a>
+</form>
+
+<hr style="margin: 2rem 0;" />
+
+<h3>发送测试邮件</h3>
+<form method="post" asp-page-handler="Test" onsubmit="document.getElementById('testBtn').disabled=true;">
+    @Html.AntiForgeryToken()
+
+    <div class="form-group">
+        <label for="testEmail">收件人邮箱</label>
+        <input type="email" id="testEmail" name="TestEmail" value="@Model.TestEmail" required />
+    </div>
+
+    <button type="submit" id="testBtn" class="btn btn-primary" disabled="@(!Model.IsConfigured)">发送测试邮件</button>
+    @if (!Model.IsConfigured)
+    {
+        <small style="color: #856404; display: block; margin-top: 4px;">请先配置并保存 SMTP 服务器后再测试</small>
+    }
+</form>

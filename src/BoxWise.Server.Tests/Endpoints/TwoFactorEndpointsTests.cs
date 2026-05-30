@@ -13,6 +13,7 @@ using BoxWise.Server.Endpoints;
 using BoxWise.Server.Models;
 using BoxWise.Server.Services;
 using BoxWise.Shared.Dtos;
+using Moq;
 
 namespace BoxWise.Server.Tests.Endpoints;
 
@@ -22,20 +23,23 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
     private UserManager<AppUser> _userManager = null!;
     private TwoFactorService _twoFactorService = null!;
     private EmailTwoFactorService _emailTwoFactorService = null!;
-    private IConfiguration _config = null!;
+    private Mock<ISmtpConfigurationService> _smtpConfigMock = null!;
 
     public async Task InitializeAsync()
     {
         _ctx = await TestIdentityFactory.CreateAsync();
         _userManager = _ctx.UserManager;
-        _config = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?>()).Build();
+
+        _smtpConfigMock = new Mock<ISmtpConfigurationService>();
+        _smtpConfigMock.Setup(x => x.IsConfigured()).Returns(false);
+        _smtpConfigMock.Setup(x => x.GetSnapshot())
+            .Returns(new SmtpConfigDto(string.Empty, 587, null, null, null, null));
 
         var dataProtection = _ctx.Provider.GetRequiredService<IDataProtectionProvider>();
         var db = _ctx.Scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var cache = new MemoryCache(new MemoryCacheOptions());
         _emailTwoFactorService = new EmailTwoFactorService(
-            dataProtection, _config, NullLogger<EmailTwoFactorService>.Instance);
+            dataProtection, _smtpConfigMock.Object, NullLogger<EmailTwoFactorService>.Instance);
         var recoveryService = new RecoveryCodeService(db);
         _twoFactorService = new TwoFactorService(
             _userManager, dataProtection, _emailTwoFactorService, recoveryService, cache);

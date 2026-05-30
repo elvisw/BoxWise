@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
+using BoxWise.Shared.Dtos;
 using MailKit.Net.Smtp;
 using MimeKit;
 
@@ -8,17 +9,17 @@ namespace BoxWise.Server.Services;
 
 public class EmailTwoFactorService
 {
-    private readonly IDataProtector _protector;
-    private readonly IConfiguration _config;
+    private readonly ISmtpConfigurationService _smtpConfig;
     private readonly ILogger<EmailTwoFactorService> _logger;
+    private readonly IDataProtector _protector;
 
     public EmailTwoFactorService(
         IDataProtectionProvider protectionProvider,
-        IConfiguration config,
+        ISmtpConfigurationService smtpConfig,
         ILogger<EmailTwoFactorService> logger)
     {
         _protector = protectionProvider.CreateProtector("BoxWise.EmailTwoFactor");
-        _config = config;
+        _smtpConfig = smtpConfig;
         _logger = logger;
     }
 
@@ -65,23 +66,24 @@ public class EmailTwoFactorService
 
     /// <summary>
     /// 使用 MailKit SmtpClient 发送验证码邮件。
-    /// 从 IConfiguration["Smtp:Host"] 等读取配置。如果 SMTP 未配置则返回 false（静默失败）。
+    /// 从 SmtpConfigurationService 快照读取配置。如果 SMTP 未配置则返回 false（静默失败）。
     /// </summary>
     public async Task<bool> SendVerificationEmailAsync(string toEmail, string code, string? userName)
     {
-        var host = _config["Smtp:Host"];
-        if (string.IsNullOrWhiteSpace(host))
+        var config = _smtpConfig.GetSnapshot();
+        if (string.IsNullOrWhiteSpace(config.Host))
         {
             _logger.LogWarning("SMTP 未配置，无法发送验证码邮件到 {Email}", toEmail);
             return false;
         }
 
-        var portStr = _config["Smtp:Port"];
-        var port = !string.IsNullOrWhiteSpace(portStr) && int.TryParse(portStr, out var p) ? p : 587;
-        var username = _config["Smtp:Username"] ?? "";
-        var password = _config["Smtp:Password"] ?? "";
-        var fromAddress = _config["Smtp:FromAddress"] ?? "noreply@boxwise.app";
-        var fromName = _config["Smtp:FromName"] ?? "BoxWise";
+        // 默认值回退，防止 FromAddress/FromName 为空时邮件发送失败
+        var fromAddress = string.IsNullOrWhiteSpace(config.FromAddress)
+            ? "noreply@boxwise.app"
+            : config.FromAddress;
+        var fromName = string.IsNullOrWhiteSpace(config.FromName)
+            ? "BoxWise"
+            : config.FromName;
 
         try
         {
@@ -109,11 +111,12 @@ BoxWise 安全团队"
             message.Body = body;
 
             using var client = new SmtpClient();
-            await client.ConnectAsync(host, port, useSsl: port == 465);
-            if (!string.IsNullOrWhiteSpace(username))
-                await client.AuthenticateAsync(username, password);
+            client.Timeout = 30000;
+            await client.ConnectAsync(config.Host, config.Port, useSsl: config.Port == 465);
+            if (!string.IsNullOrWhiteSpace(config.Username))
+                await client.AuthenticateAsync(config.Username, config.Password ?? "");
             await client.SendAsync(message);
-            await client.DisconnectAsync(true);
+            await TryDisconnectAsync(client);
 
             _logger.LogInformation("验证码邮件已发送到 {Email}", toEmail);
             return true;
@@ -126,10 +129,24 @@ BoxWise 安全团队"
     }
 
     /// <summary>
-    /// 检查 SMTP 是否已配置。
+    /// 检查 SMTP 是否已配置。委托给 SmtpConfigurationService。
     /// </summary>
     public bool IsSmtpConfigured()
+        => _smtpConfig.IsConfigured();
+
+    /// <summary>
+    /// 独立 try/catch 包裹 DisconnectAsync，防止断开连接异常影响主流程。
+    /// </summary>
+    private static async Task TryDisconnectAsync(SmtpClient client)
     {
-        return !string.IsNullOrWhiteSpace(_config["Smtp:Host"]);
+        try
+        {
+            if (client.IsConnected)
+                await client.DisconnectAsync(true);
+        }
+        catch
+        {
+            // 断开连接异常不影响主流程
+        }
     }
 }

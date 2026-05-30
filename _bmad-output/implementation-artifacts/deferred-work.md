@@ -3,6 +3,16 @@
 > **清偿日期：** 2026-05-28
 > **状态：** 全部 19 条已清偿（7 条修复 + 9 条验证已修复 + 3 条已验证无需改动）
 
+## Deferred from: code review of spec-smtp-config-test-email (2026-05-30)
+
+> 以下为 pre-existing issues，非本次 SMTP 配置管理功能引入，留待后续专项处理。
+
+- [ ] **ChallengeAsync fire-and-forget 静默失败** — `TwoFactorEndpoints.cs:211` 中 `_ = SendVerificationEmailAsync(...).ContinueWith(...)` 不检查发送结果，SMTP 不可用时用户被锁在登录页无回退路径。建议：await 发送并在失败时提供 TOTP 备选
+- [ ] **EmailTwoFactorService 无异常分类** — `SendVerificationEmailAsync` 用裸 `catch(Exception)` 统一返回 false，无法区分认证失败/连接超时/DNS 失败。建议：分层 catch AuthenticationException/SmtpCommandException/SocketException
+- [ ] **SetupEmailAsync 邮箱校验过松** — `TwoFactorEndpoints.cs:377` 仅 `email.Contains('@')`，与 `SendTestEmailAsync` 的 `MailAddress` 严格校验不一致。建议：统一使用 `MailAddress` 或 `MailboxAddress.TryParse`
+- [ ] **TLS/SSL 配置过于简单** — `useSsl: port == 465` 硬编码，建议改用 `SecureSocketOptions.Auto` 自动协商，并显式设置 `SslProtocols = Tls12 | Tls13`
+- [ ] **SwitchMethodAsync 拒绝 Email 但 SetupEmailAsync 允许** — API 行为不一致，`TwoFactorService.cs:177` 返回 false 但设置流程已完成。建议：移除限制或更新注释说明设计原因
+
 ## Deferred from: code review of tech-debt-epic6 (2026-05-27)
 
 - [x] ~~SKBitmap.Resize() 返回 null 时触发 NRE — `ThumbnailService.cs:55` 缺少 null 检查 [EC-1]~~ → 已有 `?? throw new InvalidOperationException`
