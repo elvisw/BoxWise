@@ -65,6 +65,14 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
+// TwoFactorUserId Cookie — 也需要跨端口 SameSite=None（Blazor WASM:5001 → API:5000）
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorUserIdScheme, options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.None;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+});
+
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization(options =>
 {

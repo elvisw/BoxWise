@@ -34,10 +34,12 @@ public static class TwoFactorEndpoints
             .RequireRateLimiting("2fa-totp");
 
         group.MapPost("/challenge", ChallengeAsync)
+            .AllowAnonymous()  // 登录阶段二：用户仅有 TwoFactorUserId Cookie，无 Application Cookie
             .WithTags("2FA")
             .ProducesProblem(401);
 
         group.MapPost("/verify", VerifyAsync)
+            .AllowAnonymous()  // 登录阶段二：用户仅有 TwoFactorUserId Cookie
             .WithTags("2FA")
             .ProducesProblem(401)
             .RequireRateLimiting("2fa-totp");
@@ -47,6 +49,7 @@ public static class TwoFactorEndpoints
             .ProducesProblem(401);
 
         group.MapPut("/switch-method", SwitchMethodAsync)
+            .AllowAnonymous()  // 已废弃，无需认证
             .WithTags("2FA")
             .ProducesProblem(401)
             .AddEndpointFilter<CsrfValidationFilter>();
@@ -64,6 +67,7 @@ public static class TwoFactorEndpoints
 
         // Story 8-2b: 恢复码
         group.MapPost("/recovery/verify", VerifyRecoveryCodeDuringLoginAsync)
+            .AllowAnonymous()  // 登录阶段二：用户仅有 TwoFactorUserId Cookie
             .WithTags("2FA")
             .ProducesProblem(401)
             .RequireRateLimiting("2fa-recovery");
@@ -75,6 +79,7 @@ public static class TwoFactorEndpoints
 
         // 登录阶段发送邮箱验证码（邮箱 2FA 挑战时使用）
         group.MapPost("/send-challenge-code", SendChallengeCodeAsync)
+            .AllowAnonymous()  // 登录阶段二：用户仅有 TwoFactorUserId Cookie
             .WithTags("2FA")
             .ProducesProblem(401);
 
