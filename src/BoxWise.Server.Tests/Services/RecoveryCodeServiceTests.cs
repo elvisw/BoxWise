@@ -133,7 +133,7 @@ public class RecoveryCodeServiceTests
 
         // 2FA settings cleared on the user object
         Assert.False(user.TwoFactorEnabled);
-        Assert.Equal(TwoFactorMethod.None, user.TwoFactorMethod);
+        Assert.Equal(TwoFactorMethod.None, user.ConfiguredMethods);
         Assert.Null(user.TotpSecretKey);
         Assert.Null(user.EmailForTwoFactor);
         Assert.Null(user.TwoFactorSetupCompletedAt);

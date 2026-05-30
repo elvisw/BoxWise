@@ -74,7 +74,7 @@ public static class AdminTwoFactorEndpoints
 
         // 清除 2FA 设置
         targetUser.TotpSecretKey = null;
-        targetUser.TwoFactorMethod = TwoFactorMethod.None;
+        targetUser.ConfiguredMethods = TwoFactorMethod.None;
         targetUser.TwoFactorEnabled = false;
         targetUser.TwoFactorSetupCompletedAt = null;
         targetUser.TwoFactorGracePeriodUntil = null;

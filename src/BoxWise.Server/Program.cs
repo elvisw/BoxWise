@@ -427,7 +427,7 @@ static async Task ResetTwoFactorCli(WebApplication app, string username)
         }
 
         // 清除 2FA 设置
-        user.TwoFactorMethod = TwoFactorMethod.None;
+        user.ConfiguredMethods = TwoFactorMethod.None;
         user.TotpSecretKey = null;
         user.TwoFactorEnabled = false;
         user.TwoFactorSetupCompletedAt = null;

@@ -147,6 +147,9 @@
                 var methodName = status.TwoFactorMethod switch
                 {
                     "TOTP" => "TOTP 验证器",
+                    "Email" => "邮箱验证码",
+                    _ when status.TwoFactorMethod?.Contains("TOTP") == true
+                        && status.TwoFactorMethod?.Contains("Email") == true => "TOTP + 邮箱",
                     _ => status.TwoFactorMethod ?? "未知"
                 };
                 _twoFactorStatusText = $"已启用（{methodName}）";

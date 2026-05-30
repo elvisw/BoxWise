@@ -76,7 +76,7 @@ public class RecoveryCodeService
 
         // 清除所有 2FA 设置
         user.TwoFactorEnabled = false;
-        user.TwoFactorMethod = TwoFactorMethod.None;
+        user.ConfiguredMethods = TwoFactorMethod.None;
         user.TotpSecretKey = null;
         user.EmailForTwoFactor = null;
         user.TwoFactorSetupCompletedAt = null;

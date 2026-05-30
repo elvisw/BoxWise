@@ -46,49 +46,129 @@
         }
         else if (_loginStep == LoginStep.TwoFactor)
         {
-            <MudText Typo="Typo.body2" Class="mb-4">
-                请输入您的双因素认证验证码
-            </MudText>
-
-            @if (_allowedMethods.Contains("Email"))
+            @if (_showRecoveryCode)
             {
-                <MudText Typo="Typo.caption" Color="Color.Default" Class="mb-3">
-                    验证码已发送至您的邮箱，请输入收到的 6 位验证码。
+                <MudText Typo="Typo.body2" Class="mb-4">
+                    请输入您的恢复码
                 </MudText>
+
+                <MudTextField @bind-Value="_recoveryCode"
+                              Label="恢复码"
+                              Required="true"
+                              Variant="Variant.Outlined"
+                              Class="mb-3"
+                              FullWidth="true"
+                              HelperText="输入 8 位恢复码" />
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+                        @_error
+                    </MudAlert>
+                }
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Disabled="@(_isLoading || string.IsNullOrEmpty(_recoveryCode))"
+                           @onclick="HandleRecoveryCodeVerify">
+                    @(_isLoading ? "验证中..." : "使用恢复码登录")
+                </MudButton>
+
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Default"
+                           FullWidth="true"
+                           Class="mt-2"
+                           @onclick="() => _showRecoveryCode = false">
+                    返回验证码验证
+                </MudButton>
             }
-
-
-
-            <MudTextField @bind-Value="_totpCode"
-                          Label="验证码"
-                          Required="true"
-                          Variant="Variant.Outlined"
-                          Class="mb-3"
-                          FullWidth="true"
-                          HelperText="输入 6 位验证码" />
-
-            @if (!string.IsNullOrEmpty(_error))
+            else
             {
-                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
-                    @_error
-                </MudAlert>
+                @if (_allowedMethods.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+                        无法获取可用的验证方式，请返回重新登录或联系管理员。
+                    </MudAlert>
+                }
+                else
+                {
+                @if (_allowedMethods.Count > 1)
+                {
+                    <MudText Typo="Typo.body2" Class="mb-3">
+                        请选择验证方式
+                    </MudText>
+                    <MudButtonGroup Class="mb-4" FullWidth="true">
+                        @foreach (var method in _allowedMethods)
+                        {
+                            <MudButton Variant="@(_selectedMethod == method ? Variant.Filled : Variant.Outlined)"
+                                       Color="Color.Primary"
+                                       @onclick="() => SelectMethod(method)">
+                                @(method == "TOTP" ? "生成器验证码" : "邮箱验证码")
+                            </MudButton>
+                        }
+                    </MudButtonGroup>
+                }
+
+                @if (_selectedMethod == "Email")
+                {
+                    <MudAlert Severity="Severity.Info" Class="mb-3" Dense="true">
+                        验证码已发送至您的邮箱，请输入收到的 6 位验证码。
+                    </MudAlert>
+                }
+
+                <MudTextField @bind-Value="_totpCode"
+                              Label="@(_selectedMethod == "Email" ? "邮箱验证码" : "验证码")"
+                              Required="true"
+                              Variant="Variant.Outlined"
+                              Class="mb-3"
+                              FullWidth="true"
+                              HelperText="输入 6 位验证码" />
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+                        @_error
+                    </MudAlert>
+                }
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           FullWidth="true"
+                           Disabled="@(_isLoading || string.IsNullOrEmpty(_totpCode))"
+                           @onclick="HandleTwoFactorVerify">
+                    @(_isLoading ? "验证中..." : "验证")
+                </MudButton>
+
+                @if (_selectedMethod == "Email")
+                {
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Class="mt-1"
+                               @onclick="ResendEmailCode">
+                        重新发送验证码
+                    </MudButton>
+                }
+
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Default"
+                           FullWidth="true"
+                           Class="mt-2"
+                           @onclick="BackToCredentials">
+                    返回
+                </MudButton>
+
+                <MudDivider Class="my-3" />
+
+                <MudButton Variant="Variant.Text"
+                           Color="Color.Default"
+                           FullWidth="true"
+                           @onclick="() => _showRecoveryCode = true">
+                    使用恢复码登录
+                </MudButton>
+                }
             }
-
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Secondary"
-                       FullWidth="true"
-                       Disabled="@(_isLoading || string.IsNullOrEmpty(_totpCode))"
-                       @onclick="HandleTwoFactorVerify">
-                @(_isLoading ? "验证中..." : "验证")
-            </MudButton>
-
-            <MudButton Variant="Variant.Text"
-                       Color="Color.Default"
-                       FullWidth="true"
-                       Class="mt-2"
-                       @onclick="BackToCredentials">
-                返回
-            </MudButton>
         }
     </MudPaper>
 </MudContainer>
@@ -99,7 +179,11 @@
     private bool _isLoading;
     private LoginStep _loginStep = LoginStep.Credentials;
     private string _totpCode = string.Empty;
+    private string _recoveryCode = string.Empty;
     private List<string> _allowedMethods = new();
+    private string? _selectedMethod;
+    private string? _emailToken;
+    private bool _showRecoveryCode;
 
     private async Task HandleLogin()
     {
@@ -149,12 +233,21 @@
             if (response?.AllowedMethods is not null)
             {
                 _allowedMethods = response.AllowedMethods;
+                _emailToken = response.Token;
+                _selectedMethod = _allowedMethods.FirstOrDefault();
             }
         }
         catch
         {
             _allowedMethods = new List<string>();
         }
+    }
+
+    private void SelectMethod(string method)
+    {
+        _selectedMethod = method;
+        _totpCode = string.Empty;
+        _error = null;
     }
 
     private async Task HandleTwoFactorVerify()
@@ -164,7 +257,10 @@
 
         try
         {
-            var result = await AuthService.VerifyTwoFactorAsync(_totpCode);
+            var result = await AuthService.VerifyTwoFactorAsync(
+                _totpCode,
+                token: _selectedMethod == "Email" ? _emailToken : null,
+                method: _selectedMethod);
 
             if (result == LoginResult.Success)
             {
@@ -172,7 +268,9 @@
             }
             else
             {
-                _error = "验证码无效，请重试";
+                _error = _selectedMethod == "Email"
+                    ? "验证码无效或已过期，请重试或点击重新发送"
+                    : "验证码无效，请重试";
             }
         }
         catch (InvalidOperationException ex)
@@ -185,12 +283,62 @@
         }
     }
 
+    private async Task HandleRecoveryCodeVerify()
+    {
+        _error = null;
+        _isLoading = true;
+
+        try
+        {
+            var result = await AuthService.VerifyRecoveryCodeDuringLoginAsync(_recoveryCode);
+
+            if (result == LoginResult.Success)
+            {
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                _error = "恢复码无效";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ResendEmailCode()
+    {
+        _error = null;
+        try
+        {
+            var newToken = await AuthService.ResendTwoFactorChallengeCodeAsync();
+            if (newToken is not null)
+            {
+                _emailToken = newToken;
+                _error = null;
+            }
+        }
+        catch
+        {
+            _error = "重新发送失败，请稍后重试";
+        }
+    }
+
     private void BackToCredentials()
     {
         _loginStep = LoginStep.Credentials;
         _error = null;
         _totpCode = string.Empty;
+        _recoveryCode = string.Empty;
         _allowedMethods = new List<string>();
+        _selectedMethod = null;
+        _emailToken = null;
+        _showRecoveryCode = false;
     }
 
     private class LoginModel

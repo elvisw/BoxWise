@@ -52,9 +52,9 @@ public class AuthService
         return LoginResult.Failure;
     }
 
-    public async Task<LoginResult> VerifyTwoFactorAsync(string code, string? token = null)
+    public async Task<LoginResult> VerifyTwoFactorAsync(string code, string? token = null, string? method = null)
     {
-        var response = await _http.PostAsJsonAsync("api/auth/2fa/verify", new VerifyTwoFactorRequest(code, token));
+        var response = await _http.PostAsJsonAsync("api/auth/2fa/verify", new VerifyTwoFactorRequest(code, token, method));
 
         if (response.IsSuccessStatusCode)
         {
@@ -92,6 +92,20 @@ public class AuthService
             return await response.Content.ReadFromJsonAsync<TwoFactorChallengeResponse>();
         }
 
+        return null;
+    }
+
+    /// <summary>
+    /// 重新发送邮箱验证码，返回新 emailToken。
+    /// </summary>
+    public async Task<string?> ResendTwoFactorChallengeCodeAsync()
+    {
+        var response = await _http.PostAsync("api/auth/2fa/send-challenge-code", null);
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<SendChallengeCodeResponse>();
+            return result?.Token;
+        }
         return null;
     }
 

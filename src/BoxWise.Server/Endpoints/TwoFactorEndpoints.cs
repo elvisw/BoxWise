@@ -191,7 +191,8 @@ public static class TwoFactorEndpoints
     /// </summary>
     private static async Task<Results<Ok<TwoFactorChallengeResponse>, UnauthorizedHttpResult>>
         ChallengeAsync(SignInManager<AppUser> signInManager,
-            EmailTwoFactorService emailTwoFactorService)
+            EmailTwoFactorService emailTwoFactorService,
+            UserManager<AppUser> userManager)
     {
         var user = await signInManager.GetTwoFactorAuthenticationUserAsync();
         if (user is null)
@@ -200,16 +201,34 @@ public static class TwoFactorEndpoints
         var methods = new List<string>();
         string? emailToken = null;
 
-        if (user.TwoFactorMethod == TwoFactorMethod.TOTP)
+        // 防御：ConfiguredMethods=None 但 TwoFactorEnabled=true 的损坏状态
+        if (user.ConfiguredMethods == TwoFactorMethod.None && user.TwoFactorEnabled)
+        {
+            user.TwoFactorEnabled = false;
+            await userManager.UpdateAsync(user);
+            // 返回空方法列表，前端将显示错误提示，用户需返回重新登录（登录端点将走无 2FA 路径）
+        }
+
+        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
             methods.Add("TOTP");
 
-        if (user.TwoFactorMethod == TwoFactorMethod.Email && !string.IsNullOrEmpty(user.EmailForTwoFactor))
+        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
         {
-            methods.Add("Email");
-            var (code, token) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
-            emailToken = token;
-            _ = emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName)
-                .ContinueWith(t => { if (t.IsFaulted) { /* SMTP 不可用，用户需手动输入 TOTP */ } });
+            // 防御：EmailForTwoFactor 为 null 的损坏状态
+            if (string.IsNullOrEmpty(user.EmailForTwoFactor))
+            {
+                user.ConfiguredMethods &= ~TwoFactorMethod.Email;
+                await userManager.UpdateAsync(user);
+            }
+            else
+            {
+                methods.Add("Email");
+                var (code, token) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
+                emailToken = token;
+                // 即使用户最终选择 TOTP，邮件也会发送——用户可能切换选择，提前发送减少等待
+                _ = emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName)
+                    .ContinueWith(t => { if (t.IsFaulted) { /* SMTP 不可用 */ } });
+            }
         }
 
         return TypedResults.Ok(new TwoFactorChallengeResponse(methods, emailToken));
@@ -218,7 +237,7 @@ public static class TwoFactorEndpoints
     /// <summary>
     /// 登录阶段二：重新发送邮箱验证码（邮箱 2FA 时使用）。
     /// </summary>
-    private static async Task<Results<Ok, UnauthorizedHttpResult>>
+    private static async Task<Results<Ok<SendChallengeCodeResponse>, UnauthorizedHttpResult>>
         SendChallengeCodeAsync(SignInManager<AppUser> signInManager,
             EmailTwoFactorService emailTwoFactorService)
     {
@@ -226,14 +245,15 @@ public static class TwoFactorEndpoints
         if (user is null)
             return TypedResults.Unauthorized();
 
-        if (string.IsNullOrEmpty(user.EmailForTwoFactor))
-            return TypedResults.Ok();
+        if (string.IsNullOrEmpty(user.EmailForTwoFactor)
+            || !user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
+            return TypedResults.Ok(new SendChallengeCodeResponse(null));
 
-        var (code, _) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
+        var (code, newToken) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
         _ = emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName)
-            .ContinueWith(t => { if (t.IsFaulted) { /* SMTP 不可用，用户需检查邮箱配置 */ } });
+            .ContinueWith(t => { if (t.IsFaulted) { /* SMTP 不可用 */ } });
 
-        return TypedResults.Ok();
+        return TypedResults.Ok(new SendChallengeCodeResponse(newToken));
     }
 
     /// <summary>
@@ -249,18 +269,45 @@ public static class TwoFactorEndpoints
             return TypedResults.Unauthorized();
 
         bool valid;
-        if (user.TwoFactorMethod == TwoFactorMethod.Email && !string.IsNullOrEmpty(user.EmailForTwoFactor))
+        switch (request.Method)
         {
-            if (string.IsNullOrEmpty(request.Token))
-                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            case "TOTP":
+                if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "method", new[] { "该方法未配置" } }
+                    });
+                valid = await twoFactorService.VerifyTotpChallengeAsync(user, request.Code);
+                break;
+            case "Email":
+                if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "method", new[] { "该方法未配置" } }
+                    });
+                if (string.IsNullOrEmpty(request.Token))
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "token", new[] { "缺少验证令牌" } }
+                    });
+                valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor!, request.Code, request.Token);
+                break;
+            default:
+                // 回退兼容：单方法用户 / 旧客户端不传 method
+                if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email) && !user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
                 {
-                    { "token", new[] { "缺少验证令牌" } }
-                });
-            valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
-        }
-        else
-        {
-            valid = await twoFactorService.VerifyTotpChallengeAsync(user, request.Code);
+                    if (string.IsNullOrEmpty(request.Token))
+                        return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                        {
+                            { "token", new[] { "缺少验证令牌" } }
+                        });
+                    valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor!, request.Code, request.Token);
+                }
+                else
+                {
+                    valid = await twoFactorService.VerifyTotpChallengeAsync(user, request.Code);
+                }
+                break;
         }
 
         if (!valid)
@@ -301,44 +348,12 @@ public static class TwoFactorEndpoints
     }
 
     /// <summary>
-    /// 切换 2FA 方法（支持 TOTP 和 Email）。
+    /// 已废弃：在 [Flags] 多方法模型下语义不明确。
+    /// 由独立的 setup/verify 端点通过 |= 添加方法替代。
     /// </summary>
-    private static async Task<Results<Ok, UnauthorizedHttpResult, ValidationProblem>>
-        SwitchMethodAsync(SwitchMethodRequest request, HttpContext httpContext,
-            UserManager<AppUser> userManager, TwoFactorService twoFactorService)
+    private static IResult SwitchMethodAsync()
     {
-        var sessionToken = httpContext.Request.Headers["X-Session-Token"].FirstOrDefault();
-        if (string.IsNullOrEmpty(sessionToken))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "sessionToken", new[] { "缺少会话令牌" } }
-            });
-        }
-
-        var user = await userManager.GetUserAsync(httpContext.User);
-        if (user is null)
-            return TypedResults.Unauthorized();
-
-        if (!Enum.TryParse<TwoFactorMethod>(request.Method, out var method))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "method", new[] { "无效的认证方法" } }
-            });
-        }
-
-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
-        var success = await twoFactorService.SwitchMethodAsync(user, method, sessionToken);
-        if (!success)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "method", new[] { "切换认证方法失败" } }
-            });
-        }
-
-        return TypedResults.Ok();
+        return TypedResults.Problem("此端点已废弃，请使用独立的 2FA 设置端点", statusCode: 410);
     }
 
     // ===== Story 8-2b: 邮箱验证码 2FA 端点 =====
@@ -457,14 +472,9 @@ public static class TwoFactorEndpoints
             });
         }
 
-        // 如果从另一种方法切换，清除旧密钥
-        if (user.TwoFactorMethod != TwoFactorMethod.None)
-        {
-            user.TotpSecretKey = null;
-        }
-
+        // 添加 Email 方法，不清除已有的 TOTP/WebAuthn 配置（方法隔离原则）
+        user.ConfiguredMethods |= TwoFactorMethod.Email;
         user.TwoFactorEnabled = true;
-        user.TwoFactorMethod = TwoFactorMethod.Email;
         user.TwoFactorSetupCompletedAt = DateTime.UtcNow;
 
         var updateResult = await userManager.UpdateAsync(user);
@@ -509,7 +519,7 @@ public static class TwoFactorEndpoints
 
         // 签发完整认证 Cookie，添加 2FA 已验证声明
         await signInManager.SignInWithClaimsAsync(user, isPersistent: true,
-            new[] { new Claim("2fa", "verified") });
+            new[] { new Claim("amr", "2fa") });
 
         var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
         var adminConfigured = !string.IsNullOrWhiteSpace(config["Admin:Password"]);

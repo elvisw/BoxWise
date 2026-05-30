@@ -54,9 +54,9 @@ else
                     <td>
                         @if (user.TwoFactorEnabled)
                         {
-                            <span class="badge badge-2fa-enabled">已启用 (@user.TwoFactorMethod)</span>
+                            <span class="badge badge-2fa-enabled">已启用 (@user.ConfiguredMethods)</span>
                         }
-                        else if (user.TwoFactorMethod is not null)
+                        else if (user.ConfiguredMethods is not null)
                         {
                             <span class="badge badge-2fa-partial">未完成</span>
                         }
@@ -71,7 +71,7 @@ else
                         <form method="post" asp-page-handler="ToggleRole" asp-route-id="@user.Id" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline">@(user.IsAdmin ? "取消管理" : "设为管理")</button>
                         </form>
-                        @if (user.TwoFactorMethod is not null)
+                        @if (user.ConfiguredMethods is not null)
                         {
                             <a href="/admin/@user.Id/reset-2fa" class="btn btn-sm btn-outline btn-2fa-reset">重置 2FA</a>
                         }

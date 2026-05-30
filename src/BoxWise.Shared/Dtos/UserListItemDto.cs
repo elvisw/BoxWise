@@ -5,5 +5,6 @@ public record UserListItemDto(
     string UserName,
     bool IsAdmin,
     bool TwoFactorEnabled = false,
-    string? TwoFactorMethod = null
+    string? TwoFactorMethod = null,
+    string? ConfiguredMethods = null
 );

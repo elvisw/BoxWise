@@ -85,7 +85,7 @@ public class TwoFactorService
         _cache.Set(replayKey, true, TimeSpan.FromMinutes(2));
 
         user.TwoFactorEnabled = true;
-        user.TwoFactorMethod = TwoFactorMethod.TOTP;
+        user.ConfiguredMethods |= TwoFactorMethod.TOTP;
         user.TwoFactorSetupCompletedAt = DateTime.UtcNow;
 
         var result = await _userManager.UpdateAsync(user);
@@ -137,24 +137,19 @@ public class TwoFactorService
         if (user is null)
             throw new ArgumentNullException(nameof(user));
 
-        var availableMethods = new List<string> { "TOTP" };
+        var availableMethods = new List<string>();
 
-        if (_emailTwoFactorService.IsSmtpConfigured())
+        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
+            availableMethods.Add("TOTP");
+        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email)
+            && _emailTwoFactorService.IsSmtpConfigured())
             availableMethods.Add("Email");
-
-        availableMethods.Add("WebAuthn");
-
-        if (user.TwoFactorMethod != TwoFactorMethod.None
-            && !availableMethods.Contains(user.TwoFactorMethod.ToString()))
-        {
-            availableMethods.Add(user.TwoFactorMethod.ToString());
-        }
 
         var hasRecoveryCodes = await _recoveryCodeService.HasRecoveryCodesAsync(user);
 
         return new TwoFactorStatusDto(
             TwoFactorEnabled: user.TwoFactorEnabled,
-            TwoFactorMethod: user.TwoFactorMethod == TwoFactorMethod.None ? null : user.TwoFactorMethod.ToString(),
+            TwoFactorMethod: user.ConfiguredMethods == TwoFactorMethod.None ? null : user.ConfiguredMethods.ToString(),
             AvailableMethods: availableMethods,
             HasRecoveryCodes: hasRecoveryCodes,
             GracePeriodEnd: user.TwoFactorGracePeriodUntil,
@@ -163,24 +158,12 @@ public class TwoFactorService
     }
 
     /// <summary>
-    /// 验证切换 2FA 方法的权限（仅校验 SessionToken，不修改 TwoFactorMethod）。
-    /// 实际的 TwoFactorMethod 赋值在各 Verify 端点（VerifyTotpSetupAsync/VerifyEmail*）中完成。
+    /// 已废弃：在 [Flags] 多方法模型下语义不明确，由独立 setup/verify 端点替代。
     /// </summary>
     public Task<bool> SwitchMethodAsync(AppUser user, TwoFactorMethod newMethod, string sessionToken)
     {
-        if (user is null)
-            return Task.FromResult(false);
-
-        if (newMethod == TwoFactorMethod.None)
-            return Task.FromResult(false);
-
-        if (newMethod == TwoFactorMethod.Email)
-            return Task.FromResult(false); // 未实现，由 Phase 2 完成
-
-        if (!ValidateSessionToken(sessionToken, user.Id))
-            return Task.FromResult(false);
-
-        return Task.FromResult(true);
+        // 已废弃：在 [Flags] 多方法模型下语义不明确，由独立 setup/verify 端点替代。
+        return Task.FromResult(false);
     }
 
     /// <summary>

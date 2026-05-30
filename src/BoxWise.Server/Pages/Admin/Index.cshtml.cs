@@ -112,18 +112,23 @@ public class IndexModel : PageModel
         var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
         var adminUserNames = new HashSet<string>(adminUsers.Select(u => u.UserName ?? ""));
 
-        Users = allUsers.Select(u => new UserListItemDto(
-            u.Id,
-            u.UserName ?? "",
-            adminUserNames.Contains(u.UserName ?? ""),
-            u.TwoFactorEnabled,
-            u.TwoFactorMethod switch
+        Users = allUsers.Select(u => {
+            var methodDisplay = u.ConfiguredMethods switch
             {
-                TwoFactorMethod.TOTP => "TOTP",
-                TwoFactorMethod.Email => "Email",
-                TwoFactorMethod.WebAuthn => "WebAuthn",
-                _ => null
-            }
-        )).ToList();
+                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) && m.HasFlag(TwoFactorMethod.Email) => "TOTP + Email",
+                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) => "TOTP",
+                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.Email) => "Email",
+                TwoFactorMethod.None => null,
+                _ => u.ConfiguredMethods.ToString()
+            };
+            return new UserListItemDto(
+                u.Id,
+                u.UserName ?? "",
+                adminUserNames.Contains(u.UserName ?? ""),
+                u.TwoFactorEnabled,
+                methodDisplay,
+                methodDisplay
+            );
+        }).ToList();
     }
 }

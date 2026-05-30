@@ -4,7 +4,10 @@ namespace BoxWise.Server.Models;
 
 public class AppUser : IdentityUser
 {
-    public TwoFactorMethod TwoFactorMethod { get; set; } = TwoFactorMethod.None;
+    /// <summary>
+    /// 已配置的 2FA 方法集合（[Flags] 枚举，支持多方法并存）。
+    /// </summary>
+    public TwoFactorMethod ConfiguredMethods { get; set; } = TwoFactorMethod.None;
     public string? TotpSecretKey { get; set; }
     // 预留: Email 2FA (Story 8-2b)
     // 已知限制：修改 Email 不会自动同步 EmailForTwoFactor。
