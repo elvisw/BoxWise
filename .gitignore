@@ -6,6 +6,9 @@
 # Data Protection keys (runtime generated)
 **/Data/keys/
 
+# SMTP 配置（含加密凭据，运行时通过 Admin UI 管理）
+**/Data/smtp-config.json
+
 # dotenv files
 .env
 
