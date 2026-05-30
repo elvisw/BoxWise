@@ -3,6 +3,20 @@
 > **清偿日期：** 2026-05-28
 > **状态：** 全部 19 条已清偿（7 条修复 + 9 条验证已修复 + 3 条已验证无需改动）
 
+## Deferred from: code review of 2fa-multi-method-login (2026-05-30)
+
+> 以下为 pre-existing issues，非本次 2FA 多方法修复引入，留待后续专项处理。
+
+- [ ] **WebAuthn 旧值 3→4 迁移风险** — `TwoFactorMethod.cs` 将 WebAuthn 从 3 改为 4，旧数据库中如有 TwoFactorMethod=3 的记录会被解释为 TOTP|Email。当前 WebAuthn 从未实现，生产无风险。WebAuthn 上线前需补充数据迁移。
+- [ ] **Admin Index.cshtml `ConfiguredMethods is not null` 对值类型永远为 true** — 预存问题，不影响运行时行为（代码层映射为 string?）。
+- [ ] **多处 UpdateAsync 结果被丢弃** — ChallengeAsync、AdminTwoFactorEndpoints、ResetTwoFactor 等处不检查 IdentityResult.Succeeded。
+- [ ] **challenge/send-challenge-code 端点无速率限制** — 攻击者可无限发送邮件。
+- [ ] **Flags.ToString() 客户端解析脆弱** — Settings.razor 用 Contains("TOTP") 解析 flags 字符串，依赖未文档化的 .NET 格式化行为。
+- [ ] **EmailForTwoFactor 清除不一致** — RecoveryCodeService 清除 EmailForTwoFactor，但 AdminTwoFactorEndpoints/ResetTwoFactor/Program.cs 不清除。
+- [ ] **无速率限制** — challenge/send-challenge-code 端点未配置 RequireRateLimiting。
+- [ ] **恢复码按钮无条件显示** — Login.razor 不检查用户是否有恢复码，需要 TwoFactorChallengeResponse 增加 HasRecoveryCodes 字段。
+- [ ] **VerifyAsync Email 路径 null-forgiving** — EmailForTwoFactor! 在数据损坏时传递 null 给 VerifyCode。
+
 ## Deferred from: code review of 2FA-login-grace-period-fix (2026-05-30)
 
 > 以下为 pre-existing issues，非本次 2FA 登录修复引入，留待后续专项处理。
