@@ -62,43 +62,6 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
 
     // ────────────── Helpers ──────────────
 
-    private static async Task<int> Invoke2FAAsync(string methodName, params object?[] args)
-    {
-        var method = typeof(TwoFactorEndpoints).GetMethod(
-            methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
-        var task = (Task)method.Invoke(null, args)!;
-        await task;
-        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
-        var executeMethod = httpResult.GetType().GetMethod(
-            "ExecuteAsync", [typeof(HttpContext)])!;
-        var s = new ServiceCollection(); s.AddLogging();
-        using var sp = s.BuildServiceProvider();
-        var hc = new DefaultHttpContext { RequestServices = sp };
-        hc.Response.Body = new MemoryStream();
-        await (Task)executeMethod.Invoke(httpResult, [hc])!;
-        return hc.Response.StatusCode;
-    }
-
-    private static async Task<(int StatusCode, string Body)> Invoke2FAWithBodyAsync(
-        string methodName, params object?[] args)
-    {
-        var method = typeof(TwoFactorEndpoints).GetMethod(
-            methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
-        var task = (Task)method.Invoke(null, args)!;
-        await task;
-        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
-        var executeMethod = httpResult.GetType().GetMethod(
-            "ExecuteAsync", [typeof(HttpContext)])!;
-        var s = new ServiceCollection(); s.AddLogging();
-        using var sp = s.BuildServiceProvider();
-        var hc = new DefaultHttpContext { RequestServices = sp };
-        hc.Response.Body = new MemoryStream();
-        await (Task)executeMethod.Invoke(httpResult, [hc])!;
-        hc.Response.Body.Seek(0, SeekOrigin.Begin);
-        var body = await new StreamReader(hc.Response.Body).ReadToEndAsync();
-        return (hc.Response.StatusCode, body);
-    }
-
     private HttpContext CreateAuthContext(AppUser user)
     {
         return new DefaultHttpContext
@@ -131,7 +94,7 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
     public async Task ChallengeAsync_NoCookie_ReturnsUnauthorized()
     {
         // 无 TwoFactorUserId Cookie → 401
-        var status = await Invoke2FAAsync(
+        var status = await TwoFactorTestHelpers.Invoke2FAAsync(
             "ChallengeAsync", _signInManager, _emailTwoFactorService, _userManager, _recoveryCodeService, null!);
         Assert.Equal(401, status);
     }
@@ -210,7 +173,7 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
         await _userManager.UpdateAsync(user);
 
         var hc = CreateAuthContext(user);
-        var (status, body) = await Invoke2FAWithBodyAsync(
+        var (status, body) = await TwoFactorTestHelpers.Invoke2FAWithBodyAsync(
             "GetStatusAsync", hc, _userManager, _twoFactorService);
         Assert.Equal(200, status);
 
@@ -232,7 +195,7 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
         var (user, _) = await CreateTotpUserAsync("onlytotpstatus");
         var hc = CreateAuthContext(user);
 
-        var (status, body) = await Invoke2FAWithBodyAsync(
+        var (status, body) = await TwoFactorTestHelpers.Invoke2FAWithBodyAsync(
             "GetStatusAsync", hc, _userManager, _twoFactorService);
         Assert.Equal(200, status);
         var dto = JsonSerializer.Deserialize<TwoFactorStatusDto>(body,
@@ -254,7 +217,7 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
         await _userManager.CreateAsync(user, "Test1234!");
         var hc = CreateAuthContext(user);
 
-        var (status, body) = await Invoke2FAWithBodyAsync("ReAuthenticateAsync",
+        var (status, body) = await TwoFactorTestHelpers.Invoke2FAWithBodyAsync("ReAuthenticateAsync",
             new ReAuthenticateRequest("Test1234!"), hc, _userManager, _twoFactorService);
         Assert.Equal(200, status);
 

@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
@@ -50,50 +49,13 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
 
     public async Task DisposeAsync() => await _ctx.DisposeAsync();
 
-    private static async Task<int> Invoke2FAAsync(string methodName, params object?[] args)
-    {
-        var method = typeof(TwoFactorEndpoints).GetMethod(
-            methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
-        var task = (Task)method.Invoke(null, args)!;
-        await task;
-        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
-        var executeMethod = httpResult.GetType().GetMethod(
-            "ExecuteAsync", [typeof(HttpContext)])!;
-        var s = new ServiceCollection(); s.AddLogging();
-        using var sp = s.BuildServiceProvider();
-        var hc = new DefaultHttpContext { RequestServices = sp };
-        hc.Response.Body = new MemoryStream();
-        await (Task)executeMethod.Invoke(httpResult, [hc])!;
-        return hc.Response.StatusCode;
-    }
-
-    private static async Task<(int StatusCode, string Body)> Invoke2FAWithBodyAsync(
-        string methodName, params object?[] args)
-    {
-        var method = typeof(TwoFactorEndpoints).GetMethod(
-            methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
-        var task = (Task)method.Invoke(null, args)!;
-        await task;
-        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
-        var executeMethod = httpResult.GetType().GetMethod(
-            "ExecuteAsync", [typeof(HttpContext)])!;
-        var s = new ServiceCollection(); s.AddLogging();
-        using var sp = s.BuildServiceProvider();
-        var hc = new DefaultHttpContext { RequestServices = sp };
-        hc.Response.Body = new MemoryStream();
-        await (Task)executeMethod.Invoke(httpResult, [hc])!;
-        hc.Response.Body.Seek(0, SeekOrigin.Begin);
-        var body = await new StreamReader(hc.Response.Body).ReadToEndAsync();
-        return (hc.Response.StatusCode, body);
-    }
-
     // ────────────── Tests ──────────────
 
     [Fact]
     public async Task GetStatusAsync_Unauthenticated_ReturnsUnauthorized()
     {
         var hc = new DefaultHttpContext();
-        var status = await Invoke2FAAsync("GetStatusAsync", hc, _userManager, _twoFactorService);
+        var status = await TwoFactorTestHelpers.Invoke2FAAsync("GetStatusAsync", hc, _userManager, _twoFactorService);
         Assert.Equal(401, status);
     }
 
@@ -107,7 +69,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
             User = new ClaimsPrincipal(new ClaimsIdentity(
                 [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
         };
-        var (status, body) = await Invoke2FAWithBodyAsync(
+        var (status, body) = await TwoFactorTestHelpers.Invoke2FAWithBodyAsync(
             "GetStatusAsync", hc, _userManager, _twoFactorService);
         Assert.Equal(200, status);
 
@@ -134,7 +96,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
             User = new ClaimsPrincipal(new ClaimsIdentity(
                 [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
         };
-        var status = await Invoke2FAAsync("ReAuthenticateAsync",
+        var status = await TwoFactorTestHelpers.Invoke2FAAsync("ReAuthenticateAsync",
             new ReAuthenticateRequest("WrongPass1!"), hc, _userManager, _twoFactorService);
         Assert.Equal(400, status);
     }
@@ -149,7 +111,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
             User = new ClaimsPrincipal(new ClaimsIdentity(
                 [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
         };
-        var (status, body) = await Invoke2FAWithBodyAsync("ReAuthenticateAsync",
+        var (status, body) = await TwoFactorTestHelpers.Invoke2FAWithBodyAsync("ReAuthenticateAsync",
             new ReAuthenticateRequest("Test1234!"), hc, _userManager, _twoFactorService);
         Assert.Equal(200, status);
 
@@ -171,7 +133,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
         };
         // No X-Session-Token header → method returns ValidationProblem before
         // checking user or touching TwoFactorService
-        var status = await Invoke2FAAsync("SetupTotpAsync", hc, _userManager, _twoFactorService);
+        var status = await TwoFactorTestHelpers.Invoke2FAAsync("SetupTotpAsync", hc, _userManager, _twoFactorService);
         Assert.Equal(400, status);
     }
 
@@ -180,7 +142,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
     {
         // SignInManager has no TwoFactorUserId cookie, so
         // GetTwoFactorAuthenticationUserAsync() returns null → 401
-        var status = await Invoke2FAAsync(
+        var status = await TwoFactorTestHelpers.Invoke2FAAsync(
             "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager, _recoveryCodeService, NullLoggerFactory.Instance);
         Assert.Equal(401, status);
     }
@@ -220,7 +182,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
         httpContext.RequestServices = mockProvider;
 
         // Act
-        var (status, body) = await Invoke2FAWithBodyAsync(
+        var (status, body) = await TwoFactorTestHelpers.Invoke2FAWithBodyAsync(
             "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager, _recoveryCodeService, NullLoggerFactory.Instance);
 
         // Assert
