@@ -191,6 +191,28 @@ public static class TwoFactorEndpoints
     }
 
     /// <summary>
+    /// 从 TwoFactorUserId Cookie 获取用户（替代 GetTwoFactorAuthenticationUserAsync）。
+    /// .NET 10 中 GetTwoFactorAuthenticationUserAsync 存在 bug：
+    /// 内部调用 UserManager.GetUserId(principal) 可能返回 UserName 而非 Id，
+    /// 导致 FindByIdAsync 查询参数为用户名 (Size=5) 而非 GUID (Size=36)，查询返回 null。
+    /// 此辅助方法手动提取 NameIdentifier claim 并直接调用 FindByIdAsync。
+    /// </summary>
+    private static async Task<AppUser?> GetTwoFactorUserAsync(
+        SignInManager<AppUser> signInManager, UserManager<AppUser> userManager)
+    {
+        var authResult = await signInManager.Context.AuthenticateAsync(
+            IdentityConstants.TwoFactorUserIdScheme);
+        if (!authResult.Succeeded || authResult.Principal is null)
+            return null;
+
+        var userId = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return null;
+
+        return await userManager.FindByIdAsync(userId);
+    }
+
+    /// <summary>
     /// 登录阶段二：发起 2FA 挑战（从 TwoFactorUserIdScheme Cookie 读取用户）。
     /// 当方法为 Email 时自动发送验证码到用户邮箱。
     /// </summary>
@@ -199,7 +221,7 @@ public static class TwoFactorEndpoints
             EmailTwoFactorService emailTwoFactorService,
             UserManager<AppUser> userManager)
     {
-        var user = await signInManager.GetTwoFactorAuthenticationUserAsync();
+        var user = await GetTwoFactorUserAsync(signInManager, userManager);
         if (user is null)
             return TypedResults.Unauthorized();
 
@@ -244,9 +266,10 @@ public static class TwoFactorEndpoints
     /// </summary>
     private static async Task<Results<Ok<SendChallengeCodeResponse>, UnauthorizedHttpResult>>
         SendChallengeCodeAsync(SignInManager<AppUser> signInManager,
-            EmailTwoFactorService emailTwoFactorService)
+            EmailTwoFactorService emailTwoFactorService,
+            UserManager<AppUser> userManager)
     {
-        var user = await signInManager.GetTwoFactorAuthenticationUserAsync();
+        var user = await GetTwoFactorUserAsync(signInManager, userManager);
         if (user is null)
             return TypedResults.Unauthorized();
 
@@ -269,7 +292,7 @@ public static class TwoFactorEndpoints
             UserManager<AppUser> userManager, TwoFactorService twoFactorService,
             IConfiguration config, EmailTwoFactorService emailTwoFactorService)
     {
-        var user = await signInManager.GetTwoFactorAuthenticationUserAsync();
+        var user = await GetTwoFactorUserAsync(signInManager, userManager);
         if (user is null)
             return TypedResults.Unauthorized();
 
@@ -506,7 +529,7 @@ public static class TwoFactorEndpoints
             SignInManager<AppUser> signInManager, UserManager<AppUser> userManager,
             RecoveryCodeService recoveryCodeService, IConfiguration config)
     {
-        var user = await signInManager.GetTwoFactorAuthenticationUserAsync();
+        var user = await GetTwoFactorUserAsync(signInManager, userManager);
         if (user is null)
             return TypedResults.Unauthorized();
 

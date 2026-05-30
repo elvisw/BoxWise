@@ -283,6 +283,16 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 | SortOrder 未在 CreateAsync 赋值 | ✅ 已清理 | `LocationRepository.CreateAsync` 接受 `sortOrder` 参数并赋值 |
 | 缺少单元测试框架 | ✅ 已清理 | `src/BoxWise.Server.Tests/` xUnit 项目，22 个测试全部通过 |
 
+## .NET Framework 已知问题
+
+### .NET 10 SignInManager.GetTwoFactorAuthenticationUserAsync() Bug (2026-05-30)
+
+- **Issue:** [dotnet/aspnetcore#66929](https://github.com/dotnet/aspnetcore/issues/66929)
+- **影响:** `SignInManager.GetTwoFactorAuthenticationUserAsync()` 在 .NET 10.0.8 中返回 null，即使 TwoFactorUserId Cookie 有效。内部 `UserManager.GetUserId(principal)` 返回 UserName 而非 UserId，导致 `FindByIdAsync` 用用户名查 GUID 列。
+- **症状:** 2FA 用户登录时挑战端点返回 401 → 前端提示"无法获取可用的验证方式"。
+- **Workaround:** 使用 `src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs` 中的 `GetTwoFactorUserAsync()` 辅助方法，手动提取 `ClaimTypes.NameIdentifier` claim 后直接调用 `FindByIdAsync`。**待上游修复后移除 workaround。**
+- **详细调查:** `_bmad-output/implementation-artifacts/investigations/2fa-gettwofactoruserasync-null-investigation.md`
+
 ## BMad 工作流上下文
 
 - **BMad 版本：** v6.7.1（bmm + core 模块）
