@@ -113,8 +113,12 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
         Assert.NotNull(dto);
         Assert.False(dto.TwoFactorEnabled);
         Assert.Null(dto.TwoFactorMethod);
-        Assert.Empty(dto.AvailableMethods);
+        // TOTP 始终可用；SMTP 未配置时 Email 不可用
+        Assert.Contains("TOTP", dto.AvailableMethods);
+        Assert.DoesNotContain("Email", dto.AvailableMethods);
         Assert.False(dto.HasRecoveryCodes);
+        // ConfiguredMethods reflects actual user configuration
+        Assert.Empty(dto.ConfiguredMethods);
     }
 
     [Fact]

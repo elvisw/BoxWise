@@ -219,12 +219,16 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
         Assert.True(dto.TwoFactorEnabled);
         Assert.Contains("TOTP", dto.AvailableMethods);
         Assert.Contains("Email", dto.AvailableMethods);
+        // ConfiguredMethods reflects actual user configuration
+        Assert.Contains("TOTP", dto.ConfiguredMethods);
+        Assert.Contains("Email", dto.ConfiguredMethods);
     }
 
     [Fact]
-    public async Task GetStatusAsync_OnlyTotp_OnlyReturnsTotp()
+    public async Task GetStatusAsync_OnlyTotpConfigured_AvailableMethodsShowsSettableMethods()
     {
-        // 验证 GetTwoFactorStatusAsync 基于 HasFlag 而非硬编码
+        // AvailableMethods 反映可用于设置的方法，而非用户已配置的方法
+        // TOTP 始终可用；Email 在 SMTP 已配置时可用（无论用户是否已配置）
         var (user, _) = await CreateTotpUserAsync("onlytotpstatus");
         var hc = CreateAuthContext(user);
 
@@ -234,9 +238,13 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
         var dto = JsonSerializer.Deserialize<TwoFactorStatusDto>(body,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         Assert.Contains("TOTP", dto.AvailableMethods);
-        Assert.DoesNotContain("Email", dto.AvailableMethods);
+        // SMTP mock 返回 IsConfigured()=true，Email 应出现在可设置方法中
+        Assert.Contains("Email", dto.AvailableMethods);
         // WebAuthn 不再硬编码
         Assert.DoesNotContain("WebAuthn", dto.AvailableMethods);
+        // ConfiguredMethods reflects actual user configuration
+        Assert.Contains("TOTP", dto.ConfiguredMethods);
+        Assert.DoesNotContain("Email", dto.ConfiguredMethods);
     }
 
     [Fact]

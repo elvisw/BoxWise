@@ -11,9 +11,18 @@
     <DialogContent>
         @if (_setupStep == SetupStep.ChooseMethod)
         {
-            <MudText Typo="Typo.body2" Class="mb-4">
-                选择一个双因素认证方式以增强账户安全性。
-            </MudText>
+            @if (_twoFactorEnabled)
+            {
+                <MudAlert Severity="Severity.Success" Class="mb-4" Dense="true">
+                    双因素认证已启用
+                </MudAlert>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mb-4">
+                    选择一个双因素认证方式以增强账户安全性。
+                </MudText>
+            }
 
             <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
                 <div class="d-flex align-center">
@@ -24,10 +33,19 @@
                             使用 Google Authenticator、Authy 等应用
                         </MudText>
                     </div>
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               Disabled="@_isLoading" @onclick="StartTotpSetup">
-                        @(_isLoading ? "处理中..." : "设置")
-                    </MudButton>
+                    @if (_configuredMethods.Contains("TOTP"))
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                            已启用
+                        </MudChip>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@_isLoading" @onclick="StartTotpSetup">
+                            @(_isLoading ? "处理中..." : "设置")
+                        </MudButton>
+                    }
                 </div>
             </MudPaper>
 
@@ -42,10 +60,54 @@
                                 每次登录时向您的邮箱发送验证码
                             </MudText>
                         </div>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                   Disabled="@_isLoading" @onclick="StartEmailSetup">
-                            @(_isLoading ? "处理中..." : "设置")
-                        </MudButton>
+                        @if (_configuredMethods.Contains("Email"))
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                已启用
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       Disabled="@_isLoading" @onclick="StartEmailSetup">
+                                @(_isLoading ? "处理中..." : "设置")
+                            </MudButton>
+                        }
+                    </div>
+                </MudPaper>
+            }
+            else
+            {
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Medium" Class="mr-3" Color="Color.Default" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;" Color="Color.Default">邮箱验证码</MudText>
+                            @if (_configuredMethods.Contains("Email"))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Warning">
+                                    SMTP 暂时不可用，登录时可能无法使用邮箱验证
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Default">
+                                    SMTP 未配置，请联系管理员
+                                </MudText>
+                            }
+                        </div>
+                        @if (_configuredMethods.Contains("Email"))
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                已启用
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Default" Size="Size.Small" Icon="@Icons.Material.Filled.Block">
+                                不可用
+                            </MudChip>
+                        }
                     </div>
                 </MudPaper>
             }
@@ -159,6 +221,8 @@
     private string _password = string.Empty;
     private string? _sessionToken;
     private bool _emailAvailable;
+    private List<string> _configuredMethods = new();
+    private bool _twoFactorEnabled;
     private List<string>? _recoveryCodes;
 
     protected override async Task OnInitializedAsync()
@@ -167,10 +231,14 @@
         {
             var status = await AuthService.GetTwoFactorStatusAsync();
             _emailAvailable = status?.AvailableMethods?.Contains("Email") == true;
+            _configuredMethods = status?.ConfiguredMethods ?? new List<string>();
+            _twoFactorEnabled = status?.TwoFactorEnabled ?? false;
         }
         catch
         {
             _emailAvailable = false;
+            _configuredMethods = new();
+            _twoFactorEnabled = false;
         }
     }
 

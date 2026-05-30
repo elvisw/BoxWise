@@ -138,12 +138,20 @@ public class TwoFactorService
             throw new ArgumentNullException(nameof(user));
 
         var availableMethods = new List<string>();
+        var configuredMethods = new List<string>();
 
-        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
-            availableMethods.Add("TOTP");
-        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email)
-            && _emailTwoFactorService.IsSmtpConfigured())
+        // TOTP 始终可用于设置（客户端本地生成，无需服务端配置）
+        availableMethods.Add("TOTP");
+
+        // Email 在 SMTP 已配置时可用于设置（无需用户已配置该标志）
+        if (_emailTwoFactorService.IsSmtpConfigured())
             availableMethods.Add("Email");
+
+        // 已配置的方法列表（用于前端显示当前状态）
+        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
+            configuredMethods.Add("TOTP");
+        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
+            configuredMethods.Add("Email");
 
         var hasRecoveryCodes = await _recoveryCodeService.HasRecoveryCodesAsync(user);
 
@@ -151,6 +159,7 @@ public class TwoFactorService
             TwoFactorEnabled: user.TwoFactorEnabled,
             TwoFactorMethod: user.ConfiguredMethods == TwoFactorMethod.None ? null : user.ConfiguredMethods.ToString(),
             AvailableMethods: availableMethods,
+            ConfiguredMethods: configuredMethods,
             HasRecoveryCodes: hasRecoveryCodes,
             GracePeriodEnd: user.TwoFactorGracePeriodUntil,
             SetupCompletedAt: user.TwoFactorSetupCompletedAt
