@@ -194,6 +194,21 @@
                         }
                     }
                 </div>
+
+                <div class="d-flex justify-center mt-4" style="gap: 8px;">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.ContentCopy"
+                               Disabled="@_isLoading"
+                               OnClick="CopyAllCodes">
+                        复制全部
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.Download"
+                               Disabled="@_isLoading"
+                               OnClick="DownloadCodes">
+                        下载
+                    </MudButton>
+                </div>
             }
         }
     </DialogContent>
@@ -325,6 +340,48 @@
         catch
         {
             Snackbar.Add("复制失败，请手动复制", Severity.Warning);
+        }
+    }
+
+    private async Task CopyAllCodes()
+    {
+        if (_recoveryCodes is not { Count: > 0 })
+        {
+            Snackbar.Add("没有可复制的恢复码", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var allCodes = string.Join(Environment.NewLine, _recoveryCodes);
+            await JsRuntime.InvokeVoidAsync("navigator.clipboard.writeText", allCodes);
+            Snackbar.Add($"已复制 {_recoveryCodes.Count} 个恢复码到剪贴板", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("复制失败，请手动复制", Severity.Warning);
+        }
+    }
+
+    private async Task DownloadCodes()
+    {
+        if (_recoveryCodes is not { Count: > 0 })
+        {
+            Snackbar.Add("没有可下载的恢复码", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var content = string.Join(Environment.NewLine, _recoveryCodes);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            var base64 = Convert.ToBase64String(bytes);
+            await JsRuntime.InvokeVoidAsync("downloadFile", "boxwise-recovery-codes.txt", "text/plain", base64);
+            Snackbar.Add("恢复码已下载", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("下载失败，请手动复制恢复码", Severity.Warning);
         }
     }
 
