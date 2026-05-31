@@ -411,12 +411,13 @@ public class AuthService
     }
 
     /// <summary>
-    /// 验证 WebAuthn 断言。
+    /// 验证 WebAuthn 断言。assertionJson 来自 navigator.credentials.get() 的返回值。
     /// </summary>
-    public async Task<LoginResult> VerifyWebAuthnAsync(string credentialJson, string challengeJson)
+    public async Task<LoginResult> VerifyWebAuthnAsync(string assertionJson)
     {
-        var response = await _http.PostAsJsonAsync("api/auth/webauthn/verify-complete",
-            new { Credential = credentialJson, Challenge = challengeJson });
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/webauthn/verify-complete");
+        request.Content = new StringContent(assertionJson, System.Text.Encoding.UTF8, "application/json");
+        var response = await _http.SendAsync(request);
 
         if (response.IsSuccessStatusCode)
             return LoginResult.Success;
