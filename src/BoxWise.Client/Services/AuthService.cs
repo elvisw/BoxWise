@@ -398,6 +398,21 @@ public class AuthService
     // ===== WebAuthn Methods =====
 
     /// <summary>
+    /// 检查 WebAuthn 在当前 origin 下是否可用（返回完整响应，含 Origin 和 UserHandle）。
+    /// </summary>
+    public async Task<WebAuthnAvailableResponse?> GetWebAuthnAvailableInfoAsync()
+    {
+        try
+        {
+            var response = await _http.GetAsync("api/auth/webauthn/available");
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadFromJsonAsync<WebAuthnAvailableResponse>();
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>
     /// 检查 WebAuthn 在当前 origin 下是否可用。
     /// </summary>
     public async Task<bool> GetWebAuthnAvailableAsync()
@@ -492,14 +507,18 @@ public class AuthService
         var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/webauthn/login-complete");
         request.Content = new StringContent(assertionJson, System.Text.Encoding.UTF8, "application/json");
         var response = await _http.SendAsync(request);
-        if (!response.IsSuccessStatusCode) return LoginResult.Failure;
+        if (!response.IsSuccessStatusCode)
+        {
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return LoginResult.CredentialNotFound;
+            return LoginResult.Failure;
+        }
 
         var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
-        if (user is not null)
-        {
-            _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email);
-            _authStateProvider.NotifyAuthenticationStateChanged();
-        }
+        if (user is null)
+            return LoginResult.Failure;
+        _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email);
+        _authStateProvider.NotifyAuthenticationStateChanged();
         return LoginResult.Success;
     }
 
@@ -571,5 +590,6 @@ public enum LoginResult
     Failure,
     RequiresTwoFactor,
     RequiresTwoFactorSetup,
-    PasswordRequiresChange
+    PasswordRequiresChange,
+    CredentialNotFound
 }

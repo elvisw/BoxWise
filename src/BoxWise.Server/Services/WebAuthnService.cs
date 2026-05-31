@@ -124,7 +124,7 @@ public class WebAuthnService
         });
     }
 
-    public async Task<AppUser?> CompleteLoginAsync(
+    public async Task<(AppUser? User, bool CredentialNotFound)> CompleteLoginAsync(
         AuthenticatorAssertionRawResponse assertion,
         AssertionOptions options)
     {
@@ -140,7 +140,7 @@ public class WebAuthnService
             .Include(c => c.User)
             .FirstOrDefaultAsync(c => c.CredentialId == rawId);
 
-        if (credential is null) return null;
+        if (credential is null) return (null, true);
 
         try
         {
@@ -160,15 +160,15 @@ public class WebAuthnService
             credential.SignCount = (int)result.SignCount;
             _db.Entry(credential).Property(nameof(credential.SignCount)).OriginalValue = oldSignCount;
             await _db.SaveChangesAsync();
-            return credential.User;
+            return (credential.User, false);
         }
         catch (Fido2VerificationException)
         {
-            return null;
+            return (null, false);
         }
         catch (DbUpdateConcurrencyException)
         {
-            return null;
+            return (null, false);
         }
     }
 }

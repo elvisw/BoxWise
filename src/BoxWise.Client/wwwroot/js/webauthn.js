@@ -30,5 +30,30 @@ window.webauthn = {
         var c = await navigator.credentials.get({ publicKey: this.prepareRequestOptions(JSON.parse(json)) });
         if (!c) throw new Error('用户取消了操作');
         return JSON.stringify(c.toJSON());
+    },
+    // Signal API: 告知浏览器哪些凭据仍然有效
+    signalAllAccepted: async function (rpId, userId, credentialIds) {
+        if (typeof PublicKeyCredential === 'undefined') return;
+        if (!PublicKeyCredential.signalAllAcceptedCredentials) return;
+        if (!credentialIds || credentialIds.length === 0) return;
+        try {
+            var ids = credentialIds.map(function (c) { return this.base64urlToArrayBuffer(c); }, this);
+            await PublicKeyCredential.signalAllAcceptedCredentials({
+                rpId: rpId,
+                userId: this.base64urlToArrayBuffer(userId),
+                allAcceptedCredentialIds: ids
+            });
+        } catch (e) { /* 静默降级 */ }
+    },
+    // Signal API: 告知浏览器特定凭据已失效
+    signalUnknown: async function (rpId, credentialId) {
+        if (typeof PublicKeyCredential === 'undefined') return;
+        if (!PublicKeyCredential.signalUnknownCredential) return;
+        try {
+            await PublicKeyCredential.signalUnknownCredential({
+                rpId: rpId,
+                unknownCredentialId: this.base64urlToArrayBuffer(credentialId)
+            });
+        } catch (e) { /* 静默降级 */ }
     }
 };

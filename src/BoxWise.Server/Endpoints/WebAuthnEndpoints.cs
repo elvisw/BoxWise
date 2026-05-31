@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Models;
+using System.Text;
 using System.Text.Json;
 using Fido2NetLib;
 using BoxWise.Server.Services;
@@ -53,11 +54,20 @@ public static class WebAuthnEndpoints
         return group;
     }
 
-    private static Ok<WebAuthnAvailableResponse> IsAvailableAsync(HttpContext httpContext)
+    private static async Task<Ok<WebAuthnAvailableResponse>> IsAvailableAsync(
+        HttpContext httpContext, UserManager<AppUser> userManager)
     {
         var origin = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}";
         var available = WebAuthnService.IsOriginSupported(origin);
-        return TypedResults.Ok(new WebAuthnAvailableResponse(available, origin));
+        string? userHandle = null;
+        if (available)
+        {
+            var user = await userManager.GetUserAsync(httpContext.User);
+            if (user?.Id is not null)
+                userHandle = Convert.ToBase64String(Encoding.UTF8.GetBytes(user.Id))
+                    .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        }
+        return TypedResults.Ok(new WebAuthnAvailableResponse(available, origin, userHandle));
     }
 
     private static async Task<Results<Ok<object>, ProblemHttpResult>>
@@ -88,7 +98,7 @@ public static class WebAuthnEndpoints
             return TypedResults.Ok(new List<WebAuthnCredentialDto>());
         var credentials = await webAuthnService.GetCredentialsAsync(user);
         var dtos = credentials.Select(c => new WebAuthnCredentialDto(
-            c.Id, c.DeviceName, c.CreatedAt)).ToList();
+            c.Id, c.DeviceName, c.CreatedAt, c.CredentialId)).ToList();
         return TypedResults.Ok(dtos);
     }
 
@@ -187,9 +197,13 @@ public static class WebAuthnEndpoints
         if (assertion is null)
             return TypedResults.Problem("无效的请求数据", statusCode: 400);
 
-        var user = await webAuthnService.CompleteLoginAsync(assertion, options);
+        var (user, credentialNotFound) = await webAuthnService.CompleteLoginAsync(assertion, options);
         if (user is null)
+        {
+            if (credentialNotFound)
+                return TypedResults.Problem("此通行密钥未绑定到您的账户", statusCode: 404);
             return TypedResults.Problem("通行密钥验证失败", statusCode: 400);
+        }
 
         httpContext.Session.Remove("WebAuthnLoginOptions");
         await signInManager.SignInAsync(user, isPersistent: true);

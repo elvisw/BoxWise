@@ -234,6 +234,10 @@
             {
                 Navigation.NavigateTo("/");
             }
+            else if (result == LoginResult.CredentialNotFound)
+            {
+                _error = "此通行密钥未绑定到您的账户（可能已被删除）。如有多个通行密钥，请尝试其他密钥。";
+            }
             else
             {
                 _error = "通行密钥验证失败";

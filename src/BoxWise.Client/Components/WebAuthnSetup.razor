@@ -137,6 +137,23 @@ else
 
             _isComplete = true;
             Snackbar.Add("通行密钥已注册成功", Severity.Success);
+
+            // Signal API: 告知浏览器新凭据已生效
+            try
+            {
+                var availableInfo = await AuthService.GetWebAuthnAvailableInfoAsync();
+                var rpId = await JS.InvokeAsync<string>("eval", "window.location.hostname");
+                var credentialId = await JS.InvokeAsync<string>("eval",
+                    "JSON.parse(arguments[0]).id", attestationJson);
+                var userHandle = availableInfo?.UserHandle;
+                if (!string.IsNullOrEmpty(credentialId) && !string.IsNullOrEmpty(userHandle))
+                {
+                    await JS.InvokeVoidAsync("webauthn.signalAllAccepted",
+                        rpId, userHandle, new[] { credentialId });
+                }
+            }
+            catch { /* 静默降级 */ }
+
             await OnSetupComplete.InvokeAsync();
         }
         catch (InvalidOperationException ex)
