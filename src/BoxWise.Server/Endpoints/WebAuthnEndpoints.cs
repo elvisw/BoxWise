@@ -5,7 +5,6 @@ using BoxWise.Server.Models;
 using System.Text.Json;
 using Fido2NetLib;
 using BoxWise.Server.Services;
-using BoxWise.Server.Utilities;
 using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Endpoints;

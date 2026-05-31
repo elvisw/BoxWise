@@ -129,13 +129,15 @@ environment:
   → 2FA 启用，返回恢复码
 ```
 
-### 验证流程
+### 无密码登录流程（Passkey）
+
+> **注意：** 通行密钥仅用于首次无密码登录，不再作为密码后的 2FA 第二因素验证。
 
 ```
-用户登录 → 输入密码
-  → POST /api/auth/webauthn/verify-begin（获取 AssertionOptions）
+用户点击"使用通行密钥登录"
+  → POST /api/auth/webauthn/login-begin（获取 AssertionOptions，匿名端点）
   → 浏览器弹出指纹/面容/PIN 验证（navigator.credentials.get）
-  → POST /api/auth/webauthn/verify-complete（提交 assertion）
+  → POST /api/auth/webauthn/login-complete（提交 assertion，签发 Cookie）
   → 登录成功
 ```
 
@@ -150,7 +152,8 @@ DELETE /api/auth/webauthn/credentials/{id} → 删除指定凭据
 
 - **后端**：`Fido2NetLib` NuGet 包
 - **前端**：浏览器原生 `WebAuthn API`（通过 `webauthn.js` 封装）
-- **Session**：服务器端内存 Session（5 分钟超时），存储注册/验证中间状态
+- **Session**：服务器端内存 Session（5 分钟超时），存储注册/登录中间状态
+- **速率限制**：Passkey 登录端点使用 `passkey-login` 策略（30次/5分钟/IP）
 
 ---
 

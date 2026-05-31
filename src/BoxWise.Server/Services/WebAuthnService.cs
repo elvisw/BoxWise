@@ -95,61 +95,6 @@ public class WebAuthnService
         catch { return false; }
     }
 
-    public async Task<AssertionOptions?> StartVerification(AppUser user)
-    {
-        var credentials = await _db.WebAuthnCredentials
-            .Where(c => c.UserId == user.Id).ToListAsync();
-
-        if (credentials.Count == 0) return null;
-
-        var allowedCredentials = credentials
-            .Select(c => new PublicKeyCredentialDescriptor(Convert.FromBase64String(c.CredentialId)))
-            .ToList();
-
-        return _fido2.GetAssertionOptions(new GetAssertionOptionsParams
-        {
-            AllowedCredentials = allowedCredentials,
-            UserVerification = UserVerificationRequirement.Discouraged
-        });
-    }
-
-    public async Task<bool> CompleteVerification(
-        AppUser user,
-        AuthenticatorAssertionRawResponse assertion,
-        AssertionOptions options)
-    {
-        try
-        {
-            var credentials = await _db.WebAuthnCredentials
-                .Where(c => c.UserId == user.Id).ToListAsync();
-
-            foreach (var credential in credentials)
-            {
-                try
-                {
-                    var storedPublicKey = Convert.FromBase64String(credential.PublicKey);
-                    var result = await _fido2.MakeAssertionAsync(new MakeAssertionParams
-                    {
-                        AssertionResponse = assertion,
-                        OriginalOptions = options,
-                        StoredPublicKey = storedPublicKey,
-                        StoredSignatureCounter = (uint)credential.SignCount,
-                        IsUserHandleOwnerOfCredentialIdCallback = (args, ct) =>
-                            Task.FromResult(credential.CredentialId
-                                == Convert.ToBase64String(args.CredentialId))
-                    });
-
-                    credential.SignCount = (int)result.SignCount;
-                    await _db.SaveChangesAsync();
-                    return true;
-                }
-                catch { /* try next credential */ }
-            }
-            return false;
-        }
-        catch { return false; }
-    }
-
     public async Task<List<WebAuthnCredential>> GetCredentialsAsync(AppUser user)
     {
         return await _db.WebAuthnCredentials
