@@ -223,7 +223,7 @@ public class AdminUserManagementTests
         await using var ctx = await TestIdentityFactory.CreateAsync();
         var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
         var model = CreateCreateAccountModel(ctx.UserManager, admin);
-        model.Input = new() { Username = "", Password = "pass1234" };
+        model.Input = new() { Username = "", Password = "pass1234", Email = "test@example.com" };
 
         var result = await model.OnPostAsync();
 
@@ -237,7 +237,7 @@ public class AdminUserManagementTests
         await using var ctx = await TestIdentityFactory.CreateAsync();
         var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
         var model = CreateCreateAccountModel(ctx.UserManager, admin);
-        model.Input = new() { Username = "testuser", Password = "ab" };
+        model.Input = new() { Username = "testuser", Password = "ab", Email = "test@example.com" };
 
         var result = await model.OnPostAsync();
 
@@ -252,7 +252,7 @@ public class AdminUserManagementTests
         var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
         await CreateUserAsync(ctx, "existing", "pass1234");
         var model = CreateCreateAccountModel(ctx.UserManager, admin);
-        model.Input = new() { Username = "existing", Password = "pass1234" };
+        model.Input = new() { Username = "existing", Password = "pass1234", Email = "test@example.com" };
 
         var result = await model.OnPostAsync();
 
