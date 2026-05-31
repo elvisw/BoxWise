@@ -103,6 +103,12 @@ else
             string attestationJson;
             try
             {
+                var available = await JS.InvokeAsync<bool>("eval", "typeof webauthn !== 'undefined' && window.webauthn.isAvailable()");
+                if (!available)
+                {
+                    _error = "当前环境不支持通行密钥，请在 HTTPS 下使用支持的浏览器";
+                    return;
+                }
                 attestationJson = await JS.InvokeAsync<string>("webauthn.createCredential", optionsJson);
             }
             catch (JSException ex) when (ex.Message.Contains("用户取消了操作"))
