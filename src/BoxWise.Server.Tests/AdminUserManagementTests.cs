@@ -27,6 +27,7 @@ public class AdminUserManagementTests
 
         var model = CreateEditAccountModel(ctx.UserManager, admin);
         model.Username = "newname";
+        model.Email = "newname@example.com";
         var result = await model.OnPostAsync(target.Id);
 
         Assert.IsType<RedirectToPageResult>(result);
@@ -35,6 +36,63 @@ public class AdminUserManagementTests
         Assert.NotNull(updated);
         Assert.Equal("newname", updated!.UserName);
         Assert.Equal("NEWNAME", updated.NormalizedUserName);
+        Assert.Equal("newname@example.com", updated.Email);
+        Assert.Equal("newname@example.com", updated.EmailForTwoFactor);
+    }
+
+    [Fact]
+    public async Task EditAccount_ChangeEmail_Succeeds()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserWithEmailAsync(ctx, "testuser", "pass1234", "old@example.com");
+
+        var model = CreateEditAccountModel(ctx.UserManager, admin);
+        model.Username = "testuser";
+        model.Email = "new@example.com";
+        var result = await model.OnPostAsync(target.Id);
+
+        Assert.IsType<RedirectToPageResult>(result);
+
+        var updated = await ctx.UserManager.FindByIdAsync(target.Id);
+        Assert.NotNull(updated);
+        Assert.Equal("new@example.com", updated!.Email);
+        Assert.Equal("new@example.com", updated.EmailForTwoFactor);
+    }
+
+    [Fact]
+    public async Task EditAccount_EmptyEmail_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserWithEmailAsync(ctx, "testuser", "pass1234", "old@example.com");
+
+        var model = CreateEditAccountModel(ctx.UserManager, admin);
+        model.Username = "testuser";
+        model.Email = "";
+        var result = await model.OnPostAsync(target.Id);
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+        Assert.Contains("邮箱", model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task EditAccount_DuplicateEmail_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserWithEmailAsync(ctx, "testuser", "pass1234", "old@example.com");
+        await CreateUserWithEmailAsync(ctx, "other", "pass1234", "dup@example.com");
+
+        var model = CreateEditAccountModel(ctx.UserManager, admin);
+        model.Username = "testuser";
+        model.Email = "dup@example.com";
+        var result = await model.OnPostAsync(target.Id);
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+        Assert.Contains("邮箱", model.ErrorMessage);
     }
 
     [Fact]
@@ -46,6 +104,7 @@ public class AdminUserManagementTests
 
         var model = CreateEditAccountModel(ctx.UserManager, admin);
         model.Username = "";
+        model.Email = "oldname@example.com";
         var result = await model.OnPostAsync(target.Id);
 
         Assert.IsType<PageResult>(result);
