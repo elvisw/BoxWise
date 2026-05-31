@@ -202,6 +202,7 @@
     private bool _showRecoveryCode;
     private bool _hasRecoveryCodes;
     private bool _passkeyLoading;
+    private bool _isSendingCode; // 独立守卫：防止并发邮件发送，不与 HandleLogin 的 _isLoading 冲突
 
     private async Task HandlePasskeyLogin()
     {
@@ -312,8 +313,8 @@
 
     private async Task SelectMethod(string method)
     {
-        // 防止快速双击触发并发邮件发送
-        if (_isLoading) return;
+        // 防止快速双击或 LoadTwoFactorChallengeAsync 自动调用时触发并发邮件发送
+        if (_isSendingCode) return;
 
         _selectedMethod = method;
         _totpCode = string.Empty;
@@ -322,7 +323,7 @@
         // 选择 Email 方法时自动发送验证码（不再在 Challenge 阶段提前发送）
         if (method == "Email")
         {
-            _isLoading = true;
+            _isSendingCode = true;
             try
             {
                 var newToken = await AuthService.ResendTwoFactorChallengeCodeAsync();
@@ -341,7 +342,7 @@
             }
             finally
             {
-                _isLoading = false;
+                _isSendingCode = false;
             }
         }
     }
@@ -409,6 +410,8 @@
 
     private async Task ResendEmailCode()
     {
+        if (_isSendingCode) return;
+        _isSendingCode = true;
         _error = null;
         try
         {
@@ -422,6 +425,10 @@
         catch
         {
             _error = "重新发送失败，请稍后重试";
+        }
+        finally
+        {
+            _isSendingCode = false;
         }
     }
 

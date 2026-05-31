@@ -1,0 +1,32 @@
+- generic [ref=e7]:
+  - banner [ref=e8]:
+    - toolbar [ref=e9]:
+      - group [ref=e10]:
+        - img "箱知 BoxWise" [ref=e11]
+        - heading "箱知 · BoxWise" [level=6] [ref=e12]
+  - generic [ref=e15]:
+    - heading "登录 BoxWise" [level=5] [ref=e16]
+    - generic [ref=e17]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - textbox "用户名*" [ref=e21]
+          - group "用户名"
+        - generic: 用户名*
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - textbox "密码*" [ref=e25]
+          - group "密码"
+        - generic: 密码*
+      - button "登录" [ref=e26] [cursor=pointer]:
+        - generic [ref=e27]: 登录
+    - separator [ref=e28]
+    - button "验证中..." [disabled]:
+      - generic:
+        - generic:
+          - img
+        - text: 验证中...
+  - contentinfo [ref=e35]:
+    - generic [ref=e36]:
+      - text: © 2026 BoxWise ·
+      - link "GitHub" [ref=e37] [cursor=pointer]:
+        - /url: https://github.com/elvisw/BoxWise

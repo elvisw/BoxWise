@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Models;
 using System.Text.Json;
 using Fido2NetLib;
 using BoxWise.Server.Services;
+using BoxWise.Server.Utilities;
 using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Endpoints;
@@ -22,17 +24,10 @@ public static class WebAuthnEndpoints
             .WithTags("2FA")
             .ProducesProblem(401);
 
-        group.MapPost("/verify-begin", VerifyBeginAsync)
-            .WithTags("2FA")
-            .ProducesProblem(401);
-
         group.MapPost("/register-complete", RegisterCompleteAsync)
             .WithTags("2FA")
-            .ProducesProblem(401);
-
-        group.MapPost("/verify-complete", VerifyCompleteAsync)
-            .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .AddEndpointFilter<CsrfValidationFilter>();
 
         group.MapGet("/credentials", GetCredentialsAsync)
             .WithTags("2FA")
@@ -40,7 +35,8 @@ public static class WebAuthnEndpoints
 
         group.MapDelete("/credentials/{id:int}", DeleteCredentialAsync)
             .WithTags("2FA")
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .AddEndpointFilter<CsrfValidationFilter>();
 
         // Passkey 无密码登录（匿名访问，速率限制防止滥用）
         // 使用 passkey-login 策略（30次/5分钟）而非 login-per-ip（5次/15分钟）
@@ -85,22 +81,6 @@ public static class WebAuthnEndpoints
         }
     }
 
-    private static async Task<Results<Ok<object>, ProblemHttpResult>>
-        VerifyBeginAsync(UserManager<AppUser> userManager,
-        WebAuthnService webAuthnService, HttpContext httpContext)
-    {
-        var user = await userManager.GetUserAsync(httpContext.User);
-        if (user?.UserName is null)
-            return TypedResults.Problem("未登录", statusCode: 401);
-
-        var options = await webAuthnService.StartVerification(user);
-        if (options is null)
-            return TypedResults.Problem("未注册 WebAuthn 凭证", statusCode: 400);
-
-        httpContext.Session.SetString("WebAuthnVerifyOptions", options.ToJson());
-        return TypedResults.Ok<object>(options);
-    }
-
     private static async Task<Ok<List<WebAuthnCredentialDto>>> GetCredentialsAsync(
         UserManager<AppUser> userManager, WebAuthnService webAuthnService, HttpContext httpContext)
     {
@@ -130,7 +110,14 @@ public static class WebAuthnEndpoints
             // 如果不再有任何已配置的 2FA 方法，禁用 2FA
             if (user.ConfiguredMethods == TwoFactorMethod.None)
                 user.TwoFactorEnabled = false;
-            await userManager.UpdateAsync(user);
+            try
+            {
+                await userManager.UpdateAsync(user);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // 并发删除：另一个请求已更新用户状态，当前操作成功完成即可
+            }
         }
 
         return TypedResults.Ok();
@@ -174,32 +161,6 @@ public static class WebAuthnEndpoints
         var codes = await recoveryCodeService.RegenerateRecoveryCodesAsync(user);
         httpContext.Session.Remove("WebAuthnRegisterOptions");
         return TypedResults.Ok(new RecoveryCodesResponse(codes));
-    }
-
-    private static async Task<Results<Ok, ProblemHttpResult>> VerifyCompleteAsync(
-        UserManager<AppUser> userManager, WebAuthnService webAuthnService,
-        HttpContext httpContext)
-    {
-        var user = await userManager.GetUserAsync(httpContext.User);
-        if (user?.UserName is null)
-            return TypedResults.Problem("未登录", statusCode: 401);
-
-        var optionsJson = httpContext.Session.GetString("WebAuthnVerifyOptions");
-        if (string.IsNullOrEmpty(optionsJson))
-            return TypedResults.Problem("验证会话已过期", statusCode: 400);
-
-        var options = AssertionOptions.FromJson(optionsJson);
-        var body = await new StreamReader(httpContext.Request.Body).ReadToEndAsync();
-        var assertion = JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(body,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        if (assertion is null)
-            return TypedResults.Problem("无效的请求数据", statusCode: 400);
-
-        var success = await webAuthnService.CompleteVerification(user, assertion, options);
-        if (!success) return TypedResults.Problem("WebAuthn 验证失败", statusCode: 400);
-
-        httpContext.Session.Remove("WebAuthnVerifyOptions");
-        return TypedResults.Ok();
     }
 
     // ===== Passkey 无密码登录（匿名访问）=====

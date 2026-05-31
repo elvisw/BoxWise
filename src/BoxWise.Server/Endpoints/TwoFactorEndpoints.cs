@@ -241,6 +241,16 @@ public static class TwoFactorEndpoints
             // 返回空方法列表，前端将显示错误提示，用户需返回重新登录（登录端点将走无 2FA 路径）
         }
 
+        // 防御：部署后仅剩 WebAuthn（不再作为 2FA 方法）的用户
+        // 清除 WebAuthn 标志，若无其他方法则禁用 2FA
+        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.WebAuthn))
+        {
+            user.ConfiguredMethods &= ~TwoFactorMethod.WebAuthn;
+            if (user.ConfiguredMethods == TwoFactorMethod.None)
+                user.TwoFactorEnabled = false;
+            await userManager.UpdateAsync(user);
+        }
+
         if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
             methods.Add("TOTP");
 
