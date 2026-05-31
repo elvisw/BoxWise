@@ -42,7 +42,7 @@
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Medium" Class="mr-3" Color="Color.Tertiary" />
             <div class="flex-grow-1">
-                <MudText Typo="Typo.body1" Style="font-weight:500;">双因素认证</MudText>
+                <MudText Typo="Typo.body1" Style="font-weight:500;">双因素认证与通行密钥</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Default">
                     @_twoFactorStatusText
                 </MudText>
@@ -199,7 +199,7 @@
 
         if (_twoFactorEnabled)
         {
-            var dialog = await DialogService.ShowAsync<TwoFactorManage>("管理双因素认证", options);
+            var dialog = await DialogService.ShowAsync<TwoFactorManage>("管理双因素认证与通行密钥", options);
             var result = await dialog.Result;
             if (result?.Canceled == false)
             {
@@ -209,7 +209,7 @@
         }
         else
         {
-            var dialog = await DialogService.ShowAsync<TwoFactorSetup>("双因素认证", options);
+            var dialog = await DialogService.ShowAsync<TwoFactorSetup>("双因素认证与通行密钥", options);
             var result = await dialog.Result;
             if (result?.Canceled == false)
             {
