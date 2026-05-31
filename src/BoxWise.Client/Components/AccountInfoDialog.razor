@@ -6,10 +6,25 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@(_hasEmail ? "账户信息" : "设置邮箱")</MudText>
+        <MudText Typo="Typo.h6">@(_step == Step.View ? "账户信息" : "修改邮箱")</MudText>
     </TitleContent>
     <DialogContent>
-        @if (_step == Step.PasswordAuth)
+        @if (_step == Step.View)
+        {
+            <MudTextField Value="@_username" Label="用户名"
+                          Variant="Variant.Outlined" ReadOnly="true" />
+
+            <div class="d-flex align-center mt-3" style="gap: 8px;">
+                <MudTextField Value="@_email" Label="邮箱"
+                              Variant="Variant.Outlined" ReadOnly="true" Class="flex-grow-1"
+                              HelperText="用于双因素认证的邮箱验证码" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           @onclick="StartModifyEmail">
+                    修改
+                </MudButton>
+            </div>
+        }
+        else if (_step == Step.PasswordAuth)
         {
             <MudText Typo="Typo.body2" Class="mb-3">
                 请先输入当前密码以验证身份。
@@ -192,9 +207,13 @@
         }
     </DialogContent>
     <DialogActions>
-        @if (_step == Step.PasswordAuth)
+        @if (_step == Step.View)
         {
-            <MudButton OnClick="Cancel">取消</MudButton>
+            <MudButton OnClick="Cancel">关闭</MudButton>
+        }
+        else if (_step == Step.PasswordAuth)
+        {
+            <MudButton OnClick="BackToView" Disabled="@_loading">返回</MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary"
                        Disabled="@(_loading || string.IsNullOrEmpty(_password))"
                        @onclick="AuthenticateAsync">
@@ -203,11 +222,11 @@
         }
         else if (_step == Step.TwoFactorVerify)
         {
-            <MudButton OnClick="BackToPasswordAuth" Disabled="@_loading">返回</MudButton>
+            <MudButton OnClick="BackToView" Disabled="@_loading">返回</MudButton>
         }
         else if (_step == Step.VerifyEmail)
         {
-            <MudButton OnClick="BackToPasswordAuth" Disabled="@_loading">返回</MudButton>
+            <MudButton OnClick="BackToView" Disabled="@_loading">返回</MudButton>
         }
     </DialogActions>
 </MudDialog>
@@ -216,7 +235,9 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = null!;
 
-    private Step _step = Step.PasswordAuth;
+    private Step _step = Step.View;
+    private string _username = "";
+    private string _email = "";
     private string _password = string.Empty;
     private string _newEmail = string.Empty;
     private string _code = string.Empty;
@@ -230,7 +251,7 @@
     private string _originalEmail = "";
     private bool _hasEmail;
 
-    // 2FA 验证状态
+    // 2FA state
     private TwoFactorStatusDto? _twoFactorStatus;
     private string _totpCode = string.Empty;
     private string _emailCode = string.Empty;
@@ -240,10 +261,32 @@
 
     protected override void OnInitialized()
     {
-        _originalName = AppState.CurrentUserName ?? "";
-        _originalEmail = AppState.CurrentUserEmail ?? "";
+        _username = AppState.CurrentUserName ?? "";
+        _originalName = _username;
+        _email = AppState.CurrentUserEmail ?? "";
+        _originalEmail = _email;
         _hasEmail = !string.IsNullOrWhiteSpace(_originalEmail);
-        _newEmail = _originalEmail; // Pre-fill with current email if exists
+        _newEmail = _originalEmail;
+    }
+
+    private void StartModifyEmail()
+    {
+        _error = null;
+        _password = string.Empty;
+        _sessionToken = null;
+        _modifySessionToken = null;
+        _verificationToken = null;
+        _code = string.Empty;
+        _newEmail = _email;
+        _codeSent = false;
+        _totpCode = string.Empty;
+        _emailCode = string.Empty;
+        _recoveryCode = string.Empty;
+        _emailCodeSent = false;
+        _emailChallengeToken = null;
+        _twoFactorStatus = null;
+        _step = Step.PasswordAuth;
+        StateHasChanged();
     }
 
     private async Task AuthenticateAsync()
@@ -255,18 +298,15 @@
         {
             _sessionToken = await AuthService.ReAuthenticateAsync(_password);
 
-            // 检查 2FA 状态以确定是否需要附加验证
             var status = await AuthService.GetTwoFactorStatusAsync();
             _twoFactorStatus = status;
 
             if (status?.TwoFactorEnabled == true)
             {
-                // 用户已启用 2FA — 需要先完成 2FA 验证
                 _step = Step.TwoFactorVerify;
             }
             else
             {
-                // 未启用 2FA — 直接进入邮箱修改
                 _step = Step.VerifyEmail;
             }
 
@@ -282,11 +322,6 @@
         }
     }
 
-    // ===== 2FA 验证方法 =====
-
-    /// <summary>
-    /// 发送邮箱 2FA 验证码。
-    /// </summary>
     private async Task SendEmailChallengeAsync()
     {
         _error = null;
@@ -308,9 +343,6 @@
         }
     }
 
-    /// <summary>
-    /// TOTP 2FA 验证。
-    /// </summary>
     private async Task VerifyTOTPAsync()
     {
         _error = null;
@@ -338,9 +370,6 @@
         }
     }
 
-    /// <summary>
-    /// 邮箱 2FA 验证。
-    /// </summary>
     private async Task VerifyEmail2FAAsync()
     {
         _error = null;
@@ -368,9 +397,6 @@
         }
     }
 
-    /// <summary>
-    /// 恢复码 2FA 验证。
-    /// </summary>
     private async Task VerifyRecoveryCodeAsync()
     {
         _error = null;
@@ -412,7 +438,6 @@
         }
         catch (InvalidOperationException ex)
         {
-            // 如果 session token 过期，回退到 Step 1
             if (ex.Message.Contains("无效") || ex.Message.Contains("过期") || ex.Message.Contains("令牌"))
             {
                 _error = "操作超时，请重新验证";
@@ -448,11 +473,23 @@
                 return;
             }
 
-            // 使用 operation token 更新邮箱
             var (success, error) = await AuthService.UpdateEmailAsync(verifiedEmail, operationToken);
             if (success)
             {
-                MudDialog.Close();
+                _email = verifiedEmail;
+                _originalEmail = verifiedEmail;
+                _hasEmail = true;
+                // 返回 View 步骤，显示更新后的邮箱
+                _step = Step.View;
+                _error = null;
+                _password = string.Empty;
+                _code = string.Empty;
+                _newEmail = _email;
+                _codeSent = false;
+                _sessionToken = null;
+                _modifySessionToken = null;
+                _verificationToken = null;
+                StateHasChanged();
             }
             else
             {
@@ -469,7 +506,7 @@
         }
     }
 
-    private void BackToPasswordAuth()
+    private void BackToView()
     {
         _error = null;
         _codeSent = false;
@@ -484,7 +521,8 @@
         _recoveryCode = string.Empty;
         _emailCodeSent = false;
         _emailChallengeToken = null;
-        _step = Step.PasswordAuth;
+        _newEmail = _email;
+        _step = Step.View;
         StateHasChanged();
     }
 
@@ -508,6 +546,7 @@
 
     private enum Step
     {
+        View,
         PasswordAuth,
         TwoFactorVerify,
         VerifyEmail
