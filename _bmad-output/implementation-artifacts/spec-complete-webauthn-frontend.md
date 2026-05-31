@@ -2,7 +2,7 @@
 title: '补完 WebAuthn 通行密钥功能'
 type: 'feature'
 created: '2026-05-31'
-status: 'in-progress'
+status: 'done'
 baseline_commit: '6d46cda'
 context: []
 ---
@@ -260,3 +260,58 @@ public async Task<AppUser?> CompleteLoginAsync(
 
 **端点：** `POST /api/auth/webauthn/login-begin` + `login-complete` — `.AllowAnonymous()`
 **Login.razor：** 密码表单下方，MudDivider 分隔，"使用通行密钥登录"按钮 + Fingerprint 图标
+
+## Suggested Review Order
+
+**后端：Passkey 无密码登录核心**
+
+- 入口：匿名登录端点，Session 存取 AssertionOptions，SignInManager 签发 Cookie
+  [`WebAuthnEndpoints.cs:192`](../../src/BoxWise.Server/Endpoints/WebAuthnEndpoints.cs#L192)
+
+- 按 credentialId 精确查询 + Base64url 转换 + 乐观并发控制
+  [`WebAuthnService.cs:182`](../../src/BoxWise.Server/Services/WebAuthnService.cs#L182)
+
+- SignCount 并发令牌 EF 配置
+  [`WebAuthnCredentialConfiguration.cs:27`](../../src/BoxWise.Server/Data/Configurations/WebAuthnCredentialConfiguration.cs#L27)
+
+- 修复 RegisterCompleteAsync：2FA 启用 + 恢复码 + UpdateAsync 返回值检查
+  [`WebAuthnEndpoints.cs:134`](../../src/BoxWise.Server/Endpoints/WebAuthnEndpoints.cs#L134)
+
+- ChallengeAsync 添加 WebAuthn 方法
+  [`TwoFactorEndpoints.cs:248`](../../src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs#L248)
+
+- FIDO2 Origins 双端口默认 + ResidentKey=Required
+  [`Program.cs:124`](../../src/BoxWise.Server/Program.cs#L124)
+
+**客户端：AuthService 方法**
+
+- 凭证管理 4 方法 + Passkey 登录 2 方法
+  [`AuthService.cs:442`](../../src/BoxWise.Client/Services/AuthService.cs#L442)
+
+**客户端：UI 组件**
+
+- 登录页"使用通行密钥登录"按钮 + JS 互操作流程
+  [`Login.razor:46`](../../src/BoxWise.Client/Pages/Login.razor#L46)
+
+- WebAuthnSetup 注册组件：设备名输入 + 防抖锁 + JS createCredential
+  [`WebAuthnSetup.razor:1`](../../src/BoxWise.Client/Components/WebAuthnSetup.razor#L1)
+
+- WebAuthnCredentialList 凭据列表：MudPaper + 内联确认 + 乐观回滚
+  [`WebAuthnCredentialList.razor:1`](../../src/BoxWise.Client/Components/WebAuthnCredentialList.razor#L1)
+
+- TwoFactorSetup WebAuthn 卡片集成
+  [`TwoFactorSetup.razor:52`](../../src/BoxWise.Client/Components/TwoFactorSetup.razor#L52)
+
+- TwoFactorManage 通行密钥管理入口
+  [`TwoFactorManage.razor:82`](../../src/BoxWise.Client/Components/TwoFactorManage.razor#L82)
+
+**配置与文档**
+
+- webauthn.js 加载
+  [`index.html:44`](../../src/BoxWise.Client/wwwroot/index.html#L44)
+
+- 使用指南（测试 + 生产环境）
+  [`webauthn-setup-guide.md:1`](../../docs/webauthn-setup-guide.md#L1)
+
+- README 入口
+  [`README.md:103`](../../README.md#L103)
