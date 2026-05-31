@@ -183,35 +183,47 @@ public class WebAuthnService
         AuthenticatorAssertionRawResponse assertion,
         AssertionOptions options)
     {
-        var allCredentials = await _db.WebAuthnCredentials
-            .Include(c => c.User)
-            .ToListAsync();
-
-        foreach (var credential in allCredentials)
+        // 按 credentialId 精确查询（避免全表遍历 + SignCount 竞争）
+        // assertion.Id 来自浏览器端 Base64url 格式，需转为标准 Base64 与数据库匹配
+        var rawId = assertion.Id.Replace('-', '+').Replace('_', '/');
+        switch (rawId.Length % 4)
         {
-            try
-            {
-                var result = await _fido2.MakeAssertionAsync(new MakeAssertionParams
-                {
-                    AssertionResponse = assertion,
-                    OriginalOptions = options,
-                    StoredPublicKey = Convert.FromBase64String(credential.PublicKey),
-                    StoredSignatureCounter = (uint)credential.SignCount,
-                    IsUserHandleOwnerOfCredentialIdCallback = (args, ct) =>
-                        Task.FromResult(credential.CredentialId
-                            == Convert.ToBase64String(args.CredentialId))
-                });
-
-                credential.SignCount = (int)result.SignCount;
-                await _db.SaveChangesAsync();
-                return credential.User;
-            }
-            catch
-            {
-                // 凭证不匹配，继续尝试下一个
-            }
+            case 2: rawId += "=="; break;
+            case 3: rawId += "="; break;
         }
+        var credential = await _db.WebAuthnCredentials
+            .Include(c => c.User)
+            .FirstOrDefaultAsync(c => c.CredentialId == rawId);
 
-        return null;
+        if (credential is null) return null;
+
+        try
+        {
+            var result = await _fido2.MakeAssertionAsync(new MakeAssertionParams
+            {
+                AssertionResponse = assertion,
+                OriginalOptions = options,
+                StoredPublicKey = Convert.FromBase64String(credential.PublicKey),
+                StoredSignatureCounter = (uint)credential.SignCount,
+                IsUserHandleOwnerOfCredentialIdCallback = (args, ct) =>
+                    Task.FromResult(credential.CredentialId
+                        == Convert.ToBase64String(args.CredentialId))
+            });
+
+            // 乐观并发控制：用 OriginalValue 防止 SignCount 竞争
+            var oldSignCount = credential.SignCount;
+            credential.SignCount = (int)result.SignCount;
+            _db.Entry(credential).Property(nameof(credential.SignCount)).OriginalValue = oldSignCount;
+            await _db.SaveChangesAsync();
+            return credential.User;
+        }
+        catch (Fido2VerificationException)
+        {
+            return null;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return null;
+        }
     }
 }
