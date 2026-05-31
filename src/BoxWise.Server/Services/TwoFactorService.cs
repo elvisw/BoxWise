@@ -83,8 +83,8 @@ public class TwoFactorService
         if (!totp.VerifyTotp(code, out long timeStepMatched, new VerificationWindow(1, 1)))
             return false;
 
-        // 防重放：同一用户 + 同一时间步长 2 分钟内不可重复使用
-        var replayKey = $"totp_replay_{user.Id}:{timeStepMatched}";
+        // 防重放：按 purpose 隔离（setup/login/modify 独立）
+        var replayKey = $"totp_replay_{user.Id}:setup:{timeStepMatched}";
         if (_cache.TryGetValue(replayKey, out _))
             return false;
         _cache.Set(replayKey, true, TimeSpan.FromMinutes(2));
@@ -103,7 +103,7 @@ public class TwoFactorService
     /// 支持双密钥窗口：优先验证 TotpSecretKey，失败时回退到 PendingTotpSecretKey。
     /// 注意：速率限制由端点层配合 RateLimit 配置节实现（Story 8-4）。
     /// </summary>
-    public Task<bool> VerifyTotpChallengeAsync(AppUser user, string code)
+    public Task<bool> VerifyTotpChallengeAsync(AppUser user, string code, string purpose = "login")
     {
         if (user is null)
             return Task.FromResult(false);
@@ -133,8 +133,8 @@ public class TwoFactorService
                 return Task.FromResult(TryVerifyWithPendingKey(user, code));
             }
 
-            // 防重放
-            var replayKey = $"totp_replay_{user.Id}:{timeStepMatched}";
+            // 防重放（按 purpose 隔离，避免登录和修改互相干扰）
+            var replayKey = $"totp_replay_{user.Id}:{purpose}:{timeStepMatched}";
             if (_cache.TryGetValue(replayKey, out _))
                 return Task.FromResult(false);
             _cache.Set(replayKey, true, TimeSpan.FromMinutes(2));

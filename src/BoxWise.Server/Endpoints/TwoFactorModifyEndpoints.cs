@@ -76,7 +76,7 @@ public static class TwoFactorModifyEndpoints
                     {
                         { "method", new[] { "该方法未配置" } }
                     });
-                valid = await twoFactorService.VerifyTotpChallengeAsync(user, request.Code);
+                valid = await twoFactorService.VerifyTotpChallengeAsync(user, request.Code, "modify");
                 break;
             case "Email":
                 if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))

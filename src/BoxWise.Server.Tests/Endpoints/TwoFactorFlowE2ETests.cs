@@ -253,9 +253,13 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
         var setupResult = await _twoFactorService.VerifyTotpSetupAsync(user, validCode, sessionToken);
         Assert.True(setupResult);
 
-        // 挑战验证
-        var challengeResult = await _twoFactorService.VerifyTotpChallengeAsync(user, validCode);
-        Assert.False(challengeResult); // 防重放：同一 timeStep 已使用
+        // 挑战验证（purpose=login 与 setup 隔离，不会互相影响）
+        var challengeResult = await _twoFactorService.VerifyTotpChallengeAsync(user, validCode, "login");
+        Assert.True(challengeResult); // purpose 不同，不作为重放拒绝
+
+        // 同一 purpose 内重放检测仍有效
+        var replayResult = await _twoFactorService.VerifyTotpChallengeAsync(user, validCode, "login");
+        Assert.False(replayResult); // 相同 purpose + 相同 timeStep → 防重放
     }
 
     [Fact]
