@@ -54,7 +54,8 @@ public class WebAuthnService
             ExcludeCredentials = excludeCredentials,
             AuthenticatorSelection = new AuthenticatorSelection
             {
-                UserVerification = UserVerificationRequirement.Preferred
+                UserVerification = UserVerificationRequirement.Preferred,
+                ResidentKey = ResidentKeyRequirement.Required
             },
             AttestationPreference = AttestationConveyancePreference.None
         });

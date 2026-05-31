@@ -122,14 +122,18 @@ builder.Services.AddScoped<RecoveryCodeService>();
 builder.Services.AddScoped<WebAuthnService>();
 
 // FIDO2 WebAuthn
+var webAuthnOrigin = builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001";
 var fido2Config = new Fido2Configuration
 {
     ServerDomain = builder.Configuration["WebAuthn:ServerDomain"]
-        ?? new Uri(builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001").Host,
+        ?? new Uri(webAuthnOrigin).Host,
     ServerName = "BoxWise",
     Origins = new HashSet<string>
     {
-        builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001"
+        webAuthnOrigin,
+        // 开发环境同时允许两个 localhost 端口
+        "https://localhost:5000",
+        "https://localhost:5001"
     }
 };
 builder.Services.AddSingleton<IFido2>(new Fido2NetLib.Fido2(fido2Config));
