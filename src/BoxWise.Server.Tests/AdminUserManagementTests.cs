@@ -61,6 +61,27 @@ public class AdminUserManagementTests
     }
 
     [Fact]
+    public async Task EditAccount_RenameOnly_EmailUnchanged()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var target = await CreateUserWithEmailAsync(ctx, "oldname", "pass1234", "keep@example.com");
+
+        var model = CreateEditAccountModel(ctx.UserManager, admin);
+        model.Username = "newname";
+        model.Email = "keep@example.com"; // unchanged
+        var result = await model.OnPostAsync(target.Id);
+
+        Assert.IsType<RedirectToPageResult>(result);
+
+        var updated = await ctx.UserManager.FindByIdAsync(target.Id);
+        Assert.NotNull(updated);
+        Assert.Equal("newname", updated!.UserName);
+        Assert.Equal("keep@example.com", updated.Email);
+        Assert.Equal("keep@example.com", updated.EmailForTwoFactor);
+    }
+
+    [Fact]
     public async Task EditAccount_EmptyEmail_ReturnsError()
     {
         await using var ctx = await TestIdentityFactory.CreateAsync();

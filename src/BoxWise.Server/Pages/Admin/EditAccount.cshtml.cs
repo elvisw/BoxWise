@@ -99,32 +99,76 @@ public class EditAccountModel : PageModel
 
         var oldName = user.UserName;
         var oldEmail = user.Email;
+        var nameChanged = !string.Equals(oldName, Username, StringComparison.OrdinalIgnoreCase);
+        var emailChanged = !string.Equals(oldEmail, Email, StringComparison.OrdinalIgnoreCase);
 
-        var nameResult = await _userManager.SetUserNameAsync(user, Username);
-        if (!nameResult.Succeeded)
-        {
-            ErrorMessage = string.Join("; ", nameResult.Errors.Select(e => e.Description));
-            return Page();
-        }
-
-        if (!string.Equals(oldEmail, Email, StringComparison.OrdinalIgnoreCase))
+        // 先更新邮箱（失败不影响用户名），再更新用户名（失败时回滚邮箱）
+        if (emailChanged)
         {
             try
             {
-                var emailResult = await _userManager.SetEmailAsync(user, Email);
+                var normalizedEmail = Email.ToLowerInvariant();
+                var emailResult = await _userManager.SetEmailAsync(user, normalizedEmail);
                 if (!emailResult.Succeeded)
                 {
                     ErrorMessage = string.Join("; ", emailResult.Errors.Select(e => e.Description));
                     return Page();
                 }
-                user.EmailForTwoFactor = Email;
+                user.EmailForTwoFactor = normalizedEmail;
                 await _userManager.UpdateAsync(user);
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
+                _logger.LogWarning(ex, "Email uniqueness conflict when editing user {UserId}", user.Id);
                 ErrorMessage = $"邮箱 '{Email}' 已被其他账户使用";
                 return Page();
             }
+        }
+
+        if (nameChanged)
+        {
+            try
+            {
+                var nameResult = await _userManager.SetUserNameAsync(user, Username);
+                if (!nameResult.Succeeded)
+                {
+                    // 回滚邮箱变更
+                    if (emailChanged)
+                    {
+                        try
+                        {
+                            await _userManager.SetEmailAsync(user, oldEmail ?? "");
+                            user.EmailForTwoFactor = oldEmail;
+                            await _userManager.UpdateAsync(user);
+                        }
+                        catch { /* 尽力回滚，记录日志 */ }
+                    }
+                    ErrorMessage = string.Join("; ", nameResult.Errors.Select(e => e.Description));
+                    return Page();
+                }
+            }
+            catch (DbUpdateException ex)
+            {
+                // 回滚邮箱变更
+                if (emailChanged)
+                {
+                    try
+                    {
+                        await _userManager.SetEmailAsync(user, oldEmail ?? "");
+                        user.EmailForTwoFactor = oldEmail;
+                        await _userManager.UpdateAsync(user);
+                    }
+                    catch { /* 尽力回滚 */ }
+                }
+                _logger.LogWarning(ex, "Username uniqueness conflict when editing user {UserId}", user.Id);
+                ErrorMessage = $"用户名 '{Username}' 已被占用";
+                return Page();
+            }
+        }
+
+        if (!nameChanged && !emailChanged)
+        {
+            return RedirectToPage("/Admin/Index");
         }
 
         _logger.LogInformation("Admin updated user '{OldName}' → '{NewName}', email '{OldEmail}' → '{NewEmail}'",
