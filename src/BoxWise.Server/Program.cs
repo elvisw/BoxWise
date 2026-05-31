@@ -271,7 +271,7 @@ builder.Services.AddRateLimiter(options =>
             });
     });
 
-    // 邮箱验证码发送 - 按用户（每 60s 1 次）
+    // 邮箱验证码发送 + 验证 - 按用户（每 60s 2 次，允许发送+验证各一次）
     options.AddPolicy<string>("email-verification", httpContext =>
     {
         var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
@@ -279,7 +279,7 @@ builder.Services.AddRateLimiter(options =>
         return RateLimitPartition.GetFixedWindowLimiter(userId,
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 1),
+                PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 2),
                 Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:EmailVerificationWindowSeconds", 60)),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
