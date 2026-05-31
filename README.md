@@ -102,6 +102,14 @@ SMTP 邮件服务用于发送双因素认证（2FA）验证码。登录管理后
 
 > **安全提示：** 密码保存时使用 ASP.NET Core Data Protection API 加密存储。确保 `data/keys/` 目录已持久化（Docker 部署需挂载卷），否则密钥环丢失后密码解密失败，需要重新输入密码。
 
+### WebAuthn 通行密钥（可选）
+
+支持使用指纹、面容或硬件密钥（如 YubiKey）作为双因素认证方式。WebAuthn 凭证与注册时的 origin 绑定，测试和生产环境配置有差异。
+
+详见：[WebAuthn 通行密钥配置指南](docs/webauthn-setup-guide.md)
+
+> **快速配置：** 开发环境开箱即用（`localhost` HTTPS）。生产环境需配置 `WebAuthn:Origin` 和 `WebAuthn:ServerDomain`。
+
 ## 运行
 
 ### 本地开发
