@@ -49,6 +49,28 @@
                 </MudPaper>
             }
 
+            @* 未配置但可用的方法——允许添加 *@
+            @if (!_configuredMethods.Contains("TOTP"))
+            {
+                <MudDivider Class="my-2" />
+                <MudText Typo="Typo.caption" Color="Color.Default" Class="mb-2">可添加的验证方式</MudText>
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Smartphone" Size="Size.Medium" Class="mr-3" Color="Color.Secondary" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;">TOTP 验证器</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                使用 Google Authenticator、Authy 等应用
+                            </MudText>
+                        </div>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                   Disabled="@_isLoading" @onclick="StartAddTotp">
+                            添加
+                        </MudButton>
+                    </div>
+                </MudPaper>
+            }
+
             @if (_hasRecoveryCodes)
             {
                 <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
@@ -140,6 +162,35 @@
                 </div>
             }
         }
+        else if (_manageStep == ManageStep.VerifyPasswordForAdd)
+        {
+            <MudText Typo="Typo.body2" Class="mb-4">
+                请先输入当前密码以验证身份。
+            </MudText>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+                    @_error
+                </MudAlert>
+            }
+
+            <MudTextField @bind-Value="_password"
+                          Label="当前密码"
+                          InputType="InputType.Password"
+                          Required="true"
+                          Immediate="true"
+                          Variant="Variant.Outlined"
+                          Disabled="@_isLoading"
+                          FullWidth="true" />
+        }
+        else if (_manageStep == ManageStep.SetupTotp)
+        {
+            <TotpSetup ModifyMode="false"
+                       SessionToken="@(_addSessionToken!)"
+                       OnSetupComplete="OnAddTotpComplete"
+                       OnBack="GoToChooseAction" />
+        }
         else if (_manageStep == ManageStep.ModifyTotp)
         {
             <TotpSetup ModifyMode="true"
@@ -222,7 +273,20 @@
         }
         else if (_manageStep == ManageStep.ModifyAuthenticate)
         {
-            <MudButton OnClick="GoToChooseAction">返回</MudButton>
+            <MudButton OnClick="GoToChooseAction" Disabled="@_isLoading">返回</MudButton>
+        }
+        else if (_manageStep == ManageStep.VerifyPasswordForAdd)
+        {
+            <MudButton OnClick="GoToChooseAction" Disabled="@_isLoading">返回</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       Disabled="@(_isLoading || string.IsNullOrEmpty(_password))"
+                       @onclick="VerifyPasswordForAddAsync">
+                @(_isLoading ? "验证中..." : "验证密码")
+            </MudButton>
+        }
+        else if (_manageStep == ManageStep.SetupTotp)
+        {
+            <MudButton OnClick="GoToChooseAction" Disabled="@_isLoading">返回</MudButton>
         }
         else if (_manageStep == ManageStep.Complete)
         {
@@ -240,6 +304,8 @@
     private ManageStep _manageStep = ManageStep.ChooseAction;
     private string _selectedAction = string.Empty;
     private string? _modifySessionToken;
+    private string? _addSessionToken;
+    private string _password = string.Empty;
     private string? _error;
     private bool _isLoading;
     private List<string> _configuredMethods = new();
@@ -271,6 +337,49 @@
             _hasRecoveryCodes = false;
             _webauthnAvailable = false;
         }
+    }
+
+    private void StartAddTotp()
+    {
+        _selectedAction = "AddTOTP";
+        _error = null;
+        _password = string.Empty;
+        _addSessionToken = null;
+        _manageStep = ManageStep.VerifyPasswordForAdd;
+        StateHasChanged();
+    }
+
+    private async Task VerifyPasswordForAddAsync()
+    {
+        _error = null;
+        _isLoading = true;
+
+        try
+        {
+            _addSessionToken = await AuthService.ReAuthenticateAsync(_password);
+            _manageStep = ManageStep.SetupTotp;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task OnAddTotpComplete(List<string> recoveryCodes)
+    {
+        if (recoveryCodes is { Count: > 0 })
+            _recoveryCodes = recoveryCodes;
+        _hasRecoveryCodes = true;
+        _selectedAction = "AddTOTP";
+        _manageStep = ManageStep.Complete;
+        _addSessionToken = null;
+        _password = string.Empty;
+        StateHasChanged();
     }
 
     private void StartModifyTotp()
@@ -365,7 +474,7 @@
         }
     }
 
-    private void OnModifyComplete()
+    private void OnModifyComplete(List<string> _)
     {
         _recoveryCodes = null; // Modify mode doesn't generate new recovery codes
         _manageStep = ManageStep.Complete;
@@ -376,6 +485,8 @@
     {
         _error = null;
         _modifySessionToken = null;
+        _addSessionToken = null;
+        _password = string.Empty;
         _totpCode = string.Empty;
         _recoveryCode = string.Empty;
         _manageStep = ManageStep.ChooseAction;
@@ -469,6 +580,8 @@
         ModifyAuthenticate,
         ModifyTotp,
         ManageWebAuthn,
+        VerifyPasswordForAdd,
+        SetupTotp,
         Complete
     }
 }

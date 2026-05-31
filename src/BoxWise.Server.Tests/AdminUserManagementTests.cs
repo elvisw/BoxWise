@@ -393,8 +393,10 @@ public class AdminUserManagementTests
 
     private static async Task<AppUser> CreateUserWithEmailAsync(TestIdentityContext ctx, string name, string password, string email)
     {
-        var user = new AppUser { UserName = name, Email = email };
-        await ctx.UserManager.CreateAsync(user, password);
+        var user = new AppUser { UserName = name, Email = email, EmailForTwoFactor = email };
+        var result = await ctx.UserManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         return user;
     }
 

@@ -81,7 +81,7 @@ else
     public bool ModifyMode { get; set; } = false;
 
     [Parameter]
-    public EventCallback OnSetupComplete { get; set; }
+    public EventCallback<List<string>> OnSetupComplete { get; set; }
 
     [Parameter]
     public EventCallback OnBack { get; set; }
