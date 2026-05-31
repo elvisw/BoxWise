@@ -5,25 +5,114 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">账户信息</MudText>
+        <MudText Typo="Typo.h6">@(_hasEmail ? "账户信息" : "设置邮箱")</MudText>
     </TitleContent>
     <DialogContent>
-        @if (!string.IsNullOrEmpty(_error))
+        @if (_step == Step.PasswordAuth)
         {
-            <MudText Color="Color.Error" Class="mb-2">@_error</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">
+                请先输入当前密码以验证身份。
+            </MudText>
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+                    @_error
+                </MudAlert>
+            }
+            <MudTextField @bind-Value="_password"
+                          Label="当前密码"
+                          InputType="InputType.Password"
+                          Required="true"
+                          Immediate="true"
+                          Variant="Variant.Outlined"
+                          Disabled="@_loading"
+                          FullWidth="true" />
         }
-        <MudTextField @bind-Value="_username" Label="用户名"
-                      Variant="Variant.Outlined" Disabled="@_saving" />
-        <MudTextField @bind-Value="_email" Label="邮箱"
-                      Variant="Variant.Outlined" Disabled="@_saving" Class="mt-3"
-                      HelperText="用于双因素认证的邮箱验证码"
-                      Validation="@(new Func<string, string?>(ValidateEmail))" />
+        else if (_step == Step.VerifyEmail)
+        {
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+                    @_error
+                </MudAlert>
+            }
+
+            @if (_hasEmail)
+            {
+                <MudText Typo="Typo.body2" Class="mb-3">
+                    当前邮箱：<strong>@_originalEmail</strong>
+                </MudText>
+                <MudText Typo="Typo.body2" Class="mb-3">
+                    输入新邮箱地址以接收验证码。
+                </MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mb-3">
+                    输入您的邮箱地址并获取验证码。
+                </MudText>
+            }
+
+            <MudTextField @bind-Value="_newEmail"
+                          Label="新邮箱地址"
+                          InputType="InputType.Email"
+                          Required="true"
+                          Immediate="true"
+                          Variant="Variant.Outlined"
+                          Disabled="@(_codeSent || _loading)"
+                          FullWidth="true"
+                          Validation="@(new Func<string, string?>(ValidateEmail))" />
+
+            @if (!_codeSent)
+            {
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Class="mt-3"
+                           Disabled="@(_loading || string.IsNullOrEmpty(_newEmail))"
+                           @onclick="SendCodeAsync">
+                    @(_loading ? "发送中..." : "发送验证码")
+                </MudButton>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mb-2 mt-3">
+                    验证码已发送至 @_newEmail，请输入您收到的 6 位验证码。
+                </MudText>
+
+                <MudTextField @bind-Value="_code"
+                              Label="验证码"
+                              Required="true"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              FullWidth="true"
+                              HelperText="输入 6 位验证码" />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Class="mt-3"
+                           Disabled="@(_loading || string.IsNullOrEmpty(_code) || _code.Length < 6)"
+                           @onclick="VerifyCodeAsync">
+                    @(_loading ? "验证中..." : "确认验证码")
+                </MudButton>
+            }
+        }
     </DialogContent>
     <DialogActions>
-        @* 保存按钮：saving 时禁用；未修改时禁用（服务器错误后需修改字段重新激活） *@
-        <MudButton OnClick="SaveAsync" Color="Color.Primary"
-                   Variant="Variant.Filled" Disabled="@(_saving || (_username == _originalName && _email == _originalEmail))">保存</MudButton>
-        <MudButton OnClick="Cancel">取消</MudButton>
+        @if (_step == Step.PasswordAuth)
+        {
+            <MudButton OnClick="Cancel">取消</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       Disabled="@(_loading || string.IsNullOrEmpty(_password))"
+                       @onclick="AuthenticateAsync">
+                @(_loading ? "验证中..." : "验证密码")
+            </MudButton>
+        }
+        else if (_step == Step.VerifyEmail)
+        {
+            <MudButton OnClick="BackToPasswordAuth" Disabled="@_loading">返回</MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
@@ -31,44 +120,137 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = null!;
 
-    private string _username = "";
-    private string _email = "";
+    private Step _step = Step.PasswordAuth;
+    private string _password = string.Empty;
+    private string _newEmail = string.Empty;
+    private string _code = string.Empty;
+    private string? _sessionToken;
+    private string? _verificationToken;
+    private string? _operationToken;
+    private string? _error;
+    private bool _loading;
+
     private string _originalName = "";
     private string _originalEmail = "";
-    private string? _error;
-    private bool _saving;
+    private bool _hasEmail;
 
     protected override void OnInitialized()
     {
-        _username = AppState.CurrentUserName ?? "";
-        _email = AppState.CurrentUserEmail ?? "";
-        _originalName = _username;
-        _originalEmail = _email;
+        _originalName = AppState.CurrentUserName ?? "";
+        _originalEmail = AppState.CurrentUserEmail ?? "";
+        _hasEmail = !string.IsNullOrWhiteSpace(_originalEmail);
+        _newEmail = _originalEmail; // Pre-fill with current email if exists
     }
 
-    private async Task SaveAsync()
+    private async Task AuthenticateAsync()
     {
         _error = null;
-        _saving = true;
+        _loading = true;
 
-        var newEmail = _email != _originalEmail ? _email : null;
-        var (success, error) = await AuthService.UpdateProfileAsync(_username, newEmail);
-        _saving = false;
+        try
+        {
+            _sessionToken = await AuthService.ReAuthenticateAsync(_password);
+            _step = Step.VerifyEmail;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
 
-        if (success)
+    private async Task SendCodeAsync()
+    {
+        _error = null;
+        _loading = true;
+
+        try
         {
-            MudDialog.Close();
+            _verificationToken = await AuthService.SendEmailVerificationCodeAsync(_sessionToken!, _newEmail);
+            _codeSent = true;
+            StateHasChanged();
         }
-        else
+        catch (InvalidOperationException ex)
         {
-            _error = error;
+            // 如果 session token 过期，回退到 Step 1
+            if (ex.Message.Contains("会话令牌"))
+            {
+                _error = "操作超时，请重新验证";
+                _step = Step.PasswordAuth;
+                _sessionToken = null;
+                _password = string.Empty;
+            }
+            else
+            {
+                _error = ex.Message;
+            }
         }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private bool _codeSent;
+
+    private async Task VerifyCodeAsync()
+    {
+        _error = null;
+        _loading = true;
+
+        try
+        {
+            var (operationToken, verifiedEmail) = await AuthService.VerifyEmailCodeAsync(_code, _verificationToken!);
+            if (operationToken is null || verifiedEmail is null)
+            {
+                _error = "验证失败，请重试";
+                return;
+            }
+
+            _operationToken = operationToken;
+
+            // 使用 operation token 更新邮箱
+            var (success, error) = await AuthService.UpdateEmailAsync(verifiedEmail, operationToken);
+            if (success)
+            {
+                MudDialog.Close();
+            }
+            else
+            {
+                _error = error;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BackToPasswordAuth()
+    {
+        _error = null;
+        _codeSent = false;
+        _verificationToken = null;
+        _operationToken = null;
+        _code = string.Empty;
+        _sessionToken = null;
+        _password = string.Empty;
+        _step = Step.PasswordAuth;
+        StateHasChanged();
     }
 
     private static string? ValidateEmail(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
-            return null; // 邮箱可选
+            return "邮箱不能为空";
         var trimmed = value.Trim();
         try
         {
@@ -82,4 +264,10 @@
     }
 
     private void Cancel() => MudDialog.Cancel();
+
+    private enum Step
+    {
+        PasswordAuth,
+        VerifyEmail
+    }
 }

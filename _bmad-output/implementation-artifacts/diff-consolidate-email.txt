@@ -1,0 +1,2355 @@
+diff --git a/src/BoxWise.Client/Components/AccountInfoDialog.razor b/src/BoxWise.Client/Components/AccountInfoDialog.razor
+index 7c4ef61..a1fd249 100644
+--- a/src/BoxWise.Client/Components/AccountInfoDialog.razor
++++ b/src/BoxWise.Client/Components/AccountInfoDialog.razor
+@@ -5,25 +5,114 @@
+ 
+ <MudDialog>
+     <TitleContent>
+-        <MudText Typo="Typo.h6">账户信息</MudText>
++        <MudText Typo="Typo.h6">@(_hasEmail ? "账户信息" : "设置邮箱")</MudText>
+     </TitleContent>
+     <DialogContent>
+-        @if (!string.IsNullOrEmpty(_error))
++        @if (_step == Step.PasswordAuth)
+         {
+-            <MudText Color="Color.Error" Class="mb-2">@_error</MudText>
++            <MudText Typo="Typo.body2" Class="mb-3">
++                请先输入当前密码以验证身份。
++            </MudText>
++            @if (!string.IsNullOrEmpty(_error))
++            {
++                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
++                    @_error
++                </MudAlert>
++            }
++            <MudTextField @bind-Value="_password"
++                          Label="当前密码"
++                          InputType="InputType.Password"
++                          Required="true"
++                          Immediate="true"
++                          Variant="Variant.Outlined"
++                          Disabled="@_loading"
++                          FullWidth="true" />
++        }
++        else if (_step == Step.VerifyEmail)
++        {
++            @if (!string.IsNullOrEmpty(_error))
++            {
++                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
++                    @_error
++                </MudAlert>
++            }
++
++            @if (_hasEmail)
++            {
++                <MudText Typo="Typo.body2" Class="mb-3">
++                    当前邮箱：<strong>@_originalEmail</strong>
++                </MudText>
++                <MudText Typo="Typo.body2" Class="mb-3">
++                    输入新邮箱地址以接收验证码。
++                </MudText>
++            }
++            else
++            {
++                <MudText Typo="Typo.body2" Class="mb-3">
++                    输入您的邮箱地址并获取验证码。
++                </MudText>
++            }
++
++            <MudTextField @bind-Value="_newEmail"
++                          Label="新邮箱地址"
++                          InputType="InputType.Email"
++                          Required="true"
++                          Immediate="true"
++                          Variant="Variant.Outlined"
++                          Disabled="@(_codeSent || _loading)"
++                          FullWidth="true"
++                          Validation="@(new Func<string, string?>(ValidateEmail))" />
++
++            @if (!_codeSent)
++            {
++                <MudButton Variant="Variant.Filled"
++                           Color="Color.Primary"
++                           FullWidth="true"
++                           Class="mt-3"
++                           Disabled="@(_loading || string.IsNullOrEmpty(_newEmail))"
++                           @onclick="SendCodeAsync">
++                    @(_loading ? "发送中..." : "发送验证码")
++                </MudButton>
++            }
++            else
++            {
++                <MudText Typo="Typo.body2" Class="mb-2 mt-3">
++                    验证码已发送至 @_newEmail，请输入您收到的 6 位验证码。
++                </MudText>
++
++                <MudTextField @bind-Value="_code"
++                              Label="验证码"
++                              Required="true"
++                              Immediate="true"
++                              Variant="Variant.Outlined"
++                              FullWidth="true"
++                              HelperText="输入 6 位验证码" />
++
++                <MudButton Variant="Variant.Filled"
++                           Color="Color.Primary"
++                           FullWidth="true"
++                           Class="mt-3"
++                           Disabled="@(_loading || string.IsNullOrEmpty(_code) || _code.Length < 6)"
++                           @onclick="VerifyCodeAsync">
++                    @(_loading ? "验证中..." : "确认验证码")
++                </MudButton>
++            }
+         }
+-        <MudTextField @bind-Value="_username" Label="用户名"
+-                      Variant="Variant.Outlined" Disabled="@_saving" />
+-        <MudTextField @bind-Value="_email" Label="邮箱"
+-                      Variant="Variant.Outlined" Disabled="@_saving" Class="mt-3"
+-                      HelperText="用于双因素认证的邮箱验证码"
+-                      Validation="@(new Func<string, string?>(ValidateEmail))" />
+     </DialogContent>
+     <DialogActions>
+-        @* 保存按钮：saving 时禁用；未修改时禁用（服务器错误后需修改字段重新激活） *@
+-        <MudButton OnClick="SaveAsync" Color="Color.Primary"
+-                   Variant="Variant.Filled" Disabled="@(_saving || (_username == _originalName && _email == _originalEmail))">保存</MudButton>
+-        <MudButton OnClick="Cancel">取消</MudButton>
++        @if (_step == Step.PasswordAuth)
++        {
++            <MudButton OnClick="Cancel">取消</MudButton>
++            <MudButton Variant="Variant.Filled" Color="Color.Primary"
++                       Disabled="@(_loading || string.IsNullOrEmpty(_password))"
++                       @onclick="AuthenticateAsync">
++                @(_loading ? "验证中..." : "验证密码")
++            </MudButton>
++        }
++        else if (_step == Step.VerifyEmail)
++        {
++            <MudButton OnClick="BackToPasswordAuth" Disabled="@_loading">返回</MudButton>
++        }
+     </DialogActions>
+ </MudDialog>
+ 
+@@ -31,44 +120,137 @@
+     [CascadingParameter]
+     private IMudDialogInstance MudDialog { get; set; } = null!;
+ 
+-    private string _username = "";
+-    private string _email = "";
++    private Step _step = Step.PasswordAuth;
++    private string _password = string.Empty;
++    private string _newEmail = string.Empty;
++    private string _code = string.Empty;
++    private string? _sessionToken;
++    private string? _verificationToken;
++    private string? _operationToken;
++    private string? _error;
++    private bool _loading;
++
+     private string _originalName = "";
+     private string _originalEmail = "";
+-    private string? _error;
+-    private bool _saving;
++    private bool _hasEmail;
+ 
+     protected override void OnInitialized()
+     {
+-        _username = AppState.CurrentUserName ?? "";
+-        _email = AppState.CurrentUserEmail ?? "";
+-        _originalName = _username;
+-        _originalEmail = _email;
++        _originalName = AppState.CurrentUserName ?? "";
++        _originalEmail = AppState.CurrentUserEmail ?? "";
++        _hasEmail = !string.IsNullOrWhiteSpace(_originalEmail);
++        _newEmail = _originalEmail; // Pre-fill with current email if exists
++    }
++
++    private async Task AuthenticateAsync()
++    {
++        _error = null;
++        _loading = true;
++
++        try
++        {
++            _sessionToken = await AuthService.ReAuthenticateAsync(_password);
++            _step = Step.VerifyEmail;
++            StateHasChanged();
++        }
++        catch (InvalidOperationException ex)
++        {
++            _error = ex.Message;
++        }
++        finally
++        {
++            _loading = false;
++        }
++    }
++
++    private async Task SendCodeAsync()
++    {
++        _error = null;
++        _loading = true;
++
++        try
++        {
++            _verificationToken = await AuthService.SendEmailVerificationCodeAsync(_sessionToken!, _newEmail);
++            _codeSent = true;
++            StateHasChanged();
++        }
++        catch (InvalidOperationException ex)
++        {
++            // 如果 session token 过期，回退到 Step 1
++            if (ex.Message.Contains("会话令牌"))
++            {
++                _error = "操作超时，请重新验证";
++                _step = Step.PasswordAuth;
++                _sessionToken = null;
++                _password = string.Empty;
++            }
++            else
++            {
++                _error = ex.Message;
++            }
++        }
++        finally
++        {
++            _loading = false;
++        }
+     }
+ 
+-    private async Task SaveAsync()
++    private bool _codeSent;
++
++    private async Task VerifyCodeAsync()
+     {
+         _error = null;
+-        _saving = true;
++        _loading = true;
++
++        try
++        {
++            var (operationToken, verifiedEmail) = await AuthService.VerifyEmailCodeAsync(_code, _verificationToken!);
++            if (operationToken is null || verifiedEmail is null)
++            {
++                _error = "验证失败，请重试";
++                return;
++            }
+ 
+-        var newEmail = _email != _originalEmail ? _email : null;
+-        var (success, error) = await AuthService.UpdateProfileAsync(_username, newEmail);
+-        _saving = false;
++            _operationToken = operationToken;
+ 
+-        if (success)
++            // 使用 operation token 更新邮箱
++            var (success, error) = await AuthService.UpdateEmailAsync(verifiedEmail, operationToken);
++            if (success)
++            {
++                MudDialog.Close();
++            }
++            else
++            {
++                _error = error;
++            }
++        }
++        catch (InvalidOperationException ex)
+         {
+-            MudDialog.Close();
++            _error = ex.Message;
+         }
+-        else
++        finally
+         {
+-            _error = error;
++            _loading = false;
+         }
+     }
+ 
++    private void BackToPasswordAuth()
++    {
++        _error = null;
++        _codeSent = false;
++        _verificationToken = null;
++        _operationToken = null;
++        _code = string.Empty;
++        _sessionToken = null;
++        _password = string.Empty;
++        _step = Step.PasswordAuth;
++        StateHasChanged();
++    }
++
+     private static string? ValidateEmail(string value)
+     {
+         if (string.IsNullOrWhiteSpace(value))
+-            return null; // 邮箱可选
++            return "邮箱不能为空";
+         var trimmed = value.Trim();
+         try
+         {
+@@ -82,4 +264,10 @@
+     }
+ 
+     private void Cancel() => MudDialog.Cancel();
++
++    private enum Step
++    {
++        PasswordAuth,
++        VerifyEmail
++    }
+ }
+diff --git a/src/BoxWise.Client/Components/EmailTwoFactorSetup.razor b/src/BoxWise.Client/Components/EmailTwoFactorSetup.razor
+deleted file mode 100644
+index 1486460..0000000
+--- a/src/BoxWise.Client/Components/EmailTwoFactorSetup.razor
++++ /dev/null
+@@ -1,160 +0,0 @@
+-@namespace BoxWise.Client.Components
+-@inject AuthService AuthService
+-@inject ISnackbar Snackbar
+-
+-<MudText Typo="Typo.body2" Class="mb-4">
+-    输入您的邮箱地址以接收验证码。设置完成后，登录时将需要输入发送到该邮箱的验证码。
+-</MudText>
+-
+-@if (!string.IsNullOrEmpty(_error))
+-{
+-    <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+-        @_error
+-    </MudAlert>
+-}
+-
+-@if (_isVerified)
+-{
+-    <MudAlert Severity="Severity.Success" Class="mb-3" Dense="true">
+-        邮箱验证成功！
+-    </MudAlert>
+-}
+-else
+-{
+-    <MudTextField @bind-Value="_email"
+-                  Label="邮箱地址"
+-                  InputType="InputType.Email"
+-                  Required="true"
+-                  Immediate="true"
+-                  Variant="Variant.Outlined"
+-                  Class="mb-3"
+-                  FullWidth="true"
+-                  Disabled="@_codeSent"
+-                  HelperText="用于接收双因素认证验证码" />
+-
+-    @if (!_codeSent)
+-    {
+-        <MudButton Variant="Variant.Filled"
+-                   Color="Color.Primary"
+-                   FullWidth="true"
+-                   Disabled="@(_isLoading || string.IsNullOrEmpty(_email) || !_email.Contains('@'))"
+-                   @onclick="SendCodeAsync">
+-            @(_isLoading ? "发送中..." : "发送验证码")
+-        </MudButton>
+-    }
+-    else
+-    {
+-        <MudText Typo="Typo.body2" Class="mb-2">
+-            验证码已发送至 @_email，请输入您收到的 6 位验证码。
+-        </MudText>
+-
+-        <MudTextField @bind-Value="_code"
+-                      Label="验证码"
+-                      Required="true"
+-                      Immediate="true"
+-                      Variant="Variant.Outlined"
+-                      Class="mb-3"
+-                      FullWidth="true"
+-                      HelperText="输入 6 位验证码" />
+-
+-        <MudButton Variant="Variant.Filled"
+-                   Color="Color.Primary"
+-                   FullWidth="true"
+-                   Disabled="@(_isLoading || string.IsNullOrEmpty(_code) || _code.Length < 6)"
+-                   @onclick="VerifyCodeAsync">
+-            @(_isLoading ? "验证中..." : "确认并启用")
+-        </MudButton>
+-    }
+-}
+-
+-@code {
+-    [Parameter]
+-    public string SessionToken { get; set; } = string.Empty;
+-
+-    [Parameter]
+-    public bool ModifyMode { get; set; } = false;
+-
+-    [Parameter]
+-    public EventCallback<List<string>> OnSetupComplete { get; set; }
+-
+-    [Parameter]
+-    public EventCallback OnBack { get; set; }
+-
+-    private string _email = string.Empty;
+-    private string _code = string.Empty;
+-    private string? _emailToken;
+-    private string? _error;
+-    private bool _isLoading;
+-    private bool _codeSent;
+-    private bool _isVerified;
+-
+-    private async Task SendCodeAsync()
+-    {
+-        _error = null;
+-        _isLoading = true;
+-
+-        try
+-        {
+-            _emailToken = ModifyMode
+-                ? await AuthService.ModifyEmailAsync(SessionToken, _email)
+-                : await AuthService.SetupEmailTwoFactorAsync(SessionToken, _email);
+-            _codeSent = true;
+-            Snackbar.Add("验证码已发送到您的邮箱", Severity.Info);
+-            StateHasChanged();
+-        }
+-        catch (InvalidOperationException ex)
+-        {
+-            _error = ex.Message;
+-        }
+-        finally
+-        {
+-            _isLoading = false;
+-        }
+-    }
+-
+-    private async Task VerifyCodeAsync()
+-    {
+-        _error = null;
+-        _isLoading = true;
+-
+-        try
+-        {
+-            if (ModifyMode)
+-            {
+-                var success = await AuthService.VerifyModifyEmailAsync(SessionToken, _code, _emailToken ?? "");
+-                if (success)
+-                {
+-                    _isVerified = true;
+-                    Snackbar.Add("邮箱已更新", Severity.Success);
+-                    await OnSetupComplete.InvokeAsync(new List<string>());
+-                }
+-                else
+-                {
+-                    _error = "验证码无效，请确认输入的验证码正确";
+-                }
+-            }
+-            else
+-            {
+-                var result = await AuthService.VerifyEmailTwoFactorAsync(SessionToken, _code, _emailToken ?? "");
+-                if (result.Success)
+-                {
+-                    _isVerified = true;
+-                    Snackbar.Add("邮箱双因素认证已启用", Severity.Success);
+-                    await OnSetupComplete.InvokeAsync(result.RecoveryCodes);
+-                }
+-                else
+-                {
+-                    _error = "验证码无效，请确认输入的验证码正确";
+-                }
+-            }
+-        }
+-        catch (InvalidOperationException ex)
+-        {
+-            _error = ex.Message;
+-        }
+-        finally
+-        {
+-            _isLoading = false;
+-        }
+-    }
+-}
+diff --git a/src/BoxWise.Client/Components/TwoFactorManage.razor b/src/BoxWise.Client/Components/TwoFactorManage.razor
+index 8314e02..2f00091 100644
+--- a/src/BoxWise.Client/Components/TwoFactorManage.razor
++++ b/src/BoxWise.Client/Components/TwoFactorManage.razor
+@@ -34,25 +34,6 @@
+                 </MudPaper>
+             }
+ 
+-            @if (_configuredMethods.Contains("Email"))
+-            {
+-                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+-                    <div class="d-flex align-center">
+-                        <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
+-                        <div class="flex-grow-1">
+-                            <MudText Typo="Typo.body1" Style="font-weight:500;">邮箱验证码</MudText>
+-                            <MudText Typo="Typo.caption" Color="Color.Default">
+-                                修改接收验证码的邮箱
+-                            </MudText>
+-                        </div>
+-                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+-                                   Disabled="@_isLoading" @onclick="StartModifyEmail">
+-                            修改
+-                        </MudButton>
+-                    </div>
+-                </MudPaper>
+-            }
+-
+             @if (_hasRecoveryCodes)
+             {
+                 <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+@@ -124,43 +105,6 @@
+                 </div>
+             }
+ 
+-            @if (_configuredMethods.Contains("Email"))
+-            {
+-                <MudDivider Class="my-2" />
+-                <MudText Typo="Typo.body2" Class="mb-1 mt-2">邮箱验证码</MudText>
+-
+-                @if (!_emailCodeSent)
+-                {
+-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+-                               FullWidth="true"
+-                               Disabled="@_isLoading"
+-                               @onclick="SendEmailAuthCodeAsync">
+-                        @(_isLoading ? "发送中..." : "发送验证码到邮箱")
+-                    </MudButton>
+-                }
+-                else
+-                {
+-                    <MudText Typo="Typo.caption" Color="Color.Default" Class="mb-2">
+-                        验证码已发送到您的邮箱，请输入 6 位验证码。
+-                    </MudText>
+-                    <div class="d-flex align-center" style="gap: 8px;">
+-                        <MudTextField @bind-Value="_emailCode"
+-                                      Label="邮箱验证码"
+-                                      Required="true"
+-                                      Immediate="true"
+-                                      Variant="Variant.Outlined"
+-                                      FullWidth="true"
+-                                      HelperText="输入 6 位验证码" />
+-                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+-                                   Disabled="@(_isLoading || string.IsNullOrEmpty(_emailCode) || _emailCode.Length < 6)"
+-                                   @onclick="VerifyEmailAuth"
+-                                   Class="flex-shrink-0">
+-                            @(_isLoading ? "..." : "验证")
+-                        </MudButton>
+-                    </div>
+-                }
+-            }
+-
+             @if (_hasRecoveryCodes)
+             {
+                 <MudDivider Class="my-2" />
+@@ -188,13 +132,6 @@
+                        OnSetupComplete="OnModifyComplete"
+                        OnBack="GoToChooseAction" />
+         }
+-        else if (_manageStep == ManageStep.ModifyEmail)
+-        {
+-            <EmailTwoFactorSetup ModifyMode="true"
+-                                 SessionToken="@_modifySessionToken"
+-                                 OnSetupComplete="OnModifyComplete"
+-                                 OnBack="GoToChooseAction" />
+-        }
+         else if (_manageStep == ManageStep.ManageWebAuthn)
+         {
+             <WebAuthnCredentialList @ref="_webAuthnList" />
+@@ -298,11 +235,6 @@
+     // TOTP authenticate inputs
+     private string _totpCode = string.Empty;
+ 
+-    // Email authenticate inputs
+-    private string _emailCode = string.Empty;
+-    private string? _emailAuthToken;
+-    private bool _emailCodeSent;
+-
+     // Recovery code authenticate inputs
+     private string _recoveryCode = string.Empty;
+ 
+@@ -334,14 +266,6 @@
+         StateHasChanged();
+     }
+ 
+-    private void StartModifyEmail()
+-    {
+-        _selectedAction = "Email";
+-        _error = null;
+-        _manageStep = ManageStep.ModifyAuthenticate;
+-        StateHasChanged();
+-    }
+-
+     private void StartModifyRecoveryCodes()
+     {
+         _selectedAction = "RecoveryCodes";
+@@ -350,28 +274,6 @@
+         StateHasChanged();
+     }
+ 
+-    private async Task SendEmailAuthCodeAsync()
+-    {
+-        _error = null;
+-        _isLoading = true;
+-
+-        try
+-        {
+-            _emailAuthToken = await AuthService.SendModifyCodeAsync();
+-            _emailCodeSent = true;
+-            Snackbar.Add("验证码已发送到您的邮箱", Severity.Info);
+-            StateHasChanged();
+-        }
+-        catch (InvalidOperationException ex)
+-        {
+-            _error = ex.Message;
+-        }
+-        finally
+-        {
+-            _isLoading = false;
+-        }
+-    }
+-
+     private async Task VerifyTOTPAuth()
+     {
+         _error = null;
+@@ -400,34 +302,6 @@
+         }
+     }
+ 
+-    private async Task VerifyEmailAuth()
+-    {
+-        _error = null;
+-        _isLoading = true;
+-
+-        try
+-        {
+-            var sessionToken = await AuthService.AuthenticateForModifyAsync(_emailCode, "Email", _emailAuthToken);
+-            if (sessionToken is null)
+-            {
+-                _error = "验证失败，请重试";
+-                return;
+-            }
+-
+-            _modifySessionToken = sessionToken;
+-            _manageStep = ManageStep.ModifyEmail;
+-            StateHasChanged();
+-        }
+-        catch (InvalidOperationException ex)
+-        {
+-            _error = ex.Message;
+-        }
+-        finally
+-        {
+-            _isLoading = false;
+-        }
+-    }
+-
+     private async Task VerifyRecoveryCodeAuth()
+     {
+         _error = null;
+@@ -488,9 +362,6 @@
+         _error = null;
+         _modifySessionToken = null;
+         _totpCode = string.Empty;
+-        _emailCode = string.Empty;
+-        _emailAuthToken = null;
+-        _emailCodeSent = false;
+         _recoveryCode = string.Empty;
+         _manageStep = ManageStep.ChooseAction;
+         StateHasChanged();
+@@ -582,7 +453,6 @@
+         ChooseAction,
+         ModifyAuthenticate,
+         ModifyTotp,
+-        ModifyEmail,
+         ManageWebAuthn,
+         Complete
+     }
+diff --git a/src/BoxWise.Client/Components/TwoFactorSetup.razor b/src/BoxWise.Client/Components/TwoFactorSetup.razor
+index edc3cef..7d90d45 100644
+--- a/src/BoxWise.Client/Components/TwoFactorSetup.razor
++++ b/src/BoxWise.Client/Components/TwoFactorSetup.razor
+@@ -149,9 +149,47 @@
+         }
+         else if (_setupStep == SetupStep.SetupEmail)
+         {
+-            <EmailTwoFactorSetup SessionToken="@_sessionToken"
+-                                 OnSetupComplete="OnEmailSetupComplete"
+-                                 OnBack="Cancel" />
++            @if (!string.IsNullOrEmpty(_error))
++            {
++                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
++                    @_error
++                </MudAlert>
++            }
++
++            @if (!_emailCodeSent)
++            {
++                <MudText Typo="Typo.body2" Class="mb-4">
++                    验证码将发送到您账户绑定的邮箱。
++                </MudText>
++
++                <MudButton Variant="Variant.Filled" Color="Color.Primary"
++                           FullWidth="true"
++                           Disabled="@(_isLoading)"
++                           @onclick="SendEmailCodeAsync">
++                    @(_isLoading ? "发送中..." : "发送验证码到邮箱")
++                </MudButton>
++            }
++            else
++            {
++                <MudText Typo="Typo.body2" Class="mb-3">
++                    验证码已发送到您的邮箱，请输入 6 位验证码。
++                </MudText>
++
++                <MudTextField @bind-Value="_emailCode"
++                              Label="验证码"
++                              Required="true"
++                              Immediate="true"
++                              Variant="Variant.Outlined"
++                              FullWidth="true"
++                              HelperText="输入 6 位验证码" />
++
++                <MudButton Variant="Variant.Filled" Color="Color.Primary"
++                           FullWidth="true" Class="mt-3"
++                           Disabled="@(_isLoading || string.IsNullOrEmpty(_emailCode) || _emailCode.Length < 6)"
++                           @onclick="VerifyEmailCodeAsync">
++                    @(_isLoading ? "验证中..." : "确认并启用")
++                </MudButton>
++            }
+         }
+         else if (_setupStep == SetupStep.Complete)
+         {
+@@ -241,6 +279,11 @@
+     private bool _twoFactorEnabled;
+     private List<string>? _recoveryCodes;
+ 
++    // Email setup fields
++    private string _emailCode = string.Empty;
++    private string? _emailToken;
++    private bool _emailCodeSent;
++
+     protected override async Task OnInitializedAsync()
+     {
+         try
+@@ -308,11 +351,54 @@
+         StateHasChanged();
+     }
+ 
+-    private void OnEmailSetupComplete(List<string> codes)
++    private async Task SendEmailCodeAsync()
+     {
+-        _recoveryCodes = codes;
+-        _setupStep = SetupStep.Complete;
+-        StateHasChanged();
++        _error = null;
++        _isLoading = true;
++
++        try
++        {
++            _emailToken = await AuthService.SetupEmailTwoFactorAsync(_sessionToken!);
++            _emailCodeSent = true;
++            StateHasChanged();
++        }
++        catch (InvalidOperationException ex)
++        {
++            _error = ex.Message;
++        }
++        finally
++        {
++            _isLoading = false;
++        }
++    }
++
++    private async Task VerifyEmailCodeAsync()
++    {
++        _error = null;
++        _isLoading = true;
++
++        try
++        {
++            var (success, recoveryCodes) = await AuthService.VerifyEmailTwoFactorAsync(_sessionToken!, _emailCode, _emailToken ?? "");
++            if (success)
++            {
++                _recoveryCodes = recoveryCodes;
++                _setupStep = SetupStep.Complete;
++                StateHasChanged();
++            }
++            else
++            {
++                _error = "验证码无效，请确认输入的验证码正确";
++            }
++        }
++        catch (InvalidOperationException ex)
++        {
++            _error = ex.Message;
++        }
++        finally
++        {
++            _isLoading = false;
++        }
+     }
+ 
+     private async Task CopyCode(string code)
+diff --git a/src/BoxWise.Client/Services/AuthService.cs b/src/BoxWise.Client/Services/AuthService.cs
+index a51813a..9193b33 100644
+--- a/src/BoxWise.Client/Services/AuthService.cs
++++ b/src/BoxWise.Client/Services/AuthService.cs
+@@ -163,11 +163,10 @@ public class AuthService
+         return false;
+     }
+ 
+-    public async Task<string?> SetupEmailTwoFactorAsync(string sessionToken, string email)
++    public async Task<string?> SetupEmailTwoFactorAsync(string sessionToken)
+     {
+         var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/setup-email");
+         request.Headers.Add("X-Session-Token", sessionToken);
+-        request.Content = JsonContent.Create(new SetupEmailTwoFactorRequest(email));
+ 
+         var response = await _http.SendAsync(request);
+ 
+@@ -287,46 +286,67 @@ public class AuthService
+         throw new InvalidOperationException(error ?? "发送验证码失败");
+     }
+ 
++    // ===== Email Verification Methods (Consolidated Settings) =====
++
+     /// <summary>
+-    /// 修改 2FA 邮箱：向新邮箱发送验证码。
++    /// 发送邮箱验证码到新邮箱。需要 X-Session-Token（密码重新认证后）。
+     /// </summary>
+-    public async Task<string?> ModifyEmailAsync(string sessionToken, string email)
++    public async Task<string?> SendEmailVerificationCodeAsync(string sessionToken, string newEmail)
+     {
+-        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/email");
++        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/email/send-code");
+         request.Headers.Add("X-Session-Token", sessionToken);
+-        request.Content = JsonContent.Create(new SetupEmailTwoFactorRequest(email));
++        request.Content = JsonContent.Create(new { email = newEmail });
+ 
+         var response = await _http.SendAsync(request);
+ 
+         if (response.IsSuccessStatusCode)
+         {
+-            var result = await response.Content.ReadFromJsonAsync<EmailTwoFactorSetupResponse>();
++            var result = await response.Content.ReadFromJsonAsync<EmailVerificationSendResponse>();
+             return result?.Token;
+         }
+ 
+         var error = await TryGetErrorAsync(response);
+-        throw new InvalidOperationException(error ?? "修改邮箱失败");
++        throw new InvalidOperationException(error ?? "发送验证码失败");
+     }
+ 
+     /// <summary>
+-    /// 验证新邮箱的验证码。
++    /// 验证邮箱验证码，成功后返回 operation token。
+     /// </summary>
+-    public async Task<bool> VerifyModifyEmailAsync(string sessionToken, string code, string token)
++    public async Task<(string? OperationToken, string? VerifiedEmail)> VerifyEmailCodeAsync(string code, string token)
+     {
+-        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/email/verify");
+-        request.Headers.Add("X-Session-Token", sessionToken);
+-        request.Content = JsonContent.Create(new VerifyTwoFactorRequest(code, token));
+-
+-        var response = await _http.SendAsync(request);
++        var response = await _http.PostAsJsonAsync("api/auth/email/verify-code", new { code, token });
+ 
+         if (response.IsSuccessStatusCode)
+-            return true;
++        {
++            var result = await response.Content.ReadFromJsonAsync<EmailVerifyCodeResponse>();
++            return (result?.OperationToken, result?.VerifiedEmail);
++        }
+ 
+         var error = await TryGetErrorAsync(response);
+-        if (error is not null)
+-            throw new InvalidOperationException(error);
++        throw new InvalidOperationException(error ?? "验证码验证失败");
++    }
+ 
+-        return false;
++    /// <summary>
++    /// 使用 operation token 更新邮箱（原子更新 user.Email + EmailForTwoFactor）。
++    /// </summary>
++    public async Task<(bool Success, string? Error)> UpdateEmailAsync(string newEmail, string operationToken)
++    {
++        var response = await _http.PutAsJsonAsync("api/auth/me",
++            new UpdateProfileRequest(_appState.CurrentUserName ?? "", newEmail, operationToken));
++
++        if (response.IsSuccessStatusCode)
++        {
++            var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
++            if (user is not null)
++            {
++                _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email);
++                _authStateProvider.NotifyAuthenticationStateChanged();
++            }
++            return (true, null);
++        }
++
++        var error = await TryGetErrorAsync(response);
++        return (false, error ?? "邮箱修改失败");
+     }
+ 
+     /// <summary>
+@@ -529,9 +549,9 @@ public class AuthService
+         _authStateProvider.NotifyAuthenticationStateChanged();
+     }
+ 
+-    public async Task<(bool Success, string? Error)> UpdateProfileAsync(string newUsername, string? newEmail = null)
++    public async Task<(bool Success, string? Error)> UpdateProfileAsync(string newUsername, string? newEmail = null, string? operationToken = null)
+     {
+-        var response = await _http.PutAsJsonAsync("api/auth/me", new UpdateProfileRequest(newUsername, newEmail));
++        var response = await _http.PutAsJsonAsync("api/auth/me", new UpdateProfileRequest(newUsername, newEmail, operationToken));
+ 
+         if (response.IsSuccessStatusCode)
+         {
+diff --git a/src/BoxWise.Server.Tests/Endpoints/AuthEndpointsTests.cs b/src/BoxWise.Server.Tests/Endpoints/AuthEndpointsTests.cs
+index d51ddb3..973db31 100644
+--- a/src/BoxWise.Server.Tests/Endpoints/AuthEndpointsTests.cs
++++ b/src/BoxWise.Server.Tests/Endpoints/AuthEndpointsTests.cs
+@@ -3,13 +3,18 @@ using System.Security.Claims;
+ using System.Text.Json;
+ using Microsoft.AspNetCore.Http;
+ using Microsoft.AspNetCore.Identity;
++using Microsoft.Extensions.Caching.Memory;
+ using Microsoft.Extensions.Configuration;
+ using Microsoft.Extensions.DependencyInjection;
+ using Microsoft.Extensions.Logging;
+ using Microsoft.Extensions.Logging.Abstractions;
++using Microsoft.AspNetCore.DataProtection;
++using BoxWise.Server.Data;
+ using BoxWise.Server.Endpoints;
+ using BoxWise.Server.Models;
++using BoxWise.Server.Services;
+ using BoxWise.Shared.Dtos;
++using Moq;
+ 
+ namespace BoxWise.Server.Tests.Endpoints;
+ 
+@@ -19,12 +24,22 @@ public class AuthEndpointsTests : IAsyncLifetime
+     private UserManager<AppUser> _userManager = null!;
+     private IConfiguration _config = null!;
+     private ILoggerFactory _loggerFactory = NullLoggerFactory.Instance;
++    private EmailTwoFactorService _emailTwoFactorService = null!;
+ 
+     public async Task InitializeAsync()
+     {
+         _ctx = await TestIdentityFactory.CreateAsync();
+         _userManager = _ctx.UserManager;
+         _config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>()).Build();
++
++        // Set up EmailTwoFactorService for tests that need it
++        var dataProtection = _ctx.Provider.GetRequiredService<IDataProtectionProvider>();
++        var smtpConfigMock = new Mock<ISmtpConfigurationService>();
++        smtpConfigMock.Setup(x => x.IsConfigured()).Returns(false);
++        smtpConfigMock.Setup(x => x.GetSnapshot())
++            .Returns(new SmtpConfigDto(string.Empty, 587, null, null, null, null));
++        _emailTwoFactorService = new EmailTwoFactorService(
++            dataProtection, smtpConfigMock.Object, NullLogger<EmailTwoFactorService>.Instance);
+     }
+ 
+     public async Task DisposeAsync() => await _ctx.DisposeAsync();
+@@ -36,7 +51,7 @@ public class AuthEndpointsTests : IAsyncLifetime
+         await task;
+         var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
+         var executeMethod = httpResult.GetType().GetMethod("ExecuteAsync", [typeof(HttpContext)])!;
+-        var s = new ServiceCollection(); s.AddLogging();
++        var s = new ServiceCollection(); s.AddLogging(); s.AddDataProtection();
+         using var sp = s.BuildServiceProvider();
+         var hc = new DefaultHttpContext { RequestServices = sp };
+         hc.Response.Body = new MemoryStream();
+@@ -51,7 +66,7 @@ public class AuthEndpointsTests : IAsyncLifetime
+         await task;
+         var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
+         var executeMethod = httpResult.GetType().GetMethod("ExecuteAsync", [typeof(HttpContext)])!;
+-        var s = new ServiceCollection(); s.AddLogging();
++        var s = new ServiceCollection(); s.AddLogging(); s.AddDataProtection();
+         using var sp = s.BuildServiceProvider();
+         var hc = new DefaultHttpContext { RequestServices = sp };
+         hc.Response.Body = new MemoryStream();
+@@ -61,6 +76,27 @@ public class AuthEndpointsTests : IAsyncLifetime
+         return (hc.Response.StatusCode, body);
+     }
+ 
++    // Creates a HttpContext with DataProtection + EmailTwoFactorService for email change tests.
++    // sp is intentionally not disposed (kept alive by HttpContext.Items).
++    private DefaultHttpContext CreateHttpContextForEmailTest(ClaimsPrincipal user)
++    {
++        var s = new ServiceCollection();
++        s.AddLogging();
++        s.AddDataProtection();
++        s.AddSingleton(_emailTwoFactorService);
++        var sp = s.BuildServiceProvider();
++        var hc = new DefaultHttpContext { RequestServices = sp, User = user, Response = { Body = new MemoryStream() } };
++        hc.Items["__ServiceProvider"] = sp; // Keep alive for the duration of the test
++        return hc;
++    }
++
++    private string GenerateOperationToken(string userId, string email)
++    {
++        var dp = _ctx.Provider.GetRequiredService<IDataProtectionProvider>();
++        var protector = dp.CreateProtector("email-operation-token");
++        return protector.Protect($"{userId}|{email}|{DateTime.UtcNow.AddMinutes(5):O}");
++    }
++
+     [Fact] public async Task GetCurrentUserAsync_Unauthenticated_ReturnsOk() { var hc = new DefaultHttpContext(); Assert.Equal(200, await InvokeAsync("GetCurrentUserAsync", _userManager, hc, _config)); }
+     [Fact] public async Task GetCurrentUserAsync_Authenticated_ReturnsUser() { var u = new AppUser { UserName = "cu" }; await _userManager.CreateAsync(u, "Test1234!"); var hc = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, u.Id)], "test")) }; Assert.Equal(200, await InvokeAsync("GetCurrentUserAsync", _userManager, hc, _config)); }
+     [Fact] public async Task UpdateProfileAsync_ValidName_Succeeds() { var u = new AppUser { UserName = "on" }; await _userManager.CreateAsync(u, "Test1234!"); var hc = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, u.Id)], "test")) }; Assert.Equal(200, await InvokeAsync("UpdateProfileAsync", new UpdateProfileRequest("nn"), _userManager, hc, _config, _loggerFactory)); }
+@@ -119,4 +155,103 @@ public class AuthEndpointsTests : IAsyncLifetime
+         var result = await InvokeAsync("LogoutAsync", _ctx.SignInManager);
+         Assert.Equal(200, result);
+     }
++
++    // ===== Email Change Tests =====
++
++    [Fact]
++    public async Task UpdateProfile_UsernameOnly_NoTokenRequired()
++    {
++        var user = new AppUser { UserName = "notokenuser", Email = "old@test.com" };
++        await _userManager.CreateAsync(user, "Test1234!");
++        var userClaim = new ClaimsPrincipal(new ClaimsIdentity(
++            [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"));
++        var hc = CreateHttpContextForEmailTest(userClaim);
++        var (status, body) = await InvokeWithHttpContextAsync("UpdateProfileAsync",
++            new UpdateProfileRequest("newname"), // NewEmail = null
++            _userManager, hc, _config, _loggerFactory);
++        Assert.Equal(200, status);
++
++        var dto = JsonSerializer.Deserialize<AuthUserDto>(body,
++            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
++        Assert.NotNull(dto);
++        Assert.Equal("newname", dto.UserName);
++        Assert.Equal("old@test.com", dto.Email); // Email unchanged
++    }
++
++    [Fact]
++    public async Task UpdateProfile_EmailChange_WithoutToken_Rejected()
++    {
++        var user = new AppUser { UserName = "emailnotoken" };
++        await _userManager.CreateAsync(user, "Test1234!");
++        var userClaim = new ClaimsPrincipal(new ClaimsIdentity(
++            [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"));
++        var hc = CreateHttpContextForEmailTest(userClaim);
++        var status = await InvokeWithHttpContextStatusAsync("UpdateProfileAsync",
++            new UpdateProfileRequest("emailnotoken", "new@test.com"), // NewEmail set, no OperationToken
++            _userManager, hc, _config, _loggerFactory);
++        Assert.Equal(400, status);
++    }
++
++    [Fact]
++    public async Task UpdateProfile_EmailChange_SyncsEmailForTwoFactor()
++    {
++        var user = new AppUser { UserName = "emailsync" };
++        await _userManager.CreateAsync(user, "Test1234!");
++
++        var operationToken = GenerateOperationToken(user.Id, "new@test.com");
++
++        var userClaim = new ClaimsPrincipal(new ClaimsIdentity(
++            [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"));
++        var hc = CreateHttpContextForEmailTest(userClaim);
++
++        var (status, body) = await InvokeWithHttpContextAsync("UpdateProfileAsync",
++            new UpdateProfileRequest("emailsync", "new@test.com", operationToken),
++            _userManager, hc, _config, _loggerFactory);
++        Assert.Equal(200, status);
++
++        // Verify both Email and EmailForTwoFactor are synced
++        var updatedUser = await _userManager.FindByIdAsync(user.Id);
++        Assert.NotNull(updatedUser);
++        Assert.Equal("new@test.com", updatedUser.Email);
++        Assert.Equal("new@test.com", updatedUser.EmailForTwoFactor);
++    }
++
++    // Helper that invokes the method with a pre-built HttpContext and returns (status, body)
++    private static async Task<(int StatusCode, string Body)> InvokeWithHttpContextAsync(
++        string methodName, params object?[] args)
++    {
++        // Extract the HttpContext from args (last user-provided args before LoggerFactory)
++        var method = typeof(AuthEndpoints).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
++        var task = (Task)method.Invoke(null, args)!;
++        await task;
++        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
++        var executeMethod = httpResult.GetType().GetMethod("ExecuteAsync", [typeof(HttpContext)])!;
++
++        // Find the HttpContext from the args list - it's passed directly
++        var httpContext = args.OfType<DefaultHttpContext>().FirstOrDefault()
++            ?? throw new InvalidOperationException("No HttpContext found in args");
++
++        httpContext.Response.Body.Seek(0, SeekOrigin.Begin);
++        await (Task)executeMethod.Invoke(httpResult, [httpContext])!;
++        httpContext.Response.Body.Seek(0, SeekOrigin.Begin);
++        var body = await new StreamReader(httpContext.Response.Body).ReadToEndAsync();
++        return (httpContext.Response.StatusCode, body);
++    }
++
++    // Helper that invokes the method with a pre-built HttpContext and returns only status
++    private static async Task<int> InvokeWithHttpContextStatusAsync(
++        string methodName, params object?[] args)
++    {
++        var method = typeof(AuthEndpoints).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
++        var task = (Task)method.Invoke(null, args)!;
++        await task;
++        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
++        var executeMethod = httpResult.GetType().GetMethod("ExecuteAsync", [typeof(HttpContext)])!;
++
++        var httpContext = args.OfType<DefaultHttpContext>().FirstOrDefault()
++            ?? throw new InvalidOperationException("No HttpContext found in args");
++
++        await (Task)executeMethod.Invoke(httpResult, [httpContext])!;
++        return httpContext.Response.StatusCode;
++    }
+ }
+diff --git a/src/BoxWise.Server/Endpoints/AuthEndpoints.cs b/src/BoxWise.Server/Endpoints/AuthEndpoints.cs
+index d381211..b5e82f1 100644
+--- a/src/BoxWise.Server/Endpoints/AuthEndpoints.cs
++++ b/src/BoxWise.Server/Endpoints/AuthEndpoints.cs
+@@ -1,10 +1,12 @@
+ using System.Security.Claims;
+ using Microsoft.AspNetCore.Authentication;
++using Microsoft.AspNetCore.DataProtection;
+ using Microsoft.AspNetCore.Http.HttpResults;
+ using Microsoft.AspNetCore.Identity;
+ using Microsoft.EntityFrameworkCore;
+ 
+ using BoxWise.Server.Models;
++using BoxWise.Server.Services;
+ using BoxWise.Server.Services.PasswordValidators;
+ using BoxWise.Server.Utilities;
+ using BoxWise.Shared.Dtos;
+@@ -183,7 +185,7 @@ public static class AuthEndpoints
+         return TypedResults.Ok(new AuthUserDto(user.UserName, isAdmin, isSpecificAdmin, Email: user.Email));
+     }
+ 
+-    private static async Task<Results<Ok<AuthUserDto>, ValidationProblem>>
++    private static async Task<Results<Ok<AuthUserDto>, ValidationProblem, ProblemHttpResult>>
+         UpdateProfileAsync(UpdateProfileRequest request,
+         UserManager<AppUser> userManager, HttpContext httpContext, IConfiguration config,
+         ILoggerFactory loggerFactory)
+@@ -233,72 +235,78 @@ public static class AuthEndpoints
+         if (request.NewEmail is not null)
+         {
+             var email = request.NewEmail.Trim();
++
+             if (string.IsNullOrWhiteSpace(email))
+             {
+-                var clearResult = await userManager.SetEmailAsync(user, null);
+-                if (!clearResult.Succeeded)
+-                {
+-                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-                    {
+-                        { "email", clearResult.Errors.Select(e => e.Description).ToArray() }
+-                    });
+-                }
++                return TypedResults.Problem("邮箱不能为空", statusCode: 400);
+             }
+-            else
++
++            if (string.IsNullOrEmpty(request.OperationToken))
+             {
+-                if (email.Length > 256 || !EmailValidator.IsValid(email))
+-                {
+-                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-                    {
+-                        { "email", new[] { "请输入有效的邮箱地址" } }
+-                    });
+-                }
++                return TypedResults.Problem("邮箱修改需要验证码确认", statusCode: 400);
++            }
+ 
+-                var existingEmailUser = await userManager.FindByEmailAsync(email);
+-                if (existingEmailUser is not null && existingEmailUser.Id != user.Id)
++            if (email.Length > 256 || !EmailValidator.IsValid(email))
++            {
++                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                 {
+-                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-                    {
+-                        { "email", new[] { "此邮箱已被其他用户使用" } }
+-                    });
+-                }
++                    { "email", new[] { "请输入有效的邮箱地址" } }
++                });
++            }
+ 
+-                try
++            // 验证 operation token
++            var (tokenOk, verifiedEmail) = ValidateOperationToken(request.OperationToken, user.Id,
++                protectionProvider: httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>());
++            if (!tokenOk)
++            {
++                return TypedResults.Problem("操作已过期，请重新验证", statusCode: 400);
++            }
++
++            if (!string.Equals(verifiedEmail, email, StringComparison.OrdinalIgnoreCase))
++            {
++                return TypedResults.Problem("邮箱不匹配", statusCode: 400);
++            }
++
++            var existingEmailUser = await userManager.FindByEmailAsync(email);
++            if (existingEmailUser is not null && existingEmailUser.Id != user.Id)
++            {
++                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                 {
+-                    var emailResult = await userManager.SetEmailAsync(user, email);
+-                    if (!emailResult.Succeeded)
+-                    {
+-                        return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-                        {
+-                            { "email", emailResult.Errors.Select(e => e.Description).ToArray() }
+-                        });
+-                    }
+-                }
+-                catch (DbUpdateException ex)
++                    { "email", new[] { "该邮箱已被其他账户使用" } }
++                });
++            }
++
++            // 原子更新 user.Email + user.EmailForTwoFactor
++            var oldEmail = user.Email;
++            user.Email = email.ToLowerInvariant();
++            user.EmailForTwoFactor = email.ToLowerInvariant();
++
++            try
++            {
++                var updateResult = await userManager.UpdateAsync(user);
++                if (!updateResult.Succeeded)
+                 {
+-                    // TOCTOU 并发防护：FindByEmailAsync 和 SetEmailAsync 之间的窗口期
+-                    // 内另有请求设置了相同邮箱。NormalizedEmail 唯一索引确保数据完整性。
+-                    var logger = loggerFactory.CreateLogger("BoxWise.Auth");
+-                    logger.LogWarning(ex, "Email uniqueness conflict for user {UserId} when setting email", user.Id);
+                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                     {
+-                        { "email", new[] { "此邮箱已被其他用户使用" } }
++                        { "email", updateResult.Errors.Select(e => e.Description).ToArray() }
+                     });
+                 }
+-
+-                // 邮箱变更后需清除已验证标记，并要求重新确认
+-                user.EmailConfirmed = false;
+-                try
+-                {
+-                    await userManager.UpdateAsync(user);
+-                }
+-                catch (DbUpdateException ex)
++            }
++            catch (DbUpdateException ex)
++            {
++                var logger = loggerFactory.CreateLogger("BoxWise.Auth");
++                logger.LogWarning(ex, "Email uniqueness conflict for user {UserId} when setting email", user.Id);
++                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                 {
+-                    // EmailConfirmed 同步失败不阻断主流程
+-                    // ——核心邮箱更改已通过 SetEmailAsync 持久化
+-                    var logger = loggerFactory.CreateLogger("BoxWise.Auth");
+-                    logger.LogWarning(ex, "Failed to update EmailConfirmed for user {UserId}", user.Id);
+-                }
++                    { "email", new[] { "该邮箱已被其他账户使用" } }
++                });
++            }
++
++            // 旧邮箱通知（异步，失败不影响主流程）
++            if (!string.IsNullOrEmpty(oldEmail))
++            {
++                var emailService = httpContext.RequestServices.GetRequiredService<EmailTwoFactorService>();
++                _ = Task.Run(() => emailService.SendChangeNotificationAsync(oldEmail, user.UserName));
+             }
+         }
+ 
+@@ -362,4 +370,33 @@ public static class AuthEndpoints
+         {
+             { "auth", new[] { "未登录" } }
+         });
++
++    private static (bool Ok, string VerifiedEmail) ValidateOperationToken(
++        string operationToken, string userId, IDataProtectionProvider protectionProvider)
++    {
++        try
++        {
++            var protector = protectionProvider.CreateProtector("email-operation-token");
++            var payload = protector.Unprotect(operationToken);
++            var parts = payload.Split('|');
++            if (parts.Length < 3)
++                return (false, string.Empty);
++
++            var tokenUserId = parts[0];
++            var boundEmail = parts[1];
++            var expiry = DateTime.Parse(parts[2], null, System.Globalization.DateTimeStyles.RoundtripKind);
++
++            if (tokenUserId != userId)
++                return (false, string.Empty);
++
++            if (expiry <= DateTime.UtcNow)
++                return (false, string.Empty);
++
++            return (true, boundEmail);
++        }
++        catch
++        {
++            return (false, string.Empty);
++        }
++    }
+ }
+diff --git a/src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs b/src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs
+index 1f59f64..21e951f 100644
+--- a/src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs
++++ b/src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs
+@@ -257,7 +257,9 @@ public static class TwoFactorEndpoints
+         if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
+         {
+             // 防御：EmailForTwoFactor 为 null 的损坏状态
+-            if (string.IsNullOrEmpty(user.EmailForTwoFactor))
++            // 优先使用 user.Email，回退到 EmailForTwoFactor（向后兼容）
++            var emailFor2Fa = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
++            if (string.IsNullOrEmpty(emailFor2Fa))
+             {
+                 user.ConfiguredMethods &= ~TwoFactorMethod.Email;
+                 await userManager.UpdateAsync(user);
+@@ -265,7 +267,7 @@ public static class TwoFactorEndpoints
+             else
+             {
+                 methods.Add("Email");
+-                var (code, token) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
++                var (code, token) = emailTwoFactorService.GenerateCode(user.Id, emailFor2Fa);
+                 emailToken = token;
+                 // 邮件延迟到用户选择 Email 方法后发送，避免 TOTP 用户收到不必要的邮件
+             }
+@@ -288,12 +290,13 @@ public static class TwoFactorEndpoints
+         if (user is null)
+             return TypedResults.Unauthorized();
+ 
+-        if (string.IsNullOrEmpty(user.EmailForTwoFactor)
++        var emailFor2Fa = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
++        if (string.IsNullOrEmpty(emailFor2Fa)
+             || !user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
+             return TypedResults.Ok(new SendChallengeCodeResponse(null));
+ 
+-        var (code, newToken) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
+-        var sent = await emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName);
++        var (code, newToken) = emailTwoFactorService.GenerateCode(user.Id, emailFor2Fa);
++        var sent = await emailTwoFactorService.SendVerificationEmailAsync(emailFor2Fa, code, user.UserName);
+ 
+         if (!sent)
+         {
+@@ -340,12 +343,13 @@ public static class TwoFactorEndpoints
+                     {
+                         { "token", new[] { "缺少验证令牌" } }
+                     });
+-                if (string.IsNullOrEmpty(user.EmailForTwoFactor))
++                var emailForVerify = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
++                if (string.IsNullOrEmpty(emailForVerify))
+                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                     {
+                         { "method", new[] { "邮箱 2FA 未完整配置" } }
+                     });
+-                valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
++                valid = emailTwoFactorService.VerifyCode(user.Id, emailForVerify, request.Code, request.Token);
+                 break;
+             default:
+                 // 回退兼容：单方法用户 / 旧客户端不传 method
+@@ -356,12 +360,13 @@ public static class TwoFactorEndpoints
+                         {
+                             { "token", new[] { "缺少验证令牌" } }
+                         });
+-                    if (string.IsNullOrEmpty(user.EmailForTwoFactor))
++                    var emailForVerifyFallback = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
++                    if (string.IsNullOrEmpty(emailForVerifyFallback))
+                         return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                         {
+                             { "method", new[] { "邮箱 2FA 未完整配置" } }
+                         });
+-                    valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
++                    valid = emailTwoFactorService.VerifyCode(user.Id, emailForVerifyFallback, request.Code, request.Token);
+                 }
+                 else
+                 {
+@@ -419,10 +424,10 @@ public static class TwoFactorEndpoints
+     // ===== Story 8-2b: 邮箱验证码 2FA 端点 =====
+ 
+     /// <summary>
+-    /// 设置邮箱 2FA：保存邮箱地址并发送验证码。
++    /// 设置邮箱 2FA：使用 user.Email 发送验证码（无需客户端传邮箱）。
+     /// </summary>
+     private static async Task<Results<Ok<EmailTwoFactorSetupResponse>, UnauthorizedHttpResult, ValidationProblem>>
+-        SetupEmailAsync(SetupEmailTwoFactorRequest request, HttpContext httpContext,
++        SetupEmailAsync(HttpContext httpContext,
+             UserManager<AppUser> userManager, TwoFactorService twoFactorService,
+             EmailTwoFactorService emailTwoFactorService)
+     {
+@@ -448,17 +453,21 @@ public static class TwoFactorEndpoints
+             });
+         }
+ 
+-        var email = request.Email.Trim();
+-        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !EmailValidator.IsValid(email))
++        var email = user.Email;
++        if (string.IsNullOrWhiteSpace(email))
+         {
+             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+             {
+-                { "email", new[] { "请输入有效的邮箱地址" } }
++                { "email", new[] { "请先在账户信息中设置邮箱" } }
+             });
+         }
+ 
+-        user.EmailForTwoFactor = email;
+-        await userManager.UpdateAsync(user);
++        // 确保 EmailForTwoFactor 与 user.Email 同步
++        if (!string.Equals(user.EmailForTwoFactor, email, StringComparison.OrdinalIgnoreCase))
++        {
++            user.EmailForTwoFactor = email;
++            await userManager.UpdateAsync(user);
++        }
+ 
+         // 生成自包含令牌并发送验证码
+         var (code, token) = emailTwoFactorService.GenerateCode(user.Id, email);
+@@ -506,7 +515,7 @@ public static class TwoFactorEndpoints
+             });
+         }
+ 
+-        var email = user.EmailForTwoFactor;
++        var email = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
+         if (string.IsNullOrWhiteSpace(email))
+         {
+             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+diff --git a/src/BoxWise.Server/Endpoints/TwoFactorModifyEndpoints.cs b/src/BoxWise.Server/Endpoints/TwoFactorModifyEndpoints.cs
+index cb34f12..aaa6b92 100644
+--- a/src/BoxWise.Server/Endpoints/TwoFactorModifyEndpoints.cs
++++ b/src/BoxWise.Server/Endpoints/TwoFactorModifyEndpoints.cs
+@@ -1,4 +1,3 @@
+-using Microsoft.AspNetCore.DataProtection;
+ using Microsoft.AspNetCore.Http.HttpResults;
+ using Microsoft.AspNetCore.Identity;
+ using BoxWise.Server.Models;
+@@ -25,18 +24,6 @@ public static class TwoFactorModifyEndpoints
+             .RequireRateLimiting("2fa-modify")
+             .AddEndpointFilter<CsrfValidationFilter>();
+ 
+-        group.MapPost("/email", ModifyEmailAsync)
+-            .WithTags("2FA/Modify")
+-            .ProducesProblem(401)
+-            .RequireRateLimiting("2fa-modify")
+-            .AddEndpointFilter<CsrfValidationFilter>();
+-
+-        group.MapPost("/email/verify", VerifyModifyEmailAsync)
+-            .WithTags("2FA/Modify")
+-            .ProducesProblem(401)
+-            .RequireRateLimiting("2fa-modify")
+-            .AddEndpointFilter<CsrfValidationFilter>();
+-
+         group.MapPost("/totp", ResetTotpAsync)
+             .WithTags("2FA/Modify")
+             .ProducesProblem(401)
+@@ -97,7 +84,8 @@ public static class TwoFactorModifyEndpoints
+                     {
+                         { "method", new[] { "该方法未配置" } }
+                     });
+-                if (string.IsNullOrEmpty(user.EmailForTwoFactor))
++                var emailForAuth = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
++                if (string.IsNullOrEmpty(emailForAuth))
+                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                     {
+                         { "method", new[] { "邮箱 2FA 未完整配置" } }
+@@ -107,7 +95,7 @@ public static class TwoFactorModifyEndpoints
+                     {
+                         { "token", new[] { "缺少验证令牌" } }
+                     });
+-                valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
++                valid = emailTwoFactorService.VerifyCode(user.Id, emailForAuth, request.Code, request.Token);
+                 break;
+             case "RecoveryCode":
+                 valid = await recoveryCodeService.ValidateRecoveryCodeAsync(user, request.Code);
+@@ -143,61 +131,8 @@ public static class TwoFactorModifyEndpoints
+         if (user is null)
+             return TypedResults.Unauthorized();
+ 
+-        if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email) || string.IsNullOrEmpty(user.EmailForTwoFactor))
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "method", new[] { "您尚未配置邮箱 2FA" } }
+-            });
+-        }
+-
+-        var email = user.EmailForTwoFactor;
+-        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, email);
+-        var sent = await emailTwoFactorService.SendVerificationEmailAsync(email, code, user.UserName);
+-
+-        if (!sent)
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "email", new[] { "验证码发送失败，请检查 SMTP 配置或稍后重试" } }
+-            });
+-        }
+-
+-        return TypedResults.Ok(new EmailTwoFactorSetupResponse(token));
+-    }
+-
+-    /// <summary>
+-    /// 修改 2FA 邮箱：向新邮箱发送验证码，暂不保存。
+-    /// 需要 modify session token（purpose="2fa-modify"）。
+-    /// </summary>
+-    private static async Task<Results<Ok<EmailTwoFactorSetupResponse>, UnauthorizedHttpResult, ValidationProblem>>
+-        ModifyEmailAsync(SetupEmailTwoFactorRequest request, HttpContext httpContext,
+-            UserManager<AppUser> userManager, TwoFactorService twoFactorService,
+-            EmailTwoFactorService emailTwoFactorService)
+-    {
+-        var sessionToken = httpContext.Request.Headers["X-Session-Token"].FirstOrDefault();
+-        if (string.IsNullOrEmpty(sessionToken))
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "sessionToken", new[] { "缺少会话令牌" } }
+-            });
+-        }
+-
+-        var user = await userManager.GetUserAsync(httpContext.User);
+-        if (user is null)
+-            return TypedResults.Unauthorized();
+-
+-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
+-        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp, "2fa-modify"))
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "sessionToken", new[] { "会话令牌无效或已过期，请重新验证身份" } }
+-            });
+-        }
+-
+-        if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
++        var emailForSmtp = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
++        if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email) || string.IsNullOrEmpty(emailForSmtp))
+         {
+             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+             {
+@@ -205,18 +140,8 @@ public static class TwoFactorModifyEndpoints
+             });
+         }
+ 
+-        var email = request.Email?.Trim();
+-        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !email.Contains('@'))
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "email", new[] { "请输入有效的邮箱地址" } }
+-            });
+-        }
+-
+-        // 生成验证码发送到新邮箱（暂不覆盖 user.EmailForTwoFactor，verify 时才更新）
+-        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, email);
+-        var sent = await emailTwoFactorService.SendVerificationEmailAsync(email, code, user.UserName);
++        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, emailForSmtp);
++        var sent = await emailTwoFactorService.SendVerificationEmailAsync(emailForSmtp, code, user.UserName);
+ 
+         if (!sent)
+         {
+@@ -229,92 +154,6 @@ public static class TwoFactorModifyEndpoints
+         return TypedResults.Ok(new EmailTwoFactorSetupResponse(token));
+     }
+ 
+-    /// <summary>
+-    /// 验证新邮箱验证码并更新 EmailForTwoFactor。
+-    /// 需要 modify session token（purpose="2fa-modify"）。
+-    /// </summary>
+-    private static async Task<Results<Ok, UnauthorizedHttpResult, ValidationProblem>>
+-        VerifyModifyEmailAsync(VerifyTwoFactorRequest request, HttpContext httpContext,
+-            UserManager<AppUser> userManager, TwoFactorService twoFactorService,
+-            EmailTwoFactorService emailTwoFactorService,
+-            IDataProtectionProvider dataProtectionProvider)
+-    {
+-        var sessionToken = httpContext.Request.Headers["X-Session-Token"].FirstOrDefault();
+-        if (string.IsNullOrEmpty(sessionToken))
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "sessionToken", new[] { "缺少会话令牌" } }
+-            });
+-        }
+-
+-        var user = await userManager.GetUserAsync(httpContext.User);
+-        if (user is null)
+-            return TypedResults.Unauthorized();
+-
+-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
+-        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp, "2fa-modify"))
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "sessionToken", new[] { "会话令牌无效或已过期，请重新验证身份" } }
+-            });
+-        }
+-
+-        if (string.IsNullOrEmpty(request.Token))
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "token", new[] { "缺少验证令牌" } }
+-            });
+-        }
+-
+-        // 从自包含令牌中提取新邮箱地址
+-        // 令牌格式: userId|email|code|expiry（由 EmailTwoFactorService.GenerateCode 生成）
+-        var protector = dataProtectionProvider.CreateProtector("BoxWise.EmailTwoFactor");
+-        string newEmail;
+-        try
+-        {
+-            var payload = protector.Unprotect(request.Token);
+-            var parts = payload.Split('|');
+-            if (parts.Length < 4)
+-                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-                {
+-                    { "token", new[] { "验证令牌无效" } }
+-                });
+-            newEmail = parts[1];
+-        }
+-        catch
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "token", new[] { "验证令牌无效" } }
+-            });
+-        }
+-
+-        var valid = emailTwoFactorService.VerifyCode(user.Id, newEmail, request.Code, request.Token);
+-        if (!valid)
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "code", new[] { "验证码无效或已过期" } }
+-            });
+-        }
+-
+-        // 更新用户的 2FA 邮箱
+-        user.EmailForTwoFactor = newEmail;
+-        var updateResult = await userManager.UpdateAsync(user);
+-        if (!updateResult.Succeeded)
+-        {
+-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+-            {
+-                { "general", new[] { "更新邮箱失败" } }
+-            });
+-        }
+-
+-        return TypedResults.Ok();
+-    }
+-
+     /// <summary>
+     /// 重置 TOTP 密钥（第一步：生成新密钥暂存于 PendingTotpSecretKey）。
+     /// 旧密钥保持有效直到 verify 确认。
+diff --git a/src/BoxWise.Server/Program.cs b/src/BoxWise.Server/Program.cs
+index ac9fbb7..9aa7aa9 100644
+--- a/src/BoxWise.Server/Program.cs
++++ b/src/BoxWise.Server/Program.cs
+@@ -270,6 +270,21 @@ builder.Services.AddRateLimiter(options =>
+                 QueueLimit = 0
+             });
+     });
++
++    // 邮箱验证码发送 - 按用户（每 60s 1 次）
++    options.AddPolicy<string>("email-verification", httpContext =>
++    {
++        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
++        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
++        return RateLimitPartition.GetFixedWindowLimiter(userId,
++            _ => new FixedWindowRateLimiterOptions
++            {
++                PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 1),
++                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:EmailVerificationWindowSeconds", 60)),
++                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
++                QueueLimit = 0
++            });
++    });
+ });
+ 
+ builder.Services.AddScoped<CsrfValidationFilter>();
+@@ -413,6 +428,7 @@ app.MapTagEndpoints();
+ app.MapAiEndpoints();
+ app.MapTwoFactorEndpoints();
+ app.MapTwoFactorModifyEndpoints();
++app.MapEmailVerificationEndpoints();
+ app.MapWebAuthnEndpoints();
+ app.MapQrCodeEndpoints();
+ app.MapAdminTwoFactorEndpoints();
+diff --git a/src/BoxWise.Server/Services/EmailTwoFactorService.cs b/src/BoxWise.Server/Services/EmailTwoFactorService.cs
+index 3270b1f..bef166d 100644
+--- a/src/BoxWise.Server/Services/EmailTwoFactorService.cs
++++ b/src/BoxWise.Server/Services/EmailTwoFactorService.cs
+@@ -1,7 +1,9 @@
++using System.Collections.Concurrent;
+ using System.Globalization;
+ using System.Net.Sockets;
+ using System.Security.Authentication;
+ using System.Security.Cryptography;
++using System.Text;
+ using Microsoft.AspNetCore.DataProtection;
+ using BoxWise.Shared.Dtos;
+ using MailKit.Net.Smtp;
+@@ -16,6 +18,12 @@ public class EmailTwoFactorService
+     private readonly ILogger<EmailTwoFactorService> _logger;
+     private readonly IDataProtector _protector;
+ 
++    // 一次性 token 消费追踪（ConcurrentDictionary + 惰性清理）
++    private static readonly ConcurrentDictionary<string, DateTime> _consumedTokens = new();
++    private static readonly TimeSpan _tokenTtl = TimeSpan.FromMinutes(5);
++    private static DateTime _lastCleanup = DateTime.UtcNow;
++    private static readonly object _cleanupLock = new();
++
+     public EmailTwoFactorService(
+         IDataProtectionProvider protectionProvider,
+         ISmtpConfigurationService smtpConfig,
+@@ -67,11 +75,45 @@ public class EmailTwoFactorService
+         }
+     }
+ 
++    /// <summary>
++    /// 一次性验证码校验：TryAdd 原子操作防止 TOCTOU 竞态。
++    /// 验证失败时移除 tokenHash 允许重试；验证成功时惰性清理过期条目。
++    /// </summary>
++    public bool VerifyCodeOnce(string userId, string email, string code, string token)
++    {
++        var tokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
++
++        // TryAdd 是原子操作 —— 修复 TOCTOU 竞态
++        if (!_consumedTokens.TryAdd(tokenHash, DateTime.UtcNow.Add(_tokenTtl)))
++            return false; // 已存在 → 已消费
++
++        var result = VerifyCode(userId, email, code, token);
++        if (!result)
++            _consumedTokens.TryRemove(tokenHash, out _); // 验证失败 → 允许重试
++        else
++            CleanupExpiredTokens();
++        return result;
++    }
++
++    private static void CleanupExpiredTokens()
++    {
++        var now = DateTime.UtcNow;
++        if (now - _lastCleanup < TimeSpan.FromMinutes(2)) return;
++        lock (_cleanupLock)
++        {
++            if (now - _lastCleanup < TimeSpan.FromMinutes(2)) return;
++            var expired = _consumedTokens.Where(kv => kv.Value < now).Select(kv => kv.Key).ToList();
++            foreach (var key in expired) _consumedTokens.TryRemove(key, out _);
++            _lastCleanup = now;
++        }
++    }
++
+     /// <summary>
+     /// 使用 MailKit SmtpClient 发送验证码邮件。
+     /// 从 SmtpConfigurationService 快照读取配置。如果 SMTP 未配置则返回 false（静默失败）。
++    /// purpose 参数区分邮件模板："2fa"（默认）或 "email-change"。
+     /// </summary>
+-    public async Task<bool> SendVerificationEmailAsync(string toEmail, string code, string? userName)
++    public async Task<bool> SendVerificationEmailAsync(string toEmail, string code, string? userName, string purpose = "2fa")
+     {
+         var config = _smtpConfig.GetSnapshot();
+         if (string.IsNullOrWhiteSpace(config.Host))
+@@ -88,18 +130,23 @@ public class EmailTwoFactorService
+             ? "BoxWise"
+             : config.FromName;
+ 
++        var purposeText = purpose == "email-change" ? "邮箱修改" : "双因素认证";
++        var subject = purpose == "email-change"
++            ? "【BoxWise】邮箱修改验证码"
++            : "【BoxWise】您的验证码";
++
+         try
+         {
+             var message = new MimeMessage();
+             message.From.Add(new MailboxAddress(fromName, fromAddress));
+             message.To.Add(new MailboxAddress(userName ?? "用户", toEmail));
+-            message.Subject = "【BoxWise】您的验证码";
++            message.Subject = subject;
+ 
+             var body = new TextPart("plain")
+             {
+                 Text = $@"您好{(!string.IsNullOrEmpty(userName) ? $" {userName}，" : "，")}
+ 
+-您的 BoxWise 双因素认证验证码为：
++您的 BoxWise {purposeText}验证码为：
+ 
+     {code}
+ 
+@@ -123,7 +170,7 @@ BoxWise 安全团队"
+             await client.SendAsync(message);
+             await TryDisconnectAsync(client);
+ 
+-            _logger.LogInformation("验证码邮件已发送到 {Email}", toEmail);
++            _logger.LogInformation("{Purpose} 验证码邮件已发送到 {Email}", purpose, toEmail);
+             return true;
+         }
+         catch (MailKit.Security.AuthenticationException ex)
+@@ -148,6 +195,62 @@ BoxWise 安全团队"
+         }
+     }
+ 
++    /// <summary>
++    /// 发送邮箱变更通知到旧邮箱（异步，失败不影响主流程）。
++    /// </summary>
++    public async Task SendChangeNotificationAsync(string oldEmail, string? userName)
++    {
++        var config = _smtpConfig.GetSnapshot();
++        if (string.IsNullOrWhiteSpace(config.Host))
++        {
++            _logger.LogWarning("SMTP 未配置，无法发送邮箱变更通知到 {Email}", oldEmail);
++            return;
++        }
++
++        var fromAddress = string.IsNullOrWhiteSpace(config.FromAddress)
++            ? "noreply@boxwise.app"
++            : config.FromAddress;
++        var fromName = string.IsNullOrWhiteSpace(config.FromName)
++            ? "BoxWise"
++            : config.FromName;
++
++        try
++        {
++            var message = new MimeMessage();
++            message.From.Add(new MailboxAddress(fromName, fromAddress));
++            message.To.Add(new MailboxAddress(userName ?? "用户", oldEmail));
++            message.Subject = "【BoxWise】邮箱地址已变更";
++
++            var body = new TextPart("plain")
++            {
++                Text = $@"您好{(!string.IsNullOrEmpty(userName) ? $" {userName}，" : "，")}
++
++您的 BoxWise 账户邮箱地址已成功修改。如果这不是您本人的操作，请立即联系管理员。
++
++此致，
++BoxWise 安全团队"
++            };
++
++            message.Body = body;
++
++            using var client = new SmtpClient();
++            client.Timeout = 30000;
++            client.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
++            await client.ConnectAsync(config.Host, config.Port,
++                config.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTlsWhenAvailable);
++            if (!string.IsNullOrWhiteSpace(config.Username))
++                await client.AuthenticateAsync(config.Username, config.Password ?? "");
++            await client.SendAsync(message);
++            await TryDisconnectAsync(client);
++
++            _logger.LogInformation("邮箱变更通知已发送到 {OldEmail}", oldEmail);
++        }
++        catch (Exception ex)
++        {
++            _logger.LogWarning(ex, "发送邮箱变更通知到 {OldEmail} 失败（不影响主流程）", oldEmail);
++        }
++    }
++
+     /// <summary>
+     /// 检查 SMTP 是否已配置。委托给 SmtpConfigurationService。
+     /// </summary>
+diff --git a/src/BoxWise.Shared/Dtos/UpdateProfileRequest.cs b/src/BoxWise.Shared/Dtos/UpdateProfileRequest.cs
+index 08a4122..21ec5b9 100644
+--- a/src/BoxWise.Shared/Dtos/UpdateProfileRequest.cs
++++ b/src/BoxWise.Shared/Dtos/UpdateProfileRequest.cs
+@@ -1,3 +1,3 @@
+ namespace BoxWise.Shared.Dtos;
+ 
+-public record UpdateProfileRequest(string NewUsername, string? NewEmail = null);
++public record UpdateProfileRequest(string NewUsername, string? NewEmail = null, string? OperationToken = null);
+=== NEW: src/BoxWise.Server.Tests/Endpoints/EmailVerificationEndpointsTests.cs ===
+using System.Reflection;
+using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.AspNetCore.DataProtection;
+using BoxWise.Server.Data;
+using BoxWise.Server.Endpoints;
+using BoxWise.Server.Models;
+using BoxWise.Server.Services;
+using BoxWise.Shared.Dtos;
+using Moq;
+
+namespace BoxWise.Server.Tests.Endpoints;
+
+public class EmailVerificationEndpointsTests : IAsyncLifetime
+{
+    private TestIdentityContext _ctx = null!;
+    private UserManager<AppUser> _userManager = null!;
+    private TwoFactorService _twoFactorService = null!;
+    private EmailTwoFactorService _emailTwoFactorService = null!;
+    private IDataProtectionProvider _dataProtection = null!;
+    private Mock<ISmtpConfigurationService> _smtpConfigMock = null!;
+
+    public async Task InitializeAsync()
+    {
+        _ctx = await TestIdentityFactory.CreateAsync();
+        _userManager = _ctx.UserManager;
+
+        _smtpConfigMock = new Mock<ISmtpConfigurationService>();
+        _smtpConfigMock.Setup(x => x.IsConfigured()).Returns(false);
+        _smtpConfigMock.Setup(x => x.GetSnapshot())
+            .Returns(new SmtpConfigDto(string.Empty, 587, null, null, null, null));
+
+        _dataProtection = _ctx.Provider.GetRequiredService<IDataProtectionProvider>();
+        var db = _ctx.Scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var cache = new MemoryCache(new MemoryCacheOptions());
+        _emailTwoFactorService = new EmailTwoFactorService(
+            _dataProtection, _smtpConfigMock.Object, NullLogger<EmailTwoFactorService>.Instance);
+        var recoveryService = new RecoveryCodeService(db);
+        _twoFactorService = new TwoFactorService(
+            _userManager, _dataProtection, _emailTwoFactorService, recoveryService, cache);
+    }
+
+    public async Task DisposeAsync() => await _ctx.DisposeAsync();
+
+    private static async Task<int> InvokeEmailAsync(string methodName, params object?[] args)
+    {
+        var method = typeof(EmailVerificationEndpoints).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
+        var task = (Task)method.Invoke(null, args)!;
+        await task;
+        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
+        var executeMethod = httpResult.GetType().GetMethod("ExecuteAsync", [typeof(HttpContext)])!;
+        var s = new ServiceCollection(); s.AddLogging();
+        using var sp = s.BuildServiceProvider();
+        var hc = new DefaultHttpContext { RequestServices = sp };
+        hc.Response.Body = new MemoryStream();
+        await (Task)executeMethod.Invoke(httpResult, [hc])!;
+        return hc.Response.StatusCode;
+    }
+
+    private static async Task<(int StatusCode, string Body)> InvokeEmailWithBodyAsync(string methodName, params object?[] args)
+    {
+        var method = typeof(EmailVerificationEndpoints).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static)!;
+        var task = (Task)method.Invoke(null, args)!;
+        await task;
+        var httpResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
+        var executeMethod = httpResult.GetType().GetMethod("ExecuteAsync", [typeof(HttpContext)])!;
+        var s = new ServiceCollection(); s.AddLogging();
+        using var sp = s.BuildServiceProvider();
+        var hc = new DefaultHttpContext { RequestServices = sp };
+        hc.Response.Body = new MemoryStream();
+        await (Task)executeMethod.Invoke(httpResult, [hc])!;
+        hc.Response.Body.Seek(0, SeekOrigin.Begin);
+        var body = await new StreamReader(hc.Response.Body).ReadToEndAsync();
+        return (hc.Response.StatusCode, body);
+    }
+
+    [Fact]
+    public async Task SendCode_NoSessionToken_ReturnsValidationProblem()
+    {
+        var user = new AppUser { UserName = "sendnotoken" };
+        await _userManager.CreateAsync(user, "Test1234!");
+        var hc = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
+        };
+        var status = await InvokeEmailAsync("SendCodeAsync",
+            new SendEmailCodeRequest("new@test.com"), hc, _userManager, _twoFactorService, _emailTwoFactorService);
+        Assert.Equal(400, status);
+    }
+
+    [Fact]
+    public async Task SendCode_Unauthenticated_ReturnsUnauthorized()
+    {
+        var hc = new DefaultHttpContext();
+        hc.Request.Headers["X-Session-Token"] = "some-token";
+        var status = await InvokeEmailAsync("SendCodeAsync",
+            new SendEmailCodeRequest("new@test.com"), hc, _userManager, _twoFactorService, _emailTwoFactorService);
+        Assert.Equal(401, status);
+    }
+
+    [Fact]
+    public async Task SendCode_InvalidEmail_ReturnsValidationProblem()
+    {
+        var user = new AppUser { UserName = "sendinvalid" };
+        await _userManager.CreateAsync(user, "Test1234!");
+        var hc = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
+        };
+        var token = _twoFactorService.GenerateSessionToken(user.Id);
+        hc.Request.Headers["X-Session-Token"] = token;
+
+        var status = await InvokeEmailAsync("SendCodeAsync",
+            new SendEmailCodeRequest("not-an-email"), hc, _userManager, _twoFactorService, _emailTwoFactorService);
+        Assert.Equal(400, status);
+    }
+
+    [Fact]
+    public async Task SendCode_ExistingEmailConflict_ReturnsValidationProblem()
+    {
+        var user1 = new AppUser { UserName = "user1", Email = "existing@test.com" };
+        var user2 = new AppUser { UserName = "user2" };
+        await _userManager.CreateAsync(user1, "Test1234!");
+        await _userManager.CreateAsync(user2, "Test1234!");
+
+        var hc = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, user2.Id)], "test"))
+        };
+        var token = _twoFactorService.GenerateSessionToken(user2.Id);
+        hc.Request.Headers["X-Session-Token"] = token;
+
+        var status = await InvokeEmailAsync("SendCodeAsync",
+            new SendEmailCodeRequest("existing@test.com"), hc, _userManager, _twoFactorService, _emailTwoFactorService);
+        Assert.Equal(400, status);
+    }
+
+    [Fact]
+    public async Task VerifyCode_Unauthenticated_ReturnsUnauthorized()
+    {
+        var hc = new DefaultHttpContext();
+        var status = await InvokeEmailAsync("VerifyCodeAsync",
+            new VerifyEmailCodeRequest("123456", "some-token"), hc, _userManager, _emailTwoFactorService, _dataProtection);
+        Assert.Equal(401, status);
+    }
+
+    [Fact]
+    public async Task VerifyCode_InvalidCode_ReturnsValidationProblem()
+    {
+        var user = new AppUser { UserName = "verifyinvalid" };
+        await _userManager.CreateAsync(user, "Test1234!");
+        var hc = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
+        };
+
+        var status = await InvokeEmailAsync("VerifyCodeAsync",
+            new VerifyEmailCodeRequest("wrong", "some-token"), hc, _userManager, _emailTwoFactorService, _dataProtection);
+        Assert.Equal(400, status);
+    }
+
+    [Fact]
+    public async Task VerifyCode_ValidCode_ReturnsOperationToken()
+    {
+        // Enable SMTP so send works (otherwise code isn't sent)
+        _smtpConfigMock.Setup(x => x.IsConfigured()).Returns(true);
+        _smtpConfigMock.Setup(x => x.GetSnapshot())
+            .Returns(new SmtpConfigDto("smtp.test.com", 587, "user", "pass", "from@test.com", "Test"));
+
+        var user = new AppUser { UserName = "verifyvalid" };
+        await _userManager.CreateAsync(user, "Test1234!");
+
+        // Generate a real token and code
+        var (code, token) = _emailTwoFactorService.GenerateCode(user.Id, "new@test.com");
+
+        var hc = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
+        };
+
+        var (status, body) = await InvokeEmailWithBodyAsync("VerifyCodeAsync",
+            new VerifyEmailCodeRequest(code, token), hc, _userManager, _emailTwoFactorService, _dataProtection);
+        Assert.Equal(200, status);
+
+        var response = JsonSerializer.Deserialize<EmailVerifyCodeResponse>(body,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        Assert.NotNull(response);
+        Assert.False(string.IsNullOrEmpty(response.OperationToken));
+        Assert.Equal("new@test.com", response.VerifiedEmail);
+    }
+
+    [Fact]
+    public async Task VerifyCode_TokenReuse_ReturnsValidationProblem()
+    {
+        _smtpConfigMock.Setup(x => x.IsConfigured()).Returns(true);
+        _smtpConfigMock.Setup(x => x.GetSnapshot())
+            .Returns(new SmtpConfigDto("smtp.test.com", 587, "user", "pass", "from@test.com", "Test"));
+
+        var user = new AppUser { UserName = "verifyreuse" };
+        await _userManager.CreateAsync(user, "Test1234!");
+
+        var (code, token) = _emailTwoFactorService.GenerateCode(user.Id, "new@test.com");
+
+        var hc = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
+        };
+
+        // First call should succeed
+        var (status1, _) = await InvokeEmailWithBodyAsync("VerifyCodeAsync",
+            new VerifyEmailCodeRequest(code, token), hc, _userManager, _emailTwoFactorService, _dataProtection);
+        Assert.Equal(200, status1);
+
+        // Second call with same code+token should fail (already consumed via VerifyCodeOnce)
+        var (status2, body2) = await InvokeEmailWithBodyAsync("VerifyCodeAsync",
+            new VerifyEmailCodeRequest(code, token), hc, _userManager, _emailTwoFactorService, _dataProtection);
+        Assert.Equal(400, status2);
+        Assert.Contains("请重新发送", body2);
+    }
+}
+=== NEW: src/BoxWise.Server.Tests/Services/EmailTwoFactorServiceTests.cs ===
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using BoxWise.Server.Services;
+using BoxWise.Shared.Dtos;
+using Moq;
+
+namespace BoxWise.Server.Tests.Services;
+
+public class EmailTwoFactorServiceTests
+{
+    private readonly EmailTwoFactorService _service;
+    private readonly Mock<ISmtpConfigurationService> _smtpConfigMock;
+
+    public EmailTwoFactorServiceTests()
+    {
+        _smtpConfigMock = new Mock<ISmtpConfigurationService>();
+        _smtpConfigMock.Setup(x => x.IsConfigured()).Returns(false);
+        _smtpConfigMock.Setup(x => x.GetSnapshot())
+            .Returns(new SmtpConfigDto(string.Empty, 587, null, null, null, null));
+
+        // Create a real DataProtection provider for test isolation
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddDataProtection();
+        using var sp = services.BuildServiceProvider();
+        var dataProtection = sp.GetRequiredService<IDataProtectionProvider>();
+
+        _service = new EmailTwoFactorService(
+            dataProtection, _smtpConfigMock.Object, NullLogger<EmailTwoFactorService>.Instance);
+    }
+
+    [Fact]
+    public void VerifyCodeOnce_TokenReuse_ReturnsFalse()
+    {
+        var (code, token) = _service.GenerateCode("user1", "test@test.com");
+
+        // First call should succeed
+        var firstResult = _service.VerifyCodeOnce("user1", "test@test.com", code, token);
+        Assert.True(firstResult);
+
+        // Second call with same token+code should fail (already consumed)
+        var secondResult = _service.VerifyCodeOnce("user1", "test@test.com", code, token);
+        Assert.False(secondResult);
+    }
+
+    [Fact]
+    public void VerifyCodeOnce_WrongCode_AllowsRetry()
+    {
+        var (code, token) = _service.GenerateCode("user1", "test@test.com");
+
+        // Wrong code should return false but NOT consume the token
+        var wrongResult = _service.VerifyCodeOnce("user1", "test@test.com", "000000", token);
+        Assert.False(wrongResult);
+
+        // Same token with correct code should still work (token not consumed by failed attempt)
+        var retryResult = _service.VerifyCodeOnce("user1", "test@test.com", code, token);
+        Assert.True(retryResult);
+    }
+
+    [Fact]
+    public void VerifyCodeOnce_WrongUserId_Fails()
+    {
+        var (code, token) = _service.GenerateCode("user1", "test@test.com");
+
+        var result = _service.VerifyCodeOnce("wronguser", "test@test.com", code, token);
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void VerifyCodeOnce_WrongEmail_Fails()
+    {
+        var (code, token) = _service.GenerateCode("user1", "test@test.com");
+
+        var result = _service.VerifyCodeOnce("user1", "wrong@test.com", code, token);
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void VerifyCodeOnce_MalformedToken_Fails()
+    {
+        var result = _service.VerifyCodeOnce("user1", "test@test.com", "123456", "garbage-token");
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void VerifyCodeOnce_VerifyCode_BackwardCompatible()
+    {
+        // VerifyCodeOnce should match the behavior of VerifyCode for the first call
+        var (code, token) = _service.GenerateCode("user1", "test@test.com");
+
+        var onceResult = _service.VerifyCodeOnce("user1", "test@test.com", code, token);
+        var verifyResult = _service.VerifyCode("user1", "test@test.com", code, token);
+
+        Assert.True(onceResult);
+        Assert.True(verifyResult); // VerifyCode is not impacted by VerifyCodeOnce
+    }
+}
+=== NEW: src/BoxWise.Server/Endpoints/EmailVerificationEndpoints.cs ===
+using System.Security.Claims;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Identity;
+using BoxWise.Server.Models;
+using BoxWise.Server.Services;
+using BoxWise.Server.Utilities;
+using BoxWise.Shared.Dtos;
+
+namespace BoxWise.Server.Endpoints;
+
+public static class EmailVerificationEndpoints
+{
+    private const string SendCodePurpose = "email-change";
+    private const string OperationTokenPurpose = "email-operation-token";
+
+    public static RouteGroupBuilder MapEmailVerificationEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/auth/email");
+
+        group.MapPost("/send-code", SendCodeAsync)
+            .WithTags("Email Verification")
+            .ProducesProblem(401)
+            .RequireRateLimiting("email-verification");
+
+        group.MapPost("/verify-code", VerifyCodeAsync)
+            .WithTags("Email Verification")
+            .ProducesProblem(401);
+
+        return group;
+    }
+
+    /// <summary>
+    /// 向新邮箱发送验证码。需要 X-Session-Token（密码重新认证后获得）。
+    /// 预检查邮箱唯一性。返回 verification token。
+    /// </summary>
+    private static async Task<Results<Ok<EmailVerificationSendResponse>, UnauthorizedHttpResult, ValidationProblem>>
+        SendCodeAsync(SendEmailCodeRequest request, HttpContext httpContext,
+            UserManager<AppUser> userManager, TwoFactorService twoFactorService,
+            EmailTwoFactorService emailTwoFactorService)
+    {
+        var sessionToken = httpContext.Request.Headers["X-Session-Token"].FirstOrDefault();
+        if (string.IsNullOrEmpty(sessionToken))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "sessionToken", new[] { "缺少会话令牌" } }
+            });
+        }
+
+        var user = await userManager.GetUserAsync(httpContext.User);
+        if (user is null)
+            return TypedResults.Unauthorized();
+
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "sessionToken", new[] { "会话令牌无效或已过期，请重新验证密码" } }
+            });
+        }
+
+        var email = request.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !EmailValidator.IsValid(email))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "email", new[] { "请输入有效的邮箱地址" } }
+            });
+        }
+
+        // 检查邮箱是否唯一
+        var existingEmailUser = await userManager.FindByEmailAsync(email);
+        if (existingEmailUser is not null && existingEmailUser.Id != user.Id)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "email", new[] { "该邮箱已被其他账户使用" } }
+            });
+        }
+
+        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, email);
+        var sent = await emailTwoFactorService.SendVerificationEmailAsync(email, code, user.UserName, SendCodePurpose);
+
+        if (!sent)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "email", new[] { "邮件发送失败，请稍后再试" } }
+            });
+        }
+
+        return TypedResults.Ok(new EmailVerificationSendResponse(token));
+    }
+
+    /// <summary>
+    /// 验证验证码。成功时返回 Data Protection operation token。
+    /// 此端点不需要 X-Session-Token（登录 cookie 已提供身份，密码重新认证在 send-code 完成）。
+    /// </summary>
+    private static async Task<Results<Ok<EmailVerifyCodeResponse>, UnauthorizedHttpResult, ValidationProblem>>
+        VerifyCodeAsync(VerifyEmailCodeRequest request, HttpContext httpContext,
+            UserManager<AppUser> userManager, EmailTwoFactorService emailTwoFactorService,
+            IDataProtectionProvider protectionProvider)
+    {
+        var user = await userManager.GetUserAsync(httpContext.User);
+        if (user is null)
+            return TypedResults.Unauthorized();
+
+        if (string.IsNullOrEmpty(request.Code) || request.Code.Length != 6)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "code", new[] { "请输入有效的 6 位验证码" } }
+            });
+        }
+
+        if (string.IsNullOrEmpty(request.Token))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "token", new[] { "缺少验证令牌" } }
+            });
+        }
+
+        // 从自包含令牌中提取邮箱
+        // 令牌格式: userId|email|code|expiry
+        var emailProtector = protectionProvider.CreateProtector("BoxWise.EmailTwoFactor");
+        string tokenEmail;
+        try
+        {
+            var payload = emailProtector.Unprotect(request.Token);
+            var parts = payload.Split('|');
+            if (parts.Length < 4)
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "token", new[] { "验证令牌无效" } }
+                });
+            tokenEmail = parts[1];
+        }
+        catch
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "token", new[] { "验证令牌无效" } }
+            });
+        }
+
+        var valid = emailTwoFactorService.VerifyCodeOnce(user.Id, tokenEmail, request.Code, request.Token);
+        if (!valid)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "code", new[] { "验证码无效或已过期，请重新发送" } }
+            });
+        }
+
+        // 生成 operation token（自包含：userId|verifiedEmail|expiry）
+        var operationProtector = protectionProvider.CreateProtector(OperationTokenPurpose);
+        var operationToken = operationProtector.Protect(
+            $"{user.Id}|{tokenEmail}|{DateTime.UtcNow.AddMinutes(5):O}");
+
+        return TypedResults.Ok(new EmailVerifyCodeResponse(operationToken, tokenEmail));
+    }
+}
+
+=== NEW: src/BoxWise.Shared/Dtos/EmailVerificationDtos.cs ===
+namespace BoxWise.Shared.Dtos;
+
+public record SendEmailCodeRequest(string Email);
+public record VerifyEmailCodeRequest(string Code, string Token);
+public record EmailVerificationSendResponse(string Token);
+public record EmailVerifyCodeResponse(string OperationToken, string VerifiedEmail);

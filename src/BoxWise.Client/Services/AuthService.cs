@@ -163,11 +163,10 @@ public class AuthService
         return false;
     }
 
-    public async Task<string?> SetupEmailTwoFactorAsync(string sessionToken, string email)
+    public async Task<string?> SetupEmailTwoFactorAsync(string sessionToken)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/setup-email");
         request.Headers.Add("X-Session-Token", sessionToken);
-        request.Content = JsonContent.Create(new SetupEmailTwoFactorRequest(email));
 
         var response = await _http.SendAsync(request);
 
@@ -287,46 +286,67 @@ public class AuthService
         throw new InvalidOperationException(error ?? "发送验证码失败");
     }
 
+    // ===== Email Verification Methods (Consolidated Settings) =====
+
     /// <summary>
-    /// 修改 2FA 邮箱：向新邮箱发送验证码。
+    /// 发送邮箱验证码到新邮箱。需要 X-Session-Token（密码重新认证后）。
     /// </summary>
-    public async Task<string?> ModifyEmailAsync(string sessionToken, string email)
+    public async Task<string?> SendEmailVerificationCodeAsync(string sessionToken, string newEmail)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/email");
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/email/send-code");
         request.Headers.Add("X-Session-Token", sessionToken);
-        request.Content = JsonContent.Create(new SetupEmailTwoFactorRequest(email));
+        request.Content = JsonContent.Create(new { email = newEmail });
 
         var response = await _http.SendAsync(request);
 
         if (response.IsSuccessStatusCode)
         {
-            var result = await response.Content.ReadFromJsonAsync<EmailTwoFactorSetupResponse>();
+            var result = await response.Content.ReadFromJsonAsync<EmailVerificationSendResponse>();
             return result?.Token;
         }
 
         var error = await TryGetErrorAsync(response);
-        throw new InvalidOperationException(error ?? "修改邮箱失败");
+        throw new InvalidOperationException(error ?? "发送验证码失败");
     }
 
     /// <summary>
-    /// 验证新邮箱的验证码。
+    /// 验证邮箱验证码，成功后返回 operation token。
     /// </summary>
-    public async Task<bool> VerifyModifyEmailAsync(string sessionToken, string code, string token)
+    public async Task<(string? OperationToken, string? VerifiedEmail)> VerifyEmailCodeAsync(string code, string token)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/email/verify");
-        request.Headers.Add("X-Session-Token", sessionToken);
-        request.Content = JsonContent.Create(new VerifyTwoFactorRequest(code, token));
-
-        var response = await _http.SendAsync(request);
+        var response = await _http.PostAsJsonAsync("api/auth/email/verify-code", new { code, token });
 
         if (response.IsSuccessStatusCode)
-            return true;
+        {
+            var result = await response.Content.ReadFromJsonAsync<EmailVerifyCodeResponse>();
+            return (result?.OperationToken, result?.VerifiedEmail);
+        }
 
         var error = await TryGetErrorAsync(response);
-        if (error is not null)
-            throw new InvalidOperationException(error);
+        throw new InvalidOperationException(error ?? "验证码验证失败");
+    }
 
-        return false;
+    /// <summary>
+    /// 使用 operation token 更新邮箱（原子更新 user.Email + EmailForTwoFactor）。
+    /// </summary>
+    public async Task<(bool Success, string? Error)> UpdateEmailAsync(string newEmail, string operationToken)
+    {
+        var response = await _http.PutAsJsonAsync("api/auth/me",
+            new UpdateProfileRequest(_appState.CurrentUserName ?? "", newEmail, operationToken));
+
+        if (response.IsSuccessStatusCode)
+        {
+            var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
+            if (user is not null)
+            {
+                _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email);
+                _authStateProvider.NotifyAuthenticationStateChanged();
+            }
+            return (true, null);
+        }
+
+        var error = await TryGetErrorAsync(response);
+        return (false, error ?? "邮箱修改失败");
     }
 
     /// <summary>
@@ -529,9 +549,9 @@ public class AuthService
         _authStateProvider.NotifyAuthenticationStateChanged();
     }
 
-    public async Task<(bool Success, string? Error)> UpdateProfileAsync(string newUsername, string? newEmail = null)
+    public async Task<(bool Success, string? Error)> UpdateProfileAsync(string newUsername, string? newEmail = null, string? operationToken = null)
     {
-        var response = await _http.PutAsJsonAsync("api/auth/me", new UpdateProfileRequest(newUsername, newEmail));
+        var response = await _http.PutAsJsonAsync("api/auth/me", new UpdateProfileRequest(newUsername, newEmail, operationToken));
 
         if (response.IsSuccessStatusCode)
         {

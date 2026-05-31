@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 using BoxWise.Server.Models;
+using BoxWise.Server.Services;
 using BoxWise.Server.Services.PasswordValidators;
 using BoxWise.Server.Utilities;
 using BoxWise.Shared.Dtos;
@@ -183,7 +185,7 @@ public static class AuthEndpoints
         return TypedResults.Ok(new AuthUserDto(user.UserName, isAdmin, isSpecificAdmin, Email: user.Email));
     }
 
-    private static async Task<Results<Ok<AuthUserDto>, ValidationProblem>>
+    private static async Task<Results<Ok<AuthUserDto>, ValidationProblem, ProblemHttpResult>>
         UpdateProfileAsync(UpdateProfileRequest request,
         UserManager<AppUser> userManager, HttpContext httpContext, IConfiguration config,
         ILoggerFactory loggerFactory)
@@ -233,72 +235,86 @@ public static class AuthEndpoints
         if (request.NewEmail is not null)
         {
             var email = request.NewEmail.Trim();
+
             if (string.IsNullOrWhiteSpace(email))
             {
-                var clearResult = await userManager.SetEmailAsync(user, null);
-                if (!clearResult.Succeeded)
+                return TypedResults.Problem("邮箱不能为空", statusCode: 400);
+            }
+
+            if (string.IsNullOrEmpty(request.OperationToken))
+            {
+                return TypedResults.Problem("邮箱修改需要验证码确认", statusCode: 400);
+            }
+
+            if (email.Length > 256 || !EmailValidator.IsValid(email))
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "email", new[] { "请输入有效的邮箱地址" } }
+                });
+            }
+
+            // 验证 operation token
+            var (tokenOk, verifiedEmail) = ValidateOperationToken(request.OperationToken, user.Id,
+                protectionProvider: httpContext.RequestServices.GetRequiredService<IDataProtectionProvider>());
+            if (!tokenOk)
+            {
+                return TypedResults.Problem("操作已过期，请重新验证", statusCode: 400);
+            }
+
+            if (!string.Equals(verifiedEmail, email, StringComparison.OrdinalIgnoreCase))
+            {
+                return TypedResults.Problem("邮箱不匹配", statusCode: 400);
+            }
+
+            var existingEmailUser = await userManager.FindByEmailAsync(email);
+            if (existingEmailUser is not null && existingEmailUser.Id != user.Id)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "email", new[] { "该邮箱已被其他账户使用" } }
+                });
+            }
+
+            // 使用 SetEmailAsync 确保 NormalizedEmail 和 EmailConfirmed 正确更新
+            // 再单独同步 EmailForTwoFactor
+            var oldEmail = user.Email;
+            var setEmailResult = await userManager.SetEmailAsync(user, email.ToLowerInvariant());
+            if (!setEmailResult.Succeeded)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "email", setEmailResult.Errors.Select(e => e.Description).ToArray() }
+                });
+            }
+            user.EmailForTwoFactor = email.ToLowerInvariant();
+
+            try
+            {
+                var updateResult = await userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
                 {
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
-                        { "email", clearResult.Errors.Select(e => e.Description).ToArray() }
+                        { "email", updateResult.Errors.Select(e => e.Description).ToArray() }
                     });
                 }
             }
-            else
+            catch (DbUpdateException ex)
             {
-                if (email.Length > 256 || !EmailValidator.IsValid(email))
+                var logger = loggerFactory.CreateLogger("BoxWise.Auth");
+                logger.LogWarning(ex, "Email uniqueness conflict for user {UserId} when setting email", user.Id);
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        { "email", new[] { "请输入有效的邮箱地址" } }
-                    });
-                }
+                    { "email", new[] { "该邮箱已被其他账户使用" } }
+                });
+            }
 
-                var existingEmailUser = await userManager.FindByEmailAsync(email);
-                if (existingEmailUser is not null && existingEmailUser.Id != user.Id)
-                {
-                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        { "email", new[] { "此邮箱已被其他用户使用" } }
-                    });
-                }
-
-                try
-                {
-                    var emailResult = await userManager.SetEmailAsync(user, email);
-                    if (!emailResult.Succeeded)
-                    {
-                        return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-                        {
-                            { "email", emailResult.Errors.Select(e => e.Description).ToArray() }
-                        });
-                    }
-                }
-                catch (DbUpdateException ex)
-                {
-                    // TOCTOU 并发防护：FindByEmailAsync 和 SetEmailAsync 之间的窗口期
-                    // 内另有请求设置了相同邮箱。NormalizedEmail 唯一索引确保数据完整性。
-                    var logger = loggerFactory.CreateLogger("BoxWise.Auth");
-                    logger.LogWarning(ex, "Email uniqueness conflict for user {UserId} when setting email", user.Id);
-                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        { "email", new[] { "此邮箱已被其他用户使用" } }
-                    });
-                }
-
-                // 邮箱变更后需清除已验证标记，并要求重新确认
-                user.EmailConfirmed = false;
-                try
-                {
-                    await userManager.UpdateAsync(user);
-                }
-                catch (DbUpdateException ex)
-                {
-                    // EmailConfirmed 同步失败不阻断主流程
-                    // ——核心邮箱更改已通过 SetEmailAsync 持久化
-                    var logger = loggerFactory.CreateLogger("BoxWise.Auth");
-                    logger.LogWarning(ex, "Failed to update EmailConfirmed for user {UserId}", user.Id);
-                }
+            // 旧邮箱通知（异步，失败不影响主流程）
+            if (!string.IsNullOrEmpty(oldEmail))
+            {
+                var emailService = httpContext.RequestServices.GetRequiredService<EmailTwoFactorService>();
+                _ = Task.Run(() => emailService.SendChangeNotificationAsync(oldEmail, user.UserName));
             }
         }
 
@@ -362,4 +378,37 @@ public static class AuthEndpoints
         {
             { "auth", new[] { "未登录" } }
         });
+
+    private static (bool Ok, string VerifiedEmail) ValidateOperationToken(
+        string operationToken, string userId, IDataProtectionProvider protectionProvider)
+    {
+        try
+        {
+            var protector = protectionProvider.CreateProtector("email-operation-token");
+            var payload = protector.Unprotect(operationToken);
+            var parts = payload.Split('|');
+            if (parts.Length < 3)
+                return (false, string.Empty);
+
+            var tokenUserId = parts[0];
+            var boundEmail = parts[1];
+            var expiry = DateTime.Parse(parts[2], null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+            if (tokenUserId != userId)
+                return (false, string.Empty);
+
+            if (expiry <= DateTime.UtcNow)
+                return (false, string.Empty);
+
+            // 防止 operation token 重放攻击（同一 token 仅可消费一次）
+            if (!EmailTwoFactorService.TryConsumeOperationToken(operationToken))
+                return (false, string.Empty);
+
+            return (true, boundEmail);
+        }
+        catch
+        {
+            return (false, string.Empty);
+        }
+    }
 }

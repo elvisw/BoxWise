@@ -34,25 +34,6 @@
                 </MudPaper>
             }
 
-            @if (_configuredMethods.Contains("Email"))
-            {
-                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
-                    <div class="d-flex align-center">
-                        <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
-                        <div class="flex-grow-1">
-                            <MudText Typo="Typo.body1" Style="font-weight:500;">邮箱验证码</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Default">
-                                修改接收验证码的邮箱
-                            </MudText>
-                        </div>
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                   Disabled="@_isLoading" @onclick="StartModifyEmail">
-                            修改
-                        </MudButton>
-                    </div>
-                </MudPaper>
-            }
-
             @if (_hasRecoveryCodes)
             {
                 <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
@@ -124,43 +105,6 @@
                 </div>
             }
 
-            @if (_configuredMethods.Contains("Email"))
-            {
-                <MudDivider Class="my-2" />
-                <MudText Typo="Typo.body2" Class="mb-1 mt-2">邮箱验证码</MudText>
-
-                @if (!_emailCodeSent)
-                {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                               FullWidth="true"
-                               Disabled="@_isLoading"
-                               @onclick="SendEmailAuthCodeAsync">
-                        @(_isLoading ? "发送中..." : "发送验证码到邮箱")
-                    </MudButton>
-                }
-                else
-                {
-                    <MudText Typo="Typo.caption" Color="Color.Default" Class="mb-2">
-                        验证码已发送到您的邮箱，请输入 6 位验证码。
-                    </MudText>
-                    <div class="d-flex align-center" style="gap: 8px;">
-                        <MudTextField @bind-Value="_emailCode"
-                                      Label="邮箱验证码"
-                                      Required="true"
-                                      Immediate="true"
-                                      Variant="Variant.Outlined"
-                                      FullWidth="true"
-                                      HelperText="输入 6 位验证码" />
-                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
-                                   Disabled="@(_isLoading || string.IsNullOrEmpty(_emailCode) || _emailCode.Length < 6)"
-                                   @onclick="VerifyEmailAuth"
-                                   Class="flex-shrink-0">
-                            @(_isLoading ? "..." : "验证")
-                        </MudButton>
-                    </div>
-                }
-            }
-
             @if (_hasRecoveryCodes)
             {
                 <MudDivider Class="my-2" />
@@ -187,13 +131,6 @@
                        SessionToken="@_modifySessionToken"
                        OnSetupComplete="OnModifyComplete"
                        OnBack="GoToChooseAction" />
-        }
-        else if (_manageStep == ManageStep.ModifyEmail)
-        {
-            <EmailTwoFactorSetup ModifyMode="true"
-                                 SessionToken="@_modifySessionToken"
-                                 OnSetupComplete="OnModifyComplete"
-                                 OnBack="GoToChooseAction" />
         }
         else if (_manageStep == ManageStep.ManageWebAuthn)
         {
@@ -298,11 +235,6 @@
     // TOTP authenticate inputs
     private string _totpCode = string.Empty;
 
-    // Email authenticate inputs
-    private string _emailCode = string.Empty;
-    private string? _emailAuthToken;
-    private bool _emailCodeSent;
-
     // Recovery code authenticate inputs
     private string _recoveryCode = string.Empty;
 
@@ -334,42 +266,12 @@
         StateHasChanged();
     }
 
-    private void StartModifyEmail()
-    {
-        _selectedAction = "Email";
-        _error = null;
-        _manageStep = ManageStep.ModifyAuthenticate;
-        StateHasChanged();
-    }
-
     private void StartModifyRecoveryCodes()
     {
         _selectedAction = "RecoveryCodes";
         _error = null;
         _manageStep = ManageStep.ModifyAuthenticate;
         StateHasChanged();
-    }
-
-    private async Task SendEmailAuthCodeAsync()
-    {
-        _error = null;
-        _isLoading = true;
-
-        try
-        {
-            _emailAuthToken = await AuthService.SendModifyCodeAsync();
-            _emailCodeSent = true;
-            Snackbar.Add("验证码已发送到您的邮箱", Severity.Info);
-            StateHasChanged();
-        }
-        catch (InvalidOperationException ex)
-        {
-            _error = ex.Message;
-        }
-        finally
-        {
-            _isLoading = false;
-        }
     }
 
     private async Task VerifyTOTPAuth()
@@ -388,34 +290,6 @@
 
             _modifySessionToken = sessionToken;
             _manageStep = ManageStep.ModifyTotp;
-            StateHasChanged();
-        }
-        catch (InvalidOperationException ex)
-        {
-            _error = ex.Message;
-        }
-        finally
-        {
-            _isLoading = false;
-        }
-    }
-
-    private async Task VerifyEmailAuth()
-    {
-        _error = null;
-        _isLoading = true;
-
-        try
-        {
-            var sessionToken = await AuthService.AuthenticateForModifyAsync(_emailCode, "Email", _emailAuthToken);
-            if (sessionToken is null)
-            {
-                _error = "验证失败，请重试";
-                return;
-            }
-
-            _modifySessionToken = sessionToken;
-            _manageStep = ManageStep.ModifyEmail;
             StateHasChanged();
         }
         catch (InvalidOperationException ex)
@@ -488,9 +362,6 @@
         _error = null;
         _modifySessionToken = null;
         _totpCode = string.Empty;
-        _emailCode = string.Empty;
-        _emailAuthToken = null;
-        _emailCodeSent = false;
         _recoveryCode = string.Empty;
         _manageStep = ManageStep.ChooseAction;
         StateHasChanged();
@@ -582,7 +453,6 @@
         ChooseAction,
         ModifyAuthenticate,
         ModifyTotp,
-        ModifyEmail,
         ManageWebAuthn,
         Complete
     }

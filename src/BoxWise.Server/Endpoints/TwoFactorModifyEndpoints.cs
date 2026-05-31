@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using BoxWise.Server.Models;
@@ -20,18 +19,6 @@ public static class TwoFactorModifyEndpoints
             .AddEndpointFilter<CsrfValidationFilter>();
 
         group.MapPost("/send-code", SendVerificationCodeAsync)
-            .WithTags("2FA/Modify")
-            .ProducesProblem(401)
-            .RequireRateLimiting("2fa-modify")
-            .AddEndpointFilter<CsrfValidationFilter>();
-
-        group.MapPost("/email", ModifyEmailAsync)
-            .WithTags("2FA/Modify")
-            .ProducesProblem(401)
-            .RequireRateLimiting("2fa-modify")
-            .AddEndpointFilter<CsrfValidationFilter>();
-
-        group.MapPost("/email/verify", VerifyModifyEmailAsync)
             .WithTags("2FA/Modify")
             .ProducesProblem(401)
             .RequireRateLimiting("2fa-modify")
@@ -97,7 +84,8 @@ public static class TwoFactorModifyEndpoints
                     {
                         { "method", new[] { "该方法未配置" } }
                     });
-                if (string.IsNullOrEmpty(user.EmailForTwoFactor))
+                var emailForAuth = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
+                if (string.IsNullOrEmpty(emailForAuth))
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
                         { "method", new[] { "邮箱 2FA 未完整配置" } }
@@ -107,7 +95,7 @@ public static class TwoFactorModifyEndpoints
                     {
                         { "token", new[] { "缺少验证令牌" } }
                     });
-                valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
+                valid = emailTwoFactorService.VerifyCode(user.Id, emailForAuth, request.Code, request.Token);
                 break;
             case "RecoveryCode":
                 valid = await recoveryCodeService.ValidateRecoveryCodeAsync(user, request.Code);
@@ -143,7 +131,8 @@ public static class TwoFactorModifyEndpoints
         if (user is null)
             return TypedResults.Unauthorized();
 
-        if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email) || string.IsNullOrEmpty(user.EmailForTwoFactor))
+        var emailForSmtp = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
+        if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email) || string.IsNullOrEmpty(emailForSmtp))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
@@ -151,9 +140,8 @@ public static class TwoFactorModifyEndpoints
             });
         }
 
-        var email = user.EmailForTwoFactor;
-        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, email);
-        var sent = await emailTwoFactorService.SendVerificationEmailAsync(email, code, user.UserName);
+        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, emailForSmtp);
+        var sent = await emailTwoFactorService.SendVerificationEmailAsync(emailForSmtp, code, user.UserName);
 
         if (!sent)
         {
@@ -164,155 +152,6 @@ public static class TwoFactorModifyEndpoints
         }
 
         return TypedResults.Ok(new EmailTwoFactorSetupResponse(token));
-    }
-
-    /// <summary>
-    /// 修改 2FA 邮箱：向新邮箱发送验证码，暂不保存。
-    /// 需要 modify session token（purpose="2fa-modify"）。
-    /// </summary>
-    private static async Task<Results<Ok<EmailTwoFactorSetupResponse>, UnauthorizedHttpResult, ValidationProblem>>
-        ModifyEmailAsync(SetupEmailTwoFactorRequest request, HttpContext httpContext,
-            UserManager<AppUser> userManager, TwoFactorService twoFactorService,
-            EmailTwoFactorService emailTwoFactorService)
-    {
-        var sessionToken = httpContext.Request.Headers["X-Session-Token"].FirstOrDefault();
-        if (string.IsNullOrEmpty(sessionToken))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "sessionToken", new[] { "缺少会话令牌" } }
-            });
-        }
-
-        var user = await userManager.GetUserAsync(httpContext.User);
-        if (user is null)
-            return TypedResults.Unauthorized();
-
-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
-        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp, "2fa-modify"))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "sessionToken", new[] { "会话令牌无效或已过期，请重新验证身份" } }
-            });
-        }
-
-        if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "method", new[] { "您尚未配置邮箱 2FA" } }
-            });
-        }
-
-        var email = request.Email?.Trim();
-        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !email.Contains('@'))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "email", new[] { "请输入有效的邮箱地址" } }
-            });
-        }
-
-        // 生成验证码发送到新邮箱（暂不覆盖 user.EmailForTwoFactor，verify 时才更新）
-        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, email);
-        var sent = await emailTwoFactorService.SendVerificationEmailAsync(email, code, user.UserName);
-
-        if (!sent)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "email", new[] { "验证码发送失败，请检查 SMTP 配置或稍后重试" } }
-            });
-        }
-
-        return TypedResults.Ok(new EmailTwoFactorSetupResponse(token));
-    }
-
-    /// <summary>
-    /// 验证新邮箱验证码并更新 EmailForTwoFactor。
-    /// 需要 modify session token（purpose="2fa-modify"）。
-    /// </summary>
-    private static async Task<Results<Ok, UnauthorizedHttpResult, ValidationProblem>>
-        VerifyModifyEmailAsync(VerifyTwoFactorRequest request, HttpContext httpContext,
-            UserManager<AppUser> userManager, TwoFactorService twoFactorService,
-            EmailTwoFactorService emailTwoFactorService,
-            IDataProtectionProvider dataProtectionProvider)
-    {
-        var sessionToken = httpContext.Request.Headers["X-Session-Token"].FirstOrDefault();
-        if (string.IsNullOrEmpty(sessionToken))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "sessionToken", new[] { "缺少会话令牌" } }
-            });
-        }
-
-        var user = await userManager.GetUserAsync(httpContext.User);
-        if (user is null)
-            return TypedResults.Unauthorized();
-
-        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
-        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp, "2fa-modify"))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "sessionToken", new[] { "会话令牌无效或已过期，请重新验证身份" } }
-            });
-        }
-
-        if (string.IsNullOrEmpty(request.Token))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "token", new[] { "缺少验证令牌" } }
-            });
-        }
-
-        // 从自包含令牌中提取新邮箱地址
-        // 令牌格式: userId|email|code|expiry（由 EmailTwoFactorService.GenerateCode 生成）
-        var protector = dataProtectionProvider.CreateProtector("BoxWise.EmailTwoFactor");
-        string newEmail;
-        try
-        {
-            var payload = protector.Unprotect(request.Token);
-            var parts = payload.Split('|');
-            if (parts.Length < 4)
-                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    { "token", new[] { "验证令牌无效" } }
-                });
-            newEmail = parts[1];
-        }
-        catch
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "token", new[] { "验证令牌无效" } }
-            });
-        }
-
-        var valid = emailTwoFactorService.VerifyCode(user.Id, newEmail, request.Code, request.Token);
-        if (!valid)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "code", new[] { "验证码无效或已过期" } }
-            });
-        }
-
-        // 更新用户的 2FA 邮箱
-        user.EmailForTwoFactor = newEmail;
-        var updateResult = await userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "general", new[] { "更新邮箱失败" } }
-            });
-        }
-
-        return TypedResults.Ok();
     }
 
     /// <summary>

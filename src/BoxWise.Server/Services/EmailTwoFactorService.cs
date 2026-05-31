@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 using BoxWise.Shared.Dtos;
 using MailKit.Net.Smtp;
@@ -15,6 +17,12 @@ public class EmailTwoFactorService
     private readonly ISmtpConfigurationService _smtpConfig;
     private readonly ILogger<EmailTwoFactorService> _logger;
     private readonly IDataProtector _protector;
+
+    // 一次性 token 消费追踪（ConcurrentDictionary + 惰性清理）
+    private static readonly ConcurrentDictionary<string, DateTime> _consumedTokens = new();
+    private static readonly TimeSpan _tokenTtl = TimeSpan.FromMinutes(5);
+    private static DateTime _lastCleanup = DateTime.UtcNow;
+    private static readonly object _cleanupLock = new();
 
     public EmailTwoFactorService(
         IDataProtectionProvider protectionProvider,
@@ -68,10 +76,57 @@ public class EmailTwoFactorService
     }
 
     /// <summary>
+    /// 一次性验证码校验：TryAdd 原子操作防止 TOCTOU 竞态。
+    /// 验证失败时移除 tokenHash 允许重试；验证成功时惰性清理过期条目。
+    /// </summary>
+    public bool VerifyCodeOnce(string userId, string email, string code, string token)
+    {
+        var tokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+
+        // TryAdd 是原子操作 —— 修复 TOCTOU 竞态
+        if (!_consumedTokens.TryAdd(tokenHash, DateTime.UtcNow.Add(_tokenTtl)))
+            return false; // 已存在 → 已消费
+
+        var result = VerifyCode(userId, email, code, token);
+        if (!result)
+            _consumedTokens.TryRemove(tokenHash, out _); // 验证失败 → 允许重试
+        else
+            CleanupExpiredTokens();
+        return result;
+    }
+
+    private static void CleanupExpiredTokens()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastCleanup < TimeSpan.FromMinutes(2)) return;
+        lock (_cleanupLock)
+        {
+            if (now - _lastCleanup < TimeSpan.FromMinutes(2)) return;
+            var expired = _consumedTokens.Where(kv => kv.Value < now).Select(kv => kv.Key).ToList();
+            foreach (var key in expired) _consumedTokens.TryRemove(key, out _);
+            _lastCleanup = now;
+        }
+    }
+
+    /// <summary>
+    /// 标记 operation token 为已消费，防止重放攻击。
+    /// 与 VerifyCodeOnce 共享同一 _consumedTokens 字典，TTL 5 分钟。
+    /// </summary>
+    public static bool TryConsumeOperationToken(string token)
+    {
+        var tokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
+        var consumed = !_consumedTokens.TryAdd(tokenHash, DateTime.UtcNow.Add(_tokenTtl));
+        if (consumed) return false; // 已消费 → 拒绝
+        CleanupExpiredTokens();
+        return true; // 首次消费 → 允许
+    }
+
+    /// <summary>
     /// 使用 MailKit SmtpClient 发送验证码邮件。
     /// 从 SmtpConfigurationService 快照读取配置。如果 SMTP 未配置则返回 false（静默失败）。
+    /// purpose 参数区分邮件模板："2fa"（默认）或 "email-change"。
     /// </summary>
-    public async Task<bool> SendVerificationEmailAsync(string toEmail, string code, string? userName)
+    public async Task<bool> SendVerificationEmailAsync(string toEmail, string code, string? userName, string purpose = "2fa")
     {
         var config = _smtpConfig.GetSnapshot();
         if (string.IsNullOrWhiteSpace(config.Host))
@@ -88,18 +143,23 @@ public class EmailTwoFactorService
             ? "BoxWise"
             : config.FromName;
 
+        var purposeText = purpose == "email-change" ? "邮箱修改" : "双因素认证";
+        var subject = purpose == "email-change"
+            ? "【BoxWise】邮箱修改验证码"
+            : "【BoxWise】您的验证码";
+
         try
         {
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress(fromName, fromAddress));
             message.To.Add(new MailboxAddress(userName ?? "用户", toEmail));
-            message.Subject = "【BoxWise】您的验证码";
+            message.Subject = subject;
 
             var body = new TextPart("plain")
             {
                 Text = $@"您好{(!string.IsNullOrEmpty(userName) ? $" {userName}，" : "，")}
 
-您的 BoxWise 双因素认证验证码为：
+您的 BoxWise {purposeText}验证码为：
 
     {code}
 
@@ -123,7 +183,7 @@ BoxWise 安全团队"
             await client.SendAsync(message);
             await TryDisconnectAsync(client);
 
-            _logger.LogInformation("验证码邮件已发送到 {Email}", toEmail);
+            _logger.LogInformation("{Purpose} 验证码邮件已发送到 {Email}", purpose, toEmail);
             return true;
         }
         catch (MailKit.Security.AuthenticationException ex)
@@ -145,6 +205,62 @@ BoxWise 安全团队"
         {
             _logger.LogError(ex, "发送验证码邮件到 {Email} 时发生未知错误", toEmail);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 发送邮箱变更通知到旧邮箱（异步，失败不影响主流程）。
+    /// </summary>
+    public async Task SendChangeNotificationAsync(string oldEmail, string? userName)
+    {
+        var config = _smtpConfig.GetSnapshot();
+        if (string.IsNullOrWhiteSpace(config.Host))
+        {
+            _logger.LogWarning("SMTP 未配置，无法发送邮箱变更通知到 {Email}", oldEmail);
+            return;
+        }
+
+        var fromAddress = string.IsNullOrWhiteSpace(config.FromAddress)
+            ? "noreply@boxwise.app"
+            : config.FromAddress;
+        var fromName = string.IsNullOrWhiteSpace(config.FromName)
+            ? "BoxWise"
+            : config.FromName;
+
+        try
+        {
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress(fromName, fromAddress));
+            message.To.Add(new MailboxAddress(userName ?? "用户", oldEmail));
+            message.Subject = "【BoxWise】邮箱地址已变更";
+
+            var body = new TextPart("plain")
+            {
+                Text = $@"您好{(!string.IsNullOrEmpty(userName) ? $" {userName}，" : "，")}
+
+您的 BoxWise 账户邮箱地址已成功修改。如果这不是您本人的操作，请立即联系管理员。
+
+此致，
+BoxWise 安全团队"
+            };
+
+            message.Body = body;
+
+            using var client = new SmtpClient();
+            client.Timeout = 30000;
+            client.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+            await client.ConnectAsync(config.Host, config.Port,
+                config.Port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTlsWhenAvailable);
+            if (!string.IsNullOrWhiteSpace(config.Username))
+                await client.AuthenticateAsync(config.Username, config.Password ?? "");
+            await client.SendAsync(message);
+            await TryDisconnectAsync(client);
+
+            _logger.LogInformation("邮箱变更通知已发送到 {OldEmail}", oldEmail);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "发送邮箱变更通知到 {OldEmail} 失败（不影响主流程）", oldEmail);
         }
     }
 

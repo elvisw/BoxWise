@@ -270,6 +270,21 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             });
     });
+
+    // 邮箱验证码发送 - 按用户（每 60s 1 次）
+    options.AddPolicy<string>("email-verification", httpContext =>
+    {
+        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(userId,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 1),
+                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:EmailVerificationWindowSeconds", 60)),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            });
+    });
 });
 
 builder.Services.AddScoped<CsrfValidationFilter>();
@@ -413,6 +428,7 @@ app.MapTagEndpoints();
 app.MapAiEndpoints();
 app.MapTwoFactorEndpoints();
 app.MapTwoFactorModifyEndpoints();
+app.MapEmailVerificationEndpoints();
 app.MapWebAuthnEndpoints();
 app.MapQrCodeEndpoints();
 app.MapAdminTwoFactorEndpoints();

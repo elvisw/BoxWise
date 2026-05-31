@@ -149,9 +149,47 @@
         }
         else if (_setupStep == SetupStep.SetupEmail)
         {
-            <EmailTwoFactorSetup SessionToken="@_sessionToken"
-                                 OnSetupComplete="OnEmailSetupComplete"
-                                 OnBack="Cancel" />
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+                    @_error
+                </MudAlert>
+            }
+
+            @if (!_emailCodeSent)
+            {
+                <MudText Typo="Typo.body2" Class="mb-4">
+                    验证码将发送到您账户绑定的邮箱。
+                </MudText>
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           FullWidth="true"
+                           Disabled="@(_isLoading)"
+                           @onclick="SendEmailCodeAsync">
+                    @(_isLoading ? "发送中..." : "发送验证码到邮箱")
+                </MudButton>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mb-3">
+                    验证码已发送到您的邮箱，请输入 6 位验证码。
+                </MudText>
+
+                <MudTextField @bind-Value="_emailCode"
+                              Label="验证码"
+                              Required="true"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              FullWidth="true"
+                              HelperText="输入 6 位验证码" />
+
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           FullWidth="true" Class="mt-3"
+                           Disabled="@(_isLoading || string.IsNullOrEmpty(_emailCode) || _emailCode.Length < 6)"
+                           @onclick="VerifyEmailCodeAsync">
+                    @(_isLoading ? "验证中..." : "确认并启用")
+                </MudButton>
+            }
         }
         else if (_setupStep == SetupStep.Complete)
         {
@@ -241,6 +279,11 @@
     private bool _twoFactorEnabled;
     private List<string>? _recoveryCodes;
 
+    // Email setup fields
+    private string _emailCode = string.Empty;
+    private string? _emailToken;
+    private bool _emailCodeSent;
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -308,11 +351,54 @@
         StateHasChanged();
     }
 
-    private void OnEmailSetupComplete(List<string> codes)
+    private async Task SendEmailCodeAsync()
     {
-        _recoveryCodes = codes;
-        _setupStep = SetupStep.Complete;
-        StateHasChanged();
+        _error = null;
+        _isLoading = true;
+
+        try
+        {
+            _emailToken = await AuthService.SetupEmailTwoFactorAsync(_sessionToken!);
+            _emailCodeSent = true;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task VerifyEmailCodeAsync()
+    {
+        _error = null;
+        _isLoading = true;
+
+        try
+        {
+            var (success, recoveryCodes) = await AuthService.VerifyEmailTwoFactorAsync(_sessionToken!, _emailCode, _emailToken ?? "");
+            if (success)
+            {
+                _recoveryCodes = recoveryCodes;
+                _setupStep = SetupStep.Complete;
+                StateHasChanged();
+            }
+            else
+            {
+                _error = "验证码无效，请确认输入的验证码正确";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private async Task CopyCode(string code)

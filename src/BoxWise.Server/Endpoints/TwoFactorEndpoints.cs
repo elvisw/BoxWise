@@ -257,7 +257,9 @@ public static class TwoFactorEndpoints
         if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
         {
             // 防御：EmailForTwoFactor 为 null 的损坏状态
-            if (string.IsNullOrEmpty(user.EmailForTwoFactor))
+            // 优先使用 user.Email，回退到 EmailForTwoFactor（向后兼容）
+            var emailFor2Fa = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
+            if (string.IsNullOrEmpty(emailFor2Fa))
             {
                 user.ConfiguredMethods &= ~TwoFactorMethod.Email;
                 await userManager.UpdateAsync(user);
@@ -265,7 +267,7 @@ public static class TwoFactorEndpoints
             else
             {
                 methods.Add("Email");
-                var (code, token) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
+                var (code, token) = emailTwoFactorService.GenerateCode(user.Id, emailFor2Fa);
                 emailToken = token;
                 // 邮件延迟到用户选择 Email 方法后发送，避免 TOTP 用户收到不必要的邮件
             }
@@ -288,12 +290,13 @@ public static class TwoFactorEndpoints
         if (user is null)
             return TypedResults.Unauthorized();
 
-        if (string.IsNullOrEmpty(user.EmailForTwoFactor)
+        var emailFor2Fa = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
+        if (string.IsNullOrEmpty(emailFor2Fa)
             || !user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
             return TypedResults.Ok(new SendChallengeCodeResponse(null));
 
-        var (code, newToken) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
-        var sent = await emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName);
+        var (code, newToken) = emailTwoFactorService.GenerateCode(user.Id, emailFor2Fa);
+        var sent = await emailTwoFactorService.SendVerificationEmailAsync(emailFor2Fa, code, user.UserName);
 
         if (!sent)
         {
@@ -340,12 +343,13 @@ public static class TwoFactorEndpoints
                     {
                         { "token", new[] { "缺少验证令牌" } }
                     });
-                if (string.IsNullOrEmpty(user.EmailForTwoFactor))
+                var emailForVerify = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
+                if (string.IsNullOrEmpty(emailForVerify))
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
                         { "method", new[] { "邮箱 2FA 未完整配置" } }
                     });
-                valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
+                valid = emailTwoFactorService.VerifyCode(user.Id, emailForVerify, request.Code, request.Token);
                 break;
             default:
                 // 回退兼容：单方法用户 / 旧客户端不传 method
@@ -356,12 +360,13 @@ public static class TwoFactorEndpoints
                         {
                             { "token", new[] { "缺少验证令牌" } }
                         });
-                    if (string.IsNullOrEmpty(user.EmailForTwoFactor))
+                    var emailForVerifyFallback = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
+                    if (string.IsNullOrEmpty(emailForVerifyFallback))
                         return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                         {
                             { "method", new[] { "邮箱 2FA 未完整配置" } }
                         });
-                    valid = emailTwoFactorService.VerifyCode(user.Id, user.EmailForTwoFactor, request.Code, request.Token);
+                    valid = emailTwoFactorService.VerifyCode(user.Id, emailForVerifyFallback, request.Code, request.Token);
                 }
                 else
                 {
@@ -419,10 +424,10 @@ public static class TwoFactorEndpoints
     // ===== Story 8-2b: 邮箱验证码 2FA 端点 =====
 
     /// <summary>
-    /// 设置邮箱 2FA：保存邮箱地址并发送验证码。
+    /// 设置邮箱 2FA：使用 user.Email 发送验证码（无需客户端传邮箱）。
     /// </summary>
     private static async Task<Results<Ok<EmailTwoFactorSetupResponse>, UnauthorizedHttpResult, ValidationProblem>>
-        SetupEmailAsync(SetupEmailTwoFactorRequest request, HttpContext httpContext,
+        SetupEmailAsync(HttpContext httpContext,
             UserManager<AppUser> userManager, TwoFactorService twoFactorService,
             EmailTwoFactorService emailTwoFactorService)
     {
@@ -448,17 +453,21 @@ public static class TwoFactorEndpoints
             });
         }
 
-        var email = request.Email.Trim();
-        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !EmailValidator.IsValid(email))
+        var email = user.Email;
+        if (string.IsNullOrWhiteSpace(email))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                { "email", new[] { "请输入有效的邮箱地址" } }
+                { "email", new[] { "请先在账户信息中设置邮箱" } }
             });
         }
 
-        user.EmailForTwoFactor = email;
-        await userManager.UpdateAsync(user);
+        // 确保 EmailForTwoFactor 与 user.Email 同步
+        if (!string.Equals(user.EmailForTwoFactor, email, StringComparison.OrdinalIgnoreCase))
+        {
+            user.EmailForTwoFactor = email;
+            await userManager.UpdateAsync(user);
+        }
 
         // 生成自包含令牌并发送验证码
         var (code, token) = emailTwoFactorService.GenerateCode(user.Id, email);
@@ -506,7 +515,7 @@ public static class TwoFactorEndpoints
             });
         }
 
-        var email = user.EmailForTwoFactor;
+        var email = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
         if (string.IsNullOrWhiteSpace(email))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>

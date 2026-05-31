@@ -14,10 +14,9 @@ public class AppUser : IdentityUser
     /// 用户扫描新 QR 码后，verify 前暂存于此，verify 成功时覆盖 TotpSecretKey。
     /// </summary>
     public string? PendingTotpSecretKey { get; set; }
-    // 预留: Email 2FA (Story 8-2b)
-    // 已知限制：修改 Email 不会自动同步 EmailForTwoFactor。
-    // 当用户通过 UpdateProfile 修改主邮箱后，2FA 邮箱需独立更新。
-    // 这是跨 Story 关注点，当前用户量下风险可控。
+    // EmailForTwoFactor 与 user.Email 通过 AuthEndpoints.UpdateProfileAsync 保持同步（原子更新）。
+    // 登录阶段 2FA 验证码优先读取 user.Email，fallback EmailForTwoFactor（向后兼容）。
+    // 部署迁移脚本同步已有的 Email ≠ EmailForTwoFactor 分歧数据。
     public string? EmailForTwoFactor { get; set; }
     public DateTime? TwoFactorSetupCompletedAt { get; set; }
     public DateTime? TwoFactorGracePeriodUntil { get; set; }
