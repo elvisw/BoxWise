@@ -269,23 +269,6 @@ public class AuthService
         throw new InvalidOperationException(error ?? "2FA 验证失败");
     }
 
-    /// <summary>
-    /// 向已配置的 2FA 邮箱发送验证码（用于 modify 认证流程）。
-    /// </summary>
-    public async Task<string?> SendModifyCodeAsync()
-    {
-        var response = await _http.PostAsync("api/auth/2fa/modify/send-code", null);
-
-        if (response.IsSuccessStatusCode)
-        {
-            var result = await response.Content.ReadFromJsonAsync<EmailTwoFactorSetupResponse>();
-            return result?.Token;
-        }
-
-        var error = await TryGetErrorAsync(response);
-        throw new InvalidOperationException(error ?? "发送验证码失败");
-    }
-
     // ===== Email Verification Methods (Consolidated Settings) =====
 
     /// <summary>

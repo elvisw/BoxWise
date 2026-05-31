@@ -93,7 +93,7 @@ public class AuthEndpointsTests : IAsyncLifetime
     private string GenerateOperationToken(string userId, string email)
     {
         var dp = _ctx.Provider.GetRequiredService<IDataProtectionProvider>();
-        var protector = dp.CreateProtector("email-operation-token");
+        var protector = dp.CreateProtector(EmailVerificationEndpoints.OperationTokenPurpose);
         return protector.Protect($"{userId}|{email}|{DateTime.UtcNow.AddMinutes(5):O}");
     }
 

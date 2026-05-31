@@ -18,6 +18,12 @@ public class AppUser : IdentityUser
     // 登录阶段 2FA 验证码优先读取 user.Email，fallback EmailForTwoFactor（向后兼容）。
     // 部署迁移脚本同步已有的 Email ≠ EmailForTwoFactor 分歧数据。
     public string? EmailForTwoFactor { get; set; }
+
+    /// <summary>
+    /// 计算属性：优先返回 Email，回退到 EmailForTwoFactor（向后兼容）。
+    /// 消除 !string.IsNullOrEmpty(Email) ? Email : EmailForTwoFactor 模式的重复。
+    /// </summary>
+    public string? EffectiveEmailForTwoFactor => !string.IsNullOrEmpty(Email) ? Email : EmailForTwoFactor;
     public DateTime? TwoFactorSetupCompletedAt { get; set; }
     public DateTime? TwoFactorGracePeriodUntil { get; set; }
     public ICollection<RecoveryCode> RecoveryCodes { get; set; } = new List<RecoveryCode>();

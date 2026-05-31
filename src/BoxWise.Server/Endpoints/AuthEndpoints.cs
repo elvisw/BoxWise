@@ -194,41 +194,45 @@ public static class AuthEndpoints
         if (user?.UserName is null)
             return Unauthorized();
 
-        var newUsername = request.NewUsername?.Trim() ?? "";
-
-        if (string.IsNullOrWhiteSpace(newUsername))
+        // 处理用户名更新（NewUsername 为 null 时跳过）
+        if (request.NewUsername is not null)
         {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "username", new[] { "用户名不能为空" } }
-            });
-        }
+            var newUsername = request.NewUsername.Trim();
 
-        if (newUsername.Length > 50)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            if (string.IsNullOrWhiteSpace(newUsername))
             {
-                { "username", new[] { "用户名不能超过 50 个字符" } }
-            });
-        }
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "username", new[] { "用户名不能为空" } }
+                });
+            }
 
-        var existingUser = await userManager.FindByNameAsync(newUsername);
-        if (existingUser is not null && existingUser.Id != user.Id)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            if (newUsername.Length > 50)
             {
-                { "username", new[] { $"用户名 '{newUsername}' 已被占用" } }
-            });
-        }
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "username", new[] { "用户名不能超过 50 个字符" } }
+                });
+            }
 
-        var result = await userManager.SetUserNameAsync(user, newUsername);
-
-        if (!result.Succeeded)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            var existingUser = await userManager.FindByNameAsync(newUsername);
+            if (existingUser is not null && existingUser.Id != user.Id)
             {
-                { "username", result.Errors.Select(e => e.Description).ToArray() }
-            });
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "username", new[] { $"用户名 '{newUsername}' 已被占用" } }
+                });
+            }
+
+            var result = await userManager.SetUserNameAsync(user, newUsername);
+
+            if (!result.Succeeded)
+            {
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "username", result.Errors.Select(e => e.Description).ToArray() }
+                });
+            }
         }
 
         // 处理邮箱更新
@@ -236,22 +240,18 @@ public static class AuthEndpoints
         {
             var email = request.NewEmail.Trim();
 
-            if (string.IsNullOrWhiteSpace(email))
+            var emailError = EmailValidation.Validate(email);
+            if (emailError is not null)
             {
-                return TypedResults.Problem("邮箱不能为空", statusCode: 400);
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    { "email", new[] { emailError } }
+                });
             }
 
             if (string.IsNullOrEmpty(request.OperationToken))
             {
                 return TypedResults.Problem("邮箱修改需要验证码确认", statusCode: 400);
-            }
-
-            if (email.Length > 256 || !EmailValidator.IsValid(email))
-            {
-                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    { "email", new[] { "请输入有效的邮箱地址" } }
-                });
             }
 
             // 验证 operation token
@@ -279,18 +279,18 @@ public static class AuthEndpoints
             // 使用 SetEmailAsync 确保 NormalizedEmail 和 EmailConfirmed 正确更新
             // 再单独同步 EmailForTwoFactor
             var oldEmail = user.Email;
-            var setEmailResult = await userManager.SetEmailAsync(user, email.ToLowerInvariant());
-            if (!setEmailResult.Succeeded)
-            {
-                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-                {
-                    { "email", setEmailResult.Errors.Select(e => e.Description).ToArray() }
-                });
-            }
-            user.EmailForTwoFactor = email.ToLowerInvariant();
-
             try
             {
+                var setEmailResult = await userManager.SetEmailAsync(user, email.ToLowerInvariant());
+                if (!setEmailResult.Succeeded)
+                {
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        { "email", setEmailResult.Errors.Select(e => e.Description).ToArray() }
+                    });
+                }
+                user.EmailForTwoFactor = email.ToLowerInvariant();
+
                 var updateResult = await userManager.UpdateAsync(user);
                 if (!updateResult.Succeeded)
                 {
@@ -306,15 +306,15 @@ public static class AuthEndpoints
                 logger.LogWarning(ex, "Email uniqueness conflict for user {UserId} when setting email", user.Id);
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                 {
-                    { "email", new[] { "该邮箱已被其他账户使用" } }
+                    { "email", new[] { "此邮箱已被其他用户使用" } }
                 });
             }
 
-            // 旧邮箱通知（异步，失败不影响主流程）
+            // 旧邮箱通知（SendChangeNotificationAsync 内部有完整 try/catch，await 安全）
             if (!string.IsNullOrEmpty(oldEmail))
             {
                 var emailService = httpContext.RequestServices.GetRequiredService<EmailTwoFactorService>();
-                _ = Task.Run(() => emailService.SendChangeNotificationAsync(oldEmail, user.UserName));
+                await emailService.SendChangeNotificationAsync(oldEmail, user.UserName);
             }
         }
 
@@ -384,7 +384,7 @@ public static class AuthEndpoints
     {
         try
         {
-            var protector = protectionProvider.CreateProtector("email-operation-token");
+            var protector = protectionProvider.CreateProtector(EmailVerificationEndpoints.OperationTokenPurpose);
             var payload = protector.Unprotect(operationToken);
             var parts = payload.Split('|');
             if (parts.Length < 3)

@@ -12,7 +12,7 @@ namespace BoxWise.Server.Endpoints;
 public static class EmailVerificationEndpoints
 {
     private const string SendCodePurpose = "email-change";
-    private const string OperationTokenPurpose = "email-operation-token";
+    internal const string OperationTokenPurpose = "email-operation-token";
 
     public static RouteGroupBuilder MapEmailVerificationEndpoints(this IEndpointRouteBuilder app)
     {
@@ -64,12 +64,13 @@ public static class EmailVerificationEndpoints
             });
         }
 
-        var email = request.Email?.Trim();
-        if (string.IsNullOrWhiteSpace(email) || email.Length > 256 || !EmailValidator.IsValid(email))
+        var email = request.Email?.Trim() ?? "";
+        var emailError = EmailValidation.Validate(email);
+        if (emailError is not null)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                { "email", new[] { "请输入有效的邮箱地址" } }
+                { "email", new[] { emailError } }
             });
         }
 

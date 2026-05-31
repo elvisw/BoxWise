@@ -18,12 +18,6 @@ public static class TwoFactorModifyEndpoints
             .RequireRateLimiting("2fa-modify")
             .AddEndpointFilter<CsrfValidationFilter>();
 
-        group.MapPost("/send-code", SendVerificationCodeAsync)
-            .WithTags("2FA/Modify")
-            .ProducesProblem(401)
-            .RequireRateLimiting("2fa-modify")
-            .AddEndpointFilter<CsrfValidationFilter>();
-
         group.MapPost("/totp", ResetTotpAsync)
             .WithTags("2FA/Modify")
             .ProducesProblem(401)
@@ -84,8 +78,8 @@ public static class TwoFactorModifyEndpoints
                     {
                         { "method", new[] { "该方法未配置" } }
                     });
-                var emailForAuth = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
-                if (string.IsNullOrEmpty(emailForAuth))
+                var effectiveEmail = user.EffectiveEmailForTwoFactor;
+                if (string.IsNullOrEmpty(effectiveEmail))
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
                         { "method", new[] { "邮箱 2FA 未完整配置" } }
@@ -95,7 +89,7 @@ public static class TwoFactorModifyEndpoints
                     {
                         { "token", new[] { "缺少验证令牌" } }
                     });
-                valid = emailTwoFactorService.VerifyCode(user.Id, emailForAuth, request.Code, request.Token);
+                valid = emailTwoFactorService.VerifyCode(user.Id, effectiveEmail, request.Code, request.Token);
                 break;
             case "RecoveryCode":
                 valid = await recoveryCodeService.ValidateRecoveryCodeAsync(user, request.Code);
@@ -118,40 +112,6 @@ public static class TwoFactorModifyEndpoints
         var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
         var sessionToken = twoFactorService.GenerateSessionToken(user.Id, clientIp, "2fa-modify");
         return TypedResults.Ok(new ReAuthenticateResponse(sessionToken));
-    }
-
-    /// <summary>
-    /// 向用户已配置的邮箱发送验证码（用于 modify authenticate 的 Email 方法）。
-    /// </summary>
-    private static async Task<Results<Ok<EmailTwoFactorSetupResponse>, UnauthorizedHttpResult, ValidationProblem>>
-        SendVerificationCodeAsync(HttpContext httpContext,
-            UserManager<AppUser> userManager, EmailTwoFactorService emailTwoFactorService)
-    {
-        var user = await userManager.GetUserAsync(httpContext.User);
-        if (user is null)
-            return TypedResults.Unauthorized();
-
-        var emailForSmtp = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
-        if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email) || string.IsNullOrEmpty(emailForSmtp))
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "method", new[] { "您尚未配置邮箱 2FA" } }
-            });
-        }
-
-        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, emailForSmtp);
-        var sent = await emailTwoFactorService.SendVerificationEmailAsync(emailForSmtp, code, user.UserName);
-
-        if (!sent)
-        {
-            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
-            {
-                { "email", new[] { "验证码发送失败，请检查 SMTP 配置或稍后重试" } }
-            });
-        }
-
-        return TypedResults.Ok(new EmailTwoFactorSetupResponse(token));
     }
 
     /// <summary>

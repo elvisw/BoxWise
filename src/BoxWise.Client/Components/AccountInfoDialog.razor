@@ -126,7 +126,6 @@
     private string _code = string.Empty;
     private string? _sessionToken;
     private string? _verificationToken;
-    private string? _operationToken;
     private string? _error;
     private bool _loading;
 
@@ -211,8 +210,6 @@
                 return;
             }
 
-            _operationToken = operationToken;
-
             // 使用 operation token 更新邮箱
             var (success, error) = await AuthService.UpdateEmailAsync(verifiedEmail, operationToken);
             if (success)
@@ -239,7 +236,6 @@
         _error = null;
         _codeSent = false;
         _verificationToken = null;
-        _operationToken = null;
         _code = string.Empty;
         _sessionToken = null;
         _password = string.Empty;

@@ -87,7 +87,18 @@ public class EmailTwoFactorService
         if (!_consumedTokens.TryAdd(tokenHash, DateTime.UtcNow.Add(_tokenTtl)))
             return false; // 已存在 → 已消费
 
-        var result = VerifyCode(userId, email, code, token);
+        bool result;
+        try
+        {
+            result = VerifyCode(userId, email, code, token);
+        }
+        catch
+        {
+            // VerifyCode 抛出异常时清理 tokenHash，防止 token hash 泄漏（无法被清理）
+            _consumedTokens.TryRemove(tokenHash, out _);
+            throw;
+        }
+
         if (!result)
             _consumedTokens.TryRemove(tokenHash, out _); // 验证失败 → 允许重试
         else

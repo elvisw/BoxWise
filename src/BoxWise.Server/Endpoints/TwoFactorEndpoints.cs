@@ -258,8 +258,8 @@ public static class TwoFactorEndpoints
         {
             // 防御：EmailForTwoFactor 为 null 的损坏状态
             // 优先使用 user.Email，回退到 EmailForTwoFactor（向后兼容）
-            var emailFor2Fa = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
-            if (string.IsNullOrEmpty(emailFor2Fa))
+            var effectiveEmail = user.EffectiveEmailForTwoFactor;
+            if (string.IsNullOrEmpty(effectiveEmail))
             {
                 user.ConfiguredMethods &= ~TwoFactorMethod.Email;
                 await userManager.UpdateAsync(user);
@@ -267,7 +267,7 @@ public static class TwoFactorEndpoints
             else
             {
                 methods.Add("Email");
-                var (code, token) = emailTwoFactorService.GenerateCode(user.Id, emailFor2Fa);
+                var (code, token) = emailTwoFactorService.GenerateCode(user.Id, effectiveEmail);
                 emailToken = token;
                 // 邮件延迟到用户选择 Email 方法后发送，避免 TOTP 用户收到不必要的邮件
             }
@@ -290,13 +290,13 @@ public static class TwoFactorEndpoints
         if (user is null)
             return TypedResults.Unauthorized();
 
-        var emailFor2Fa = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
-        if (string.IsNullOrEmpty(emailFor2Fa)
+        var effectiveEmail = user.EffectiveEmailForTwoFactor;
+        if (string.IsNullOrEmpty(effectiveEmail)
             || !user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
             return TypedResults.Ok(new SendChallengeCodeResponse(null));
 
-        var (code, newToken) = emailTwoFactorService.GenerateCode(user.Id, emailFor2Fa);
-        var sent = await emailTwoFactorService.SendVerificationEmailAsync(emailFor2Fa, code, user.UserName);
+        var (code, newToken) = emailTwoFactorService.GenerateCode(user.Id, effectiveEmail);
+        var sent = await emailTwoFactorService.SendVerificationEmailAsync(effectiveEmail, code, user.UserName);
 
         if (!sent)
         {
@@ -343,13 +343,13 @@ public static class TwoFactorEndpoints
                     {
                         { "token", new[] { "缺少验证令牌" } }
                     });
-                var emailForVerify = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
-                if (string.IsNullOrEmpty(emailForVerify))
+                var effectiveEmail = user.EffectiveEmailForTwoFactor;
+                if (string.IsNullOrEmpty(effectiveEmail))
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                     {
                         { "method", new[] { "邮箱 2FA 未完整配置" } }
                     });
-                valid = emailTwoFactorService.VerifyCode(user.Id, emailForVerify, request.Code, request.Token);
+                valid = emailTwoFactorService.VerifyCode(user.Id, effectiveEmail, request.Code, request.Token);
                 break;
             default:
                 // 回退兼容：单方法用户 / 旧客户端不传 method
@@ -360,13 +360,13 @@ public static class TwoFactorEndpoints
                         {
                             { "token", new[] { "缺少验证令牌" } }
                         });
-                    var emailForVerifyFallback = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
-                    if (string.IsNullOrEmpty(emailForVerifyFallback))
+                    var fallbackEmail = user.EffectiveEmailForTwoFactor;
+                    if (string.IsNullOrEmpty(fallbackEmail))
                         return TypedResults.ValidationProblem(new Dictionary<string, string[]>
                         {
                             { "method", new[] { "邮箱 2FA 未完整配置" } }
                         });
-                    valid = emailTwoFactorService.VerifyCode(user.Id, emailForVerifyFallback, request.Code, request.Token);
+                    valid = emailTwoFactorService.VerifyCode(user.Id, fallbackEmail, request.Code, request.Token);
                 }
                 else
                 {
@@ -515,8 +515,8 @@ public static class TwoFactorEndpoints
             });
         }
 
-        var email = !string.IsNullOrEmpty(user.Email) ? user.Email : user.EmailForTwoFactor;
-        if (string.IsNullOrWhiteSpace(email))
+        var effectiveEmail = user.EffectiveEmailForTwoFactor;
+        if (string.IsNullOrWhiteSpace(effectiveEmail))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
@@ -532,7 +532,7 @@ public static class TwoFactorEndpoints
             });
         }
 
-        var valid = emailTwoFactorService.VerifyCode(user.Id, email, request.Code, request.Token);
+        var valid = emailTwoFactorService.VerifyCode(user.Id, effectiveEmail, request.Code, request.Token);
         if (!valid)
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
