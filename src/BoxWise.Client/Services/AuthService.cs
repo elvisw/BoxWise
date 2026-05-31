@@ -375,6 +375,27 @@ public class AuthService
     }
 
     /// <summary>
+    /// 发送 2FA 邮箱验证码（修改流程用）。需要密码 session token。
+    /// 返回 email token，用于 AuthenticateForModifyAsync 的 Email 方法。
+    /// </summary>
+    public async Task<string?> SendModifyEmailChallengeAsync(string sessionToken)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/2fa/modify/send-challenge");
+        request.Headers.Add("X-Session-Token", sessionToken);
+
+        var response = await _http.SendAsync(request);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<SendChallengeCodeResponse>();
+            return result?.Token;
+        }
+
+        var error = await TryGetErrorAsync(response);
+        throw new InvalidOperationException(error ?? "发送验证码失败");
+    }
+
+    /// <summary>
     /// 重新生成恢复码（旧码全部失效），需要 modify session token。
     /// </summary>
     public async Task<List<string>?> ModifyRegenerateRecoveryCodesAsync(string sessionToken)

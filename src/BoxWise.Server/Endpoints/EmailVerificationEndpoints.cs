@@ -56,11 +56,14 @@ public static class EmailVerificationEndpoints
             return TypedResults.Unauthorized();
 
         var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
-        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp))
+        // 用户已启用 2FA → 必须使用 modify session token（purpose="2fa-modify"）
+        // 用户未启用 2FA → 使用普通 session token（purpose="2fa-setup"）
+        var expectedPurpose = user.TwoFactorEnabled ? "2fa-modify" : "2fa-setup";
+        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp, expectedPurpose))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
-                { "sessionToken", new[] { "会话令牌无效或已过期，请重新验证密码" } }
+                { "sessionToken", new[] { "会话令牌无效或已过期，请重新验证身份" } }
             });
         }
 

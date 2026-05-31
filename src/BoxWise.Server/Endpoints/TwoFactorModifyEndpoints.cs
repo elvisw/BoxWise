@@ -30,6 +30,12 @@ public static class TwoFactorModifyEndpoints
             .RequireRateLimiting("2fa-modify")
             .AddEndpointFilter<CsrfValidationFilter>();
 
+        group.MapPost("/send-challenge", SendModifyEmailChallengeAsync)
+            .WithTags("2FA/Modify")
+            .ProducesProblem(401)
+            .RequireRateLimiting("2fa-modify")
+            .AddEndpointFilter<CsrfValidationFilter>();
+
         group.MapPost("/recovery/regenerate", RegenerateRecoveryCodesForModifyAsync)
             .WithTags("2FA/Modify")
             .ProducesProblem(401)
@@ -224,5 +230,67 @@ public static class TwoFactorModifyEndpoints
 
         var codes = await recoveryCodeService.RegenerateRecoveryCodesAsync(user);
         return TypedResults.Ok(new RecoveryCodesResponse(codes));
+    }
+
+    /// <summary>
+    /// 发送邮箱 2FA 验证码（修改流程用）。需要 X-Session-Token（密码重新认证后）。
+    /// 成功后返回 email token，用于 AuthenticateForModifyAsync 的 Email 方法。
+    /// </summary>
+    private static async Task<Results<Ok<SendChallengeCodeResponse>, UnauthorizedHttpResult, ValidationProblem>>
+        SendModifyEmailChallengeAsync(HttpContext httpContext,
+            UserManager<AppUser> userManager, TwoFactorService twoFactorService,
+            EmailTwoFactorService emailTwoFactorService)
+    {
+        var sessionToken = httpContext.Request.Headers["X-Session-Token"].FirstOrDefault();
+        if (string.IsNullOrEmpty(sessionToken))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "sessionToken", new[] { "缺少会话令牌" } }
+            });
+        }
+
+        var user = await userManager.GetUserAsync(httpContext.User);
+        if (user is null)
+            return TypedResults.Unauthorized();
+
+        if (!user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "method", new[] { "邮箱 2FA 未配置" } }
+            });
+        }
+
+        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
+        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "sessionToken", new[] { "会话令牌无效或已过期，请重新验证密码" } }
+            });
+        }
+
+        var effectiveEmail = user.EffectiveEmailForTwoFactor;
+        if (string.IsNullOrEmpty(effectiveEmail))
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "email", new[] { "邮箱 2FA 未完整配置" } }
+            });
+        }
+
+        var (code, token) = emailTwoFactorService.GenerateCode(user.Id, effectiveEmail);
+        var sent = await emailTwoFactorService.SendVerificationEmailAsync(effectiveEmail, code, user.UserName);
+
+        if (!sent)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                { "email", new[] { "验证码发送失败，请稍后重试或使用其他验证方式" } }
+            });
+        }
+
+        return TypedResults.Ok(new SendChallengeCodeResponse(token));
     }
 }
