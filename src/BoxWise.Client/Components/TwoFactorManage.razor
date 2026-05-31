@@ -71,6 +71,25 @@
                     </div>
                 </MudPaper>
             }
+
+            @if (_webauthnAvailable || _configuredMethods.Contains("WebAuthn"))
+            {
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;">通行密钥</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                管理已注册的通行密钥或添加新设备
+                            </MudText>
+                        </div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   Disabled="@_isLoading" @onclick="StartManageWebAuthn">
+                            管理
+                        </MudButton>
+                    </div>
+                </MudPaper>
+            }
         }
         else if (_manageStep == ManageStep.ModifyAuthenticate)
         {
@@ -176,6 +195,14 @@
                                  OnSetupComplete="OnModifyComplete"
                                  OnBack="GoToChooseAction" />
         }
+        else if (_manageStep == ManageStep.ManageWebAuthn)
+        {
+            <WebAuthnCredentialList @ref="_webAuthnList" />
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle2" Class="mb-2">添加新的通行密钥</MudText>
+            <WebAuthnSetup OnSetupComplete="OnWebAuthnAdded"
+                           OnBack="GoToChooseAction" />
+        }
         else if (_manageStep == ManageStep.Complete)
         {
             <MudText Typo="Typo.h6" Align="Align.Center" Class="mb-3">
@@ -265,6 +292,8 @@
     private bool _isLoading;
     private List<string> _configuredMethods = new();
     private bool _hasRecoveryCodes;
+    private bool _webauthnAvailable;
+    private WebAuthnCredentialList? _webAuthnList;
 
     // TOTP authenticate inputs
     private string _totpCode = string.Empty;
@@ -287,11 +316,13 @@
             var status = await AuthService.GetTwoFactorStatusAsync();
             _configuredMethods = status?.ConfiguredMethods ?? new List<string>();
             _hasRecoveryCodes = status?.HasRecoveryCodes ?? false;
+            _webauthnAvailable = await AuthService.GetWebAuthnAvailableAsync();
         }
         catch
         {
             _configuredMethods = new();
             _hasRecoveryCodes = false;
+            _webauthnAvailable = false;
         }
     }
 
@@ -531,12 +562,28 @@
         MudDialog.Cancel();
     }
 
+    private void StartManageWebAuthn()
+    {
+        _selectedAction = "WebAuthn";
+        _error = null;
+        _manageStep = ManageStep.ManageWebAuthn;
+        StateHasChanged();
+    }
+
+    private async void OnWebAuthnAdded()
+    {
+        if (_webAuthnList is not null)
+            await _webAuthnList.LoadCredentialsAsync();
+        StateHasChanged();
+    }
+
     private enum ManageStep
     {
         ChooseAction,
         ModifyAuthenticate,
         ModifyTotp,
         ModifyEmail,
+        ManageWebAuthn,
         Complete
     }
 }
