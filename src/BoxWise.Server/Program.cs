@@ -145,7 +145,7 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromMinutes(5);
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SameSite = SameSiteMode.None; // Blazor WASM 跨端口需要 None（与 auth cookie 一致）
 });
 
 // Rate Limiting
@@ -158,6 +158,15 @@ builder.Services.AddRateLimiter(options =>
     {
         config.PermitLimit = builder.Configuration.GetValue("RateLimit:LoginPermitLimit", 5);
         config.Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("RateLimit:LoginWindowMinutes", 15));
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        config.QueueLimit = 0;
+    });
+
+    // Passkey 登录端点 - 按 IP（更宽松：不涉及密码验证，仅发放 challenge）
+    options.AddFixedWindowLimiter(policyName: "passkey-login", config =>
+    {
+        config.PermitLimit = builder.Configuration.GetValue("RateLimit:PasskeyLoginPermitLimit", 30);
+        config.Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("RateLimit:PasskeyLoginWindowMinutes", 5));
         config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });

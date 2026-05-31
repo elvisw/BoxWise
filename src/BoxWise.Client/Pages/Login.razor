@@ -115,64 +115,47 @@
                         {
                             <MudButton Variant="@(_selectedMethod == method ? Variant.Filled : Variant.Outlined)"
                                        Color="Color.Primary"
-                                       @onclick="() => SelectMethod(method)">
-                                @(method switch { "TOTP" => "生成器验证码", "Email" => "邮箱验证码", "WebAuthn" => "通行密钥", _ => method })
+                                       @onclick="async () => await SelectMethod(method)">
+                                @(method switch { "TOTP" => "生成器验证码", "Email" => "邮箱验证码", _ => method })
                             </MudButton>
                         }
                     </MudButtonGroup>
                 }
 
-                @if (_selectedMethod == "WebAuthn")
+                @if (_selectedMethod == "Email")
                 {
-                    <MudText Typo="Typo.body2" Class="mb-3">
-                        使用已注册的通行密钥完成验证
-                    </MudText>
+                    <MudAlert Severity="Severity.Info" Class="mb-3" Dense="true">
+                        验证码已发送至您的邮箱，请输入收到的 6 位验证码。
+                    </MudAlert>
+                }
 
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Secondary"
+                <MudTextField @bind-Value="_totpCode"
+                              Label="@(_selectedMethod == "Email" ? "邮箱验证码" : "验证码")"
+                              Required="true"
+                              Immediate="true"
+                              Variant="Variant.Outlined"
+                              Class="mb-3"
+                              FullWidth="true"
+                              HelperText="输入 6 位验证码" />
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Secondary"
+                           FullWidth="true"
+                           Disabled="@(_isLoading || string.IsNullOrEmpty(_totpCode))"
+                           @onclick="HandleTwoFactorVerify">
+                    @(_isLoading ? "验证中..." : "验证")
+                </MudButton>
+
+                @if (_selectedMethod == "Email")
+                {
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
                                FullWidth="true"
-                               StartIcon="@Icons.Material.Filled.Fingerprint"
-                               Disabled="@_isLoading"
-                               @onclick="HandleWebAuthnVerify">
-                        @(_isLoading ? "验证中..." : "使用通行密钥验证")
+                               Class="mt-1"
+                               @onclick="ResendEmailCode">
+                        重新发送验证码
                     </MudButton>
                 }
-                else
-                {
-                    @if (_selectedMethod == "Email")
-                    {
-                        <MudAlert Severity="Severity.Info" Class="mb-3" Dense="true">
-                            验证码已发送至您的邮箱，请输入收到的 6 位验证码。
-                        </MudAlert>
-                    }
-
-                    <MudTextField @bind-Value="_totpCode"
-                                  Label="@(_selectedMethod == "Email" ? "邮箱验证码" : "验证码")"
-                                  Required="true"
-                                  Immediate="true"
-                                  Variant="Variant.Outlined"
-                                  Class="mb-3"
-                                  FullWidth="true"
-                                  HelperText="输入 6 位验证码" />
-
-                    <MudButton Variant="Variant.Filled"
-                               Color="Color.Secondary"
-                               FullWidth="true"
-                               Disabled="@(_isLoading || string.IsNullOrEmpty(_totpCode))"
-                               @onclick="HandleTwoFactorVerify">
-                        @(_isLoading ? "验证中..." : "验证")
-                    </MudButton>
-
-                    @if (_selectedMethod == "Email")
-                    {
-                        <MudButton Variant="Variant.Text"
-                                   Color="Color.Primary"
-                                   FullWidth="true"
-                                   Class="mt-1"
-                                   @onclick="ResendEmailCode">
-                            重新发送验证码
-                        </MudButton>
-                    }
                 }
 
                 @if (!string.IsNullOrEmpty(_error))
@@ -200,7 +183,6 @@
                            @onclick="() => _showRecoveryCode = true">
                     使用恢复码登录
                 </MudButton>
-                }
                 }
             }
         }
@@ -317,6 +299,9 @@
                 _emailToken = response.Token;
                 _hasRecoveryCodes = response.HasRecoveryCodes;
                 _selectedMethod = _allowedMethods.FirstOrDefault();
+                // 如果默认方法是 Email，自动触发发送验证码（不再在 Challenge 阶段提前发送）
+                if (_selectedMethod == "Email")
+                    await SelectMethod("Email");
             }
         }
         catch
@@ -325,63 +310,39 @@
         }
     }
 
-    private void SelectMethod(string method)
+    private async Task SelectMethod(string method)
     {
+        // 防止快速双击触发并发邮件发送
+        if (_isLoading) return;
+
         _selectedMethod = method;
         _totpCode = string.Empty;
         _error = null;
-    }
 
-    private async Task HandleWebAuthnVerify()
-    {
-        _error = null;
-        _isLoading = true;
-
-        try
+        // 选择 Email 方法时自动发送验证码（不再在 Challenge 阶段提前发送）
+        if (method == "Email")
         {
-            // Step 1: 获取验证挑战
-            var optionsJson = await AuthService.GetWebAuthnVerificationChallengeAsync();
-            if (optionsJson is null)
-            {
-                _error = "无法获取通行密钥验证挑战，请检查网络";
-                return;
-            }
-
-            // Step 2: 浏览器验证（指纹/面容/PIN）
-            string assertionJson;
+            _isLoading = true;
             try
             {
-                assertionJson = await JS.InvokeAsync<string>("webauthn.getCredential", optionsJson);
+                var newToken = await AuthService.ResendTwoFactorChallengeCodeAsync();
+                if (newToken is not null)
+                {
+                    _emailToken = newToken;
+                }
+                else
+                {
+                    _error = "验证码发送失败，请重试或选择其他验证方式";
+                }
             }
-            catch (JSException ex) when (ex.Message.Contains("用户取消了操作"))
+            catch
             {
-                _error = "您已取消操作";
-                return;
+                _error = "验证码发送失败，请检查网络";
             }
-            catch (JSException)
+            finally
             {
-                _error = "通行密钥验证失败，请确保已注册通行密钥";
-                return;
+                _isLoading = false;
             }
-
-            // Step 3: 提交断言到服务器
-            var result = await AuthService.VerifyWebAuthnAsync(assertionJson);
-            if (result == LoginResult.Success)
-            {
-                Navigation.NavigateTo("/");
-            }
-            else
-            {
-                _error = "通行密钥验证失败";
-            }
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
-        finally
-        {
-            _isLoading = false;
         }
     }
 

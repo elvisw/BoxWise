@@ -223,8 +223,7 @@ public static class TwoFactorEndpoints
         ChallengeAsync(SignInManager<AppUser> signInManager,
             EmailTwoFactorService emailTwoFactorService,
             UserManager<AppUser> userManager,
-            RecoveryCodeService recoveryCodeService,
-            ILoggerFactory loggerFactory)
+            RecoveryCodeService recoveryCodeService)
     {
         var user = await GetTwoFactorUserAsync(signInManager, userManager);
         if (user is null)
@@ -245,9 +244,6 @@ public static class TwoFactorEndpoints
         if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
             methods.Add("TOTP");
 
-        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.WebAuthn))
-            methods.Add("WebAuthn");
-
         if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
         {
             // 防御：EmailForTwoFactor 为 null 的损坏状态
@@ -261,20 +257,7 @@ public static class TwoFactorEndpoints
                 methods.Add("Email");
                 var (code, token) = emailTwoFactorService.GenerateCode(user.Id, user.EmailForTwoFactor);
                 emailToken = token;
-                // 即使用户最终选择 TOTP，邮件也会发送——用户可能切换选择，提前发送减少等待
-                // 后台发送邮件，不阻塞 Challenge 响应。失败仅记录日志不影响 TOTP 路径。
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await emailTwoFactorService.SendVerificationEmailAsync(user.EmailForTwoFactor, code, user.UserName);
-                    }
-                    catch (Exception ex)
-                    {
-                        var logger = loggerFactory.CreateLogger("BoxWise.TwoFactor");
-                        logger.LogWarning(ex, "后台邮件发送失败，用户 {UserId} 仍可使用 TOTP 验证", user.Id);
-                    }
-                });
+                // 邮件延迟到用户选择 Email 方法后发送，避免 TOTP 用户收到不必要的邮件
             }
         }
 

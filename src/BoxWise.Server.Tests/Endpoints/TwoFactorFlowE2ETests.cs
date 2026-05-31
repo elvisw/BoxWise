@@ -95,7 +95,7 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
     {
         // 无 TwoFactorUserId Cookie → 401
         var status = await TwoFactorTestHelpers.Invoke2FAAsync(
-            "ChallengeAsync", _signInManager, _emailTwoFactorService, _userManager, _recoveryCodeService, null!);
+            "ChallengeAsync", _signInManager, _emailTwoFactorService, _userManager, _recoveryCodeService);
         Assert.Equal(401, status);
     }
 

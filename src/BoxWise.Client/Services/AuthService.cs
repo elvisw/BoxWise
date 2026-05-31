@@ -398,34 +398,6 @@ public class AuthService
     // ===== WebAuthn Methods =====
 
     /// <summary>
-    /// 获取 WebAuthn 验证挑战。
-    /// </summary>
-    public async Task<string?> GetWebAuthnVerificationChallengeAsync()
-    {
-        var response = await _http.GetAsync("api/auth/webauthn/verify-begin");
-        if (response.IsSuccessStatusCode)
-        {
-            return await response.Content.ReadAsStringAsync();
-        }
-        return null;
-    }
-
-    /// <summary>
-    /// 验证 WebAuthn 断言。assertionJson 来自 navigator.credentials.get() 的返回值。
-    /// </summary>
-    public async Task<LoginResult> VerifyWebAuthnAsync(string assertionJson)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/webauthn/verify-complete");
-        request.Content = new StringContent(assertionJson, System.Text.Encoding.UTF8, "application/json");
-        var response = await _http.SendAsync(request);
-
-        if (response.IsSuccessStatusCode)
-            return LoginResult.Success;
-
-        return LoginResult.Failure;
-    }
-
-    /// <summary>
     /// 检查 WebAuthn 在当前 origin 下是否可用。
     /// </summary>
     public async Task<bool> GetWebAuthnAvailableAsync()

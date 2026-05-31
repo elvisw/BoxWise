@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using BoxWise.Server.Data;
 using BoxWise.Server.Models;
 using System.Text.Json;
 using Fido2NetLib;
@@ -45,15 +43,17 @@ public static class WebAuthnEndpoints
             .ProducesProblem(401);
 
         // Passkey 无密码登录（匿名访问，速率限制防止滥用）
+        // 使用 passkey-login 策略（30次/5分钟）而非 login-per-ip（5次/15分钟）
+        // 因为 login-begin 仅发放 challenge，不涉及密码验证，不需要严格速率限制
         group.MapPost("/login-begin", LoginBeginAsync)
             .WithTags("2FA")
             .AllowAnonymous()
-            .RequireRateLimiting("login-per-ip");
+            .RequireRateLimiting("passkey-login");
 
         group.MapPost("/login-complete", LoginCompleteAsync)
             .WithTags("2FA")
             .AllowAnonymous()
-            .RequireRateLimiting("login-per-ip");
+            .RequireRateLimiting("passkey-login");
 
         return group;
     }
@@ -121,6 +121,18 @@ public static class WebAuthnEndpoints
             return TypedResults.Problem("未登录", statusCode: 401);
         var success = await webAuthnService.RemoveCredentialAsync(user, id);
         if (!success) return TypedResults.Problem("凭证不存在", statusCode: 404);
+
+        // 删除最后一个凭据后清除 WebAuthn 标志，防止用户陷入无可用 2FA 方法的状态
+        var remaining = await webAuthnService.GetCredentialsAsync(user);
+        if (remaining.Count == 0)
+        {
+            user.ConfiguredMethods &= ~TwoFactorMethod.WebAuthn;
+            // 如果不再有任何已配置的 2FA 方法，禁用 2FA
+            if (user.ConfiguredMethods == TwoFactorMethod.None)
+                user.TwoFactorEnabled = false;
+            await userManager.UpdateAsync(user);
+        }
+
         return TypedResults.Ok();
     }
 

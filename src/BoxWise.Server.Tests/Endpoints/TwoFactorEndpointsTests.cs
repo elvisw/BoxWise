@@ -143,7 +143,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
         // SignInManager has no TwoFactorUserId cookie, so
         // GetTwoFactorAuthenticationUserAsync() returns null → 401
         var status = await TwoFactorTestHelpers.Invoke2FAAsync(
-            "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager, _recoveryCodeService, NullLoggerFactory.Instance);
+            "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager, _recoveryCodeService);
         Assert.Equal(401, status);
     }
 
@@ -183,7 +183,7 @@ public class TwoFactorEndpointsTests : IAsyncLifetime
 
         // Act
         var (status, body) = await TwoFactorTestHelpers.Invoke2FAWithBodyAsync(
-            "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager, _recoveryCodeService, NullLoggerFactory.Instance);
+            "ChallengeAsync", _ctx.SignInManager, _emailTwoFactorService, _userManager, _recoveryCodeService);
 
         // Assert
         Assert.Equal(200, status);

@@ -570,7 +570,7 @@
         StateHasChanged();
     }
 
-    private async void OnWebAuthnAdded()
+    private async Task OnWebAuthnAdded()
     {
         if (_webAuthnList is not null)
             await _webAuthnList.LoadCredentialsAsync();
