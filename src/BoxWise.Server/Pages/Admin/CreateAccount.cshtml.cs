@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using BoxWise.Server.Models;
+using BoxWise.Server.Utilities;
 using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Pages.Admin;
@@ -31,6 +32,7 @@ public class CreateAccountModel : PageModel
     public async Task<IActionResult> OnPostAsync()
     {
         Input.Username = Input.Username.Trim();
+        Input.Email = Input.Email.Trim();
 
         if (string.IsNullOrWhiteSpace(Input.Username) || string.IsNullOrWhiteSpace(Input.Password))
         {
@@ -50,6 +52,13 @@ public class CreateAccountModel : PageModel
             return Page();
         }
 
+        var emailError = EmailValidation.Validate(Input.Email);
+        if (emailError is not null)
+        {
+            ErrorMessage = emailError;
+            return Page();
+        }
+
         var existingUser = await _userManager.FindByNameAsync(Input.Username);
         if (existingUser is not null)
         {
@@ -57,7 +66,19 @@ public class CreateAccountModel : PageModel
             return Page();
         }
 
-        var user = new AppUser { UserName = Input.Username };
+        var existingEmail = await _userManager.FindByEmailAsync(Input.Email);
+        if (existingEmail is not null)
+        {
+            ErrorMessage = $"邮箱 '{Input.Email}' 已被其他账户使用";
+            return Page();
+        }
+
+        var user = new AppUser
+        {
+            UserName = Input.Username,
+            Email = Input.Email,
+            EmailForTwoFactor = Input.Email
+        };
         var result = await _userManager.CreateAsync(user, Input.Password);
 
         if (!result.Succeeded)
@@ -66,7 +87,8 @@ public class CreateAccountModel : PageModel
             return Page();
         }
 
-        _logger.LogInformation("Admin user '{AdminName}' created account '{Username}'", User.Identity?.Name, Input.Username);
+        _logger.LogInformation("Admin user '{AdminName}' created account '{Username}' with email '{Email}'",
+            User.Identity?.Name, Input.Username, Input.Email);
 
         return RedirectToPage("/Admin/Index");
     }

@@ -160,13 +160,61 @@ public class AdminUserManagementTests
         await using var ctx = await TestIdentityFactory.CreateAsync();
         var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
         var model = CreateCreateAccountModel(ctx.UserManager, admin);
-        model.Input = new() { Username = "newuser", Password = "pass1234" };
+        model.Input = new() { Username = "newuser", Password = "pass1234", Email = "newuser@example.com" };
 
         var result = await model.OnPostAsync();
 
         Assert.IsType<RedirectToPageResult>(result);
         var created = await ctx.UserManager.FindByNameAsync("newuser");
         Assert.NotNull(created);
+        Assert.Equal("newuser@example.com", created!.Email);
+        Assert.Equal("newuser@example.com", created.EmailForTwoFactor);
+    }
+
+    [Fact]
+    public async Task CreateAccount_EmptyEmail_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var model = CreateCreateAccountModel(ctx.UserManager, admin);
+        model.Input = new() { Username = "newuser", Password = "pass1234", Email = "" };
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+        Assert.Contains("邮箱", model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task CreateAccount_InvalidEmail_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        var model = CreateCreateAccountModel(ctx.UserManager, admin);
+        model.Input = new() { Username = "newuser", Password = "pass1234", Email = "not-an-email" };
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+        Assert.Contains("邮箱", model.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task CreateAccount_DuplicateEmail_ReturnsError()
+    {
+        await using var ctx = await TestIdentityFactory.CreateAsync();
+        var admin = await CreateAdminAsync(ctx, "admin", "pass1234");
+        await CreateUserWithEmailAsync(ctx, "existing", "pass1234", "dup@example.com");
+        var model = CreateCreateAccountModel(ctx.UserManager, admin);
+        model.Input = new() { Username = "newuser", Password = "pass1234", Email = "dup@example.com" };
+
+        var result = await model.OnPostAsync();
+
+        Assert.IsType<PageResult>(result);
+        Assert.NotNull(model.ErrorMessage);
+        Assert.Contains("邮箱", model.ErrorMessage);
     }
 
     [Fact]
@@ -259,6 +307,13 @@ public class AdminUserManagementTests
     private static async Task<AppUser> CreateUserAsync(TestIdentityContext ctx, string name, string password)
     {
         var user = new AppUser { UserName = name };
+        await ctx.UserManager.CreateAsync(user, password);
+        return user;
+    }
+
+    private static async Task<AppUser> CreateUserWithEmailAsync(TestIdentityContext ctx, string name, string password, string email)
+    {
+        var user = new AppUser { UserName = name, Email = email };
         await ctx.UserManager.CreateAsync(user, password);
         return user;
     }
