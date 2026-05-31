@@ -34,6 +34,22 @@
                 </MudPaper>
             }
 
+            @if (_configuredMethods.Contains("Email"))
+            {
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;">邮箱验证码</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                在"设置 → 账户信息"中修改接收验证码的邮箱
+                            </MudText>
+                        </div>
+                        <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+                    </div>
+                </MudPaper>
+            }
+
             @if (_hasRecoveryCodes)
             {
                 <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
