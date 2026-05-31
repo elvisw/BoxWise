@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Models;
 using BoxWise.Server.Utilities;
 using BoxWise.Shared.Dtos;
@@ -32,7 +33,7 @@ public class CreateAccountModel : PageModel
     public async Task<IActionResult> OnPostAsync()
     {
         Input.Username = Input.Username.Trim();
-        Input.Email = Input.Email.Trim();
+        Input.Email = (Input.Email ?? "").Trim();
 
         if (string.IsNullOrWhiteSpace(Input.Username) || string.IsNullOrWhiteSpace(Input.Password))
         {
@@ -79,11 +80,20 @@ public class CreateAccountModel : PageModel
             Email = Input.Email,
             EmailForTwoFactor = Input.Email
         };
-        var result = await _userManager.CreateAsync(user, Input.Password);
-
-        if (!result.Succeeded)
+        try
         {
-            ErrorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+            var result = await _userManager.CreateAsync(user, Input.Password);
+
+            if (!result.Succeeded)
+            {
+                ErrorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+                return Page();
+            }
+        }
+        catch (DbUpdateException)
+        {
+            // 并发创建同一邮箱/用户名时，NormalizedEmail/NormalizedUserName 唯一索引冲突
+            ErrorMessage = "该用户名或邮箱已被其他账户使用";
             return Page();
         }
 
