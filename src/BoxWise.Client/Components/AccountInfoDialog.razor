@@ -148,7 +148,7 @@
                           Label="新邮箱地址"
                           InputType="InputType.Email"
                           Required="true"
-                          Immediate="true"
+                          DebounceInterval="3000"
                           Variant="Variant.Outlined"
                           Disabled="@(_codeSent || _loading)"
                           FullWidth="true"
