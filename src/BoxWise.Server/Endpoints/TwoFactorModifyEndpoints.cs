@@ -263,7 +263,7 @@ public static class TwoFactorModifyEndpoints
         }
 
         var clientIp = httpContext.Connection.RemoteIpAddress?.ToString();
-        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp))
+        if (!twoFactorService.ValidateSessionToken(sessionToken, user.Id, clientIp, "2fa-setup"))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {

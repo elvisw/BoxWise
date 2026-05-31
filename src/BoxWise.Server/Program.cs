@@ -279,7 +279,7 @@ builder.Services.AddRateLimiter(options =>
         return RateLimitPartition.GetFixedWindowLimiter(userId,
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 2),
+                PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 3),
                 Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:EmailVerificationWindowSeconds", 300)),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0

@@ -32,7 +32,7 @@
         else if (_step == Step.TwoFactorVerify)
         {
             <MudText Typo="Typo.body2" Class="mb-3">
-                请先完成双因素认证以验证身份。
+                请选择以下任一方式完成身份验证。
             </MudText>
 
             @if (!string.IsNullOrEmpty(_error))
@@ -148,6 +148,7 @@
                           Label="新邮箱地址"
                           InputType="InputType.Email"
                           Required="true"
+                          Immediate="true"
                           DebounceInterval="3000"
                           Variant="Variant.Outlined"
                           Disabled="@(_codeSent || _loading)"
@@ -404,7 +405,6 @@
 
         try
         {
-            // 用户有 2FA 时使用 modify session token，否则使用普通 session token
             var tokenToUse = _modifySessionToken ?? _sessionToken;
             _verificationToken = await AuthService.SendEmailVerificationCodeAsync(tokenToUse!, _newEmail);
             _codeSent = true;
@@ -413,7 +413,7 @@
         catch (InvalidOperationException ex)
         {
             // 如果 session token 过期，回退到 Step 1
-            if (ex.Message.Contains("会话令牌"))
+            if (ex.Message.Contains("无效") || ex.Message.Contains("过期") || ex.Message.Contains("令牌"))
             {
                 _error = "操作超时，请重新验证";
                 _step = Step.PasswordAuth;
