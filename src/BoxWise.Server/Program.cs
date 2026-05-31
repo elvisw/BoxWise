@@ -280,7 +280,7 @@ builder.Services.AddRateLimiter(options =>
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 2),
-                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:EmailVerificationWindowSeconds", 60)),
+                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:EmailVerificationWindowSeconds", 300)),
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0
             });
