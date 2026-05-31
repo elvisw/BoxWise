@@ -49,6 +49,69 @@
                 </div>
             </MudPaper>
 
+            @if (_webauthnAvailable)
+            {
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;">通行密钥</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Default">
+                                使用指纹、面容或硬件密钥进行验证
+                            </MudText>
+                        </div>
+                        @if (_configuredMethods.Contains("WebAuthn"))
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                已启用
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       Disabled="@_isLoading" @onclick="StartWebAuthnSetup">
+                                @(_isLoading ? "处理中..." : "设置")
+                            </MudButton>
+                        }
+                    </div>
+                </MudPaper>
+            }
+            else
+            {
+                <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
+                    <div class="d-flex align-center">
+                        <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Size="Size.Medium" Class="mr-3" Color="Color.Default" />
+                        <div class="flex-grow-1">
+                            <MudText Typo="Typo.body1" Style="font-weight:500;" Color="Color.Default">通行密钥</MudText>
+                            @if (_configuredMethods.Contains("WebAuthn"))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Warning">
+                                    当前环境不支持通行密钥，登录时可能无法使用
+                                </MudText>
+                            }
+                            else
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Default">
+                                    当前环境不支持通行密钥，请在 HTTPS 环境下使用
+                                </MudText>
+                            }
+                        </div>
+                        @if (_configuredMethods.Contains("WebAuthn"))
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+                                已启用
+                            </MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Default" Size="Size.Small" Icon="@Icons.Material.Filled.Block">
+                                不可用
+                            </MudChip>
+                        }
+                    </div>
+                </MudPaper>
+            }
+
             @if (_emailAvailable)
             {
                 <MudPaper Class="pa-4 mb-2" Elevation="1" Outlined="true">
@@ -153,6 +216,13 @@
                                  OnSetupComplete="OnEmailSetupComplete"
                                  OnBack="Cancel" />
         }
+        else if (_setupStep == SetupStep.SetupWebAuthn)
+        {
+            <WebAuthnCredentialList @ref="_webAuthnList" />
+            <MudDivider Class="my-3" />
+            <WebAuthnSetup OnSetupComplete="OnWebAuthnSetupComplete"
+                           OnBack="Cancel" />
+        }
         else if (_setupStep == SetupStep.Complete)
         {
             <MudText Typo="Typo.h6" Align="Align.Center" Class="mb-3">
@@ -237,6 +307,8 @@
     private string _password = string.Empty;
     private string? _sessionToken;
     private bool _emailAvailable;
+    private bool _webauthnAvailable;
+    private WebAuthnCredentialList? _webAuthnList;
     private List<string> _configuredMethods = new();
     private bool _twoFactorEnabled;
     private List<string>? _recoveryCodes;
@@ -249,10 +321,12 @@
             _emailAvailable = status?.AvailableMethods?.Contains("Email") == true;
             _configuredMethods = status?.ConfiguredMethods ?? new List<string>();
             _twoFactorEnabled = status?.TwoFactorEnabled ?? false;
+            _webauthnAvailable = await AuthService.GetWebAuthnAvailableAsync();
         }
         catch
         {
             _emailAvailable = false;
+            _webauthnAvailable = false;
             _configuredMethods = new();
             _twoFactorEnabled = false;
         }
@@ -324,8 +398,10 @@
         StateHasChanged();
     }
 
-    private void OnWebAuthnSetupComplete()
+    private async Task OnWebAuthnSetupComplete()
     {
+        if (_webAuthnList is not null)
+            await _webAuthnList.LoadCredentialsAsync();
         _recoveryCodes = AuthService.GetLastRecoveryCodes();
         _setupStep = SetupStep.Complete;
         StateHasChanged();

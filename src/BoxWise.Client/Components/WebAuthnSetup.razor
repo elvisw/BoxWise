@@ -1,0 +1,149 @@
+@namespace BoxWise.Client.Components
+@inject AuthService AuthService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudText Typo="Typo.body2" Class="mb-2">
+    使用设备的指纹、面容或硬件密钥注册通行密钥。
+</MudText>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <MudAlert Severity="Severity.Error" Class="mb-3" Dense="true">
+        @_error
+    </MudAlert>
+}
+
+@if (_isComplete)
+{
+    <MudAlert Severity="Severity.Success" Class="mb-3" Dense="true">
+        通行密钥注册成功！
+    </MudAlert>
+}
+else
+{
+    <MudTextField @bind-Value="_deviceName"
+                  Label="设备名称"
+                  Required="true"
+                  Immediate="true"
+                  Variant="Variant.Outlined"
+                  Class="mb-3"
+                  FullWidth="true"
+                  HelperText="例如：iPhone、YubiKey、Windows Hello"
+                  MaxLength="100"
+                  Disabled="@_isRegistering" />
+
+    @if (!string.IsNullOrEmpty(_deviceNameError))
+    {
+        <MudText Typo="Typo.caption" Color="Color.Error" Class="mb-2">
+            @_deviceNameError
+        </MudText>
+    }
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               FullWidth="true"
+               Disabled="@(_isRegistering || string.IsNullOrWhiteSpace(_deviceName))"
+               @onclick="StartRegistrationAsync">
+        @(_isRegistering ? "正在注册..." : "开始注册")
+    </MudButton>
+
+    @if (_isRegistering)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Default" Class="mt-2" Align="Align.Center">
+            请在浏览器弹窗中完成验证
+        </MudText>
+    }
+}
+
+@code {
+    [Parameter]
+    public EventCallback OnSetupComplete { get; set; }
+
+    [Parameter]
+    public EventCallback OnBack { get; set; }
+
+    private string _deviceName = string.Empty;
+    private string? _deviceNameError;
+    private string? _error;
+    private bool _isRegistering;
+    private bool _isComplete;
+
+    private async Task StartRegistrationAsync()
+    {
+        // 设备名校验
+        var trimmed = _deviceName.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            _deviceNameError = "请输入设备名称";
+            return;
+        }
+        if (trimmed.Length > 100)
+        {
+            _deviceNameError = "设备名称不能超过100个字符";
+            return;
+        }
+        _deviceNameError = null;
+        _error = null;
+
+        _isRegistering = true;
+        StateHasChanged();
+
+        try
+        {
+            // Step 1: 获取注册参数
+            var optionsJson = await AuthService.StartWebAuthnRegistrationAsync();
+            if (optionsJson is null)
+            {
+                _error = "无法获取注册参数，请检查网络后重试";
+                return;
+            }
+
+            // Step 2: 浏览器 WebAuthn 弹窗（指纹/面容/PIN）
+            string attestationJson;
+            try
+            {
+                attestationJson = await JS.InvokeAsync<string>("webauthn.createCredential", optionsJson);
+            }
+            catch (JSException ex) when (ex.Message.Contains("用户取消了操作"))
+            {
+                _error = "您已取消操作";
+                return;
+            }
+            catch (JSException ex) when (ex.Message.Contains("超时"))
+            {
+                _error = "验证超时，请重试并尽快完成验证";
+                return;
+            }
+            catch (JSException)
+            {
+                _error = "浏览器验证失败，请确保设备支持通行密钥功能";
+                return;
+            }
+
+            // Step 3: 提交 attestation 到服务器
+            var recoveryCodes = await AuthService.CompleteWebAuthnRegistrationAsync(attestationJson, trimmed);
+            if (recoveryCodes is null)
+            {
+                _error = "注册失败，请重试";
+                return;
+            }
+
+            _isComplete = true;
+            Snackbar.Add("通行密钥已注册成功", Severity.Success);
+            await OnSetupComplete.InvokeAsync();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (Exception)
+        {
+            _error = "注册失败，请检查网络后重试";
+        }
+        finally
+        {
+            _isRegistering = false;
+        }
+    }
+}

@@ -94,7 +94,9 @@ public static class WebAuthnEndpoints
         UserManager<AppUser> userManager, WebAuthnService webAuthnService, HttpContext httpContext)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
-        var credentials = await webAuthnService.GetCredentialsAsync(user!);
+        if (user?.UserName is null)
+            return TypedResults.Ok(new List<WebAuthnCredentialDto>());
+        var credentials = await webAuthnService.GetCredentialsAsync(user);
         var dtos = credentials.Select(c => new WebAuthnCredentialDto(
             c.Id, c.DeviceName, c.CreatedAt)).ToList();
         return TypedResults.Ok(dtos);
@@ -104,14 +106,16 @@ public static class WebAuthnEndpoints
         int id, UserManager<AppUser> userManager, WebAuthnService webAuthnService, HttpContext httpContext)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
-        var success = await webAuthnService.RemoveCredentialAsync(user!, id);
+        if (user?.UserName is null)
+            return TypedResults.Problem("未登录", statusCode: 401);
+        var success = await webAuthnService.RemoveCredentialAsync(user, id);
         if (!success) return TypedResults.Problem("凭证不存在", statusCode: 404);
         return TypedResults.Ok();
     }
 
-    private static async Task<Results<Ok, ProblemHttpResult>> RegisterCompleteAsync(
+    private static async Task<Results<Ok<RecoveryCodesResponse>, ProblemHttpResult>> RegisterCompleteAsync(
         UserManager<AppUser> userManager, WebAuthnService webAuthnService,
-        HttpContext httpContext)
+        RecoveryCodeService recoveryCodeService, HttpContext httpContext)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
         if (user?.UserName is null)
@@ -128,12 +132,25 @@ public static class WebAuthnEndpoints
         if (attestation is null)
             return TypedResults.Problem("无效的请求数据", statusCode: 400);
 
-        var deviceName = httpContext.Request.Headers["X-Device-Name"].FirstOrDefault() ?? "未知设备";
+        var deviceName = (httpContext.Request.Headers["X-Device-Name"].FirstOrDefault() ?? "未知设备").Trim();
         var success = await webAuthnService.CompleteRegistration(user, attestation, options, deviceName);
         if (!success) return TypedResults.Problem("WebAuthn 注册失败", statusCode: 400);
 
+        // 始终更新 ConfiguredMethods（无论是否首个 2FA 方法）
+        user.ConfiguredMethods |= TwoFactorMethod.WebAuthn;
+        if (!user.TwoFactorEnabled)
+        {
+            user.TwoFactorEnabled = true;
+            user.TwoFactorSetupCompletedAt = DateTime.UtcNow;
+        }
+        var updateResult = await userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            return TypedResults.Problem("保存用户配置失败", statusCode: 500);
+
+        // 生成恢复码并返回
+        var codes = await recoveryCodeService.RegenerateRecoveryCodesAsync(user);
         httpContext.Session.Remove("WebAuthnRegisterOptions");
-        return TypedResults.Ok();
+        return TypedResults.Ok(new RecoveryCodesResponse(codes));
     }
 
     private static async Task<Results<Ok, ProblemHttpResult>> VerifyCompleteAsync(

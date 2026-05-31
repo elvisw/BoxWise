@@ -395,7 +395,7 @@ public class AuthService
         return null;
     }
 
-    // ===== WebAuthn Methods (stubs — full implementation in Story 8-5) =====
+    // ===== WebAuthn Methods =====
 
     /// <summary>
     /// 获取 WebAuthn 验证挑战。
@@ -440,6 +440,69 @@ public class AuthService
         }
         catch { }
         return false;
+    }
+
+    /// <summary>
+    /// 获取已注册的 WebAuthn 凭据列表。
+    /// </summary>
+    public async Task<List<WebAuthnCredentialDto>> GetWebAuthnCredentialsAsync()
+    {
+        try
+        {
+            var response = await _http.GetAsync("api/auth/webauthn/credentials");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<List<WebAuthnCredentialDto>>() ?? new();
+        }
+        catch (HttpRequestException)
+        {
+            throw new InvalidOperationException("登录已过期，请重新登录");
+        }
+    }
+
+    /// <summary>
+    /// 删除指定的 WebAuthn 凭据。
+    /// </summary>
+    public async Task<bool> DeleteWebAuthnCredentialAsync(int id)
+    {
+        try
+        {
+            var response = await _http.DeleteAsync($"api/auth/webauthn/credentials/{id}");
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return false;
+            response.EnsureSuccessStatusCode();
+            return true;
+        }
+        catch (HttpRequestException)
+        {
+            throw new InvalidOperationException("登录已过期，请重新登录");
+        }
+    }
+
+    /// <summary>
+    /// 开始 WebAuthn 注册，获取 CredentialCreateOptions。
+    /// POST（非 GET——端点修改服务器端 Session 状态）。
+    /// </summary>
+    public async Task<string?> StartWebAuthnRegistrationAsync()
+    {
+        var response = await _http.PostAsync("api/auth/webauthn/register-begin", null);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>
+    /// 完成 WebAuthn 注册，提交 attestation 并获取恢复码。
+    /// 需要 using System.Text; 和 using System.Net.Http;
+    /// </summary>
+    public async Task<List<string>?> CompleteWebAuthnRegistrationAsync(string attestationJson, string deviceName)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/webauthn/register-complete");
+        request.Content = new StringContent(attestationJson, System.Text.Encoding.UTF8, "application/json");
+        request.Headers.Add("X-Device-Name", deviceName.Trim());
+        var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode) return null;
+
+        var result = await response.Content.ReadFromJsonAsync<RecoveryCodesResponse>();
+        _lastRecoveryCodes = result?.Codes;
+        return result?.Codes;
     }
 
     public async Task LogoutAsync()
