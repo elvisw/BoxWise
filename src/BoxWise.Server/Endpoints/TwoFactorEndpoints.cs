@@ -245,6 +245,9 @@ public static class TwoFactorEndpoints
         if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP))
             methods.Add("TOTP");
 
+        if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.WebAuthn))
+            methods.Add("WebAuthn");
+
         if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email))
         {
             // 防御：EmailForTwoFactor 为 null 的损坏状态

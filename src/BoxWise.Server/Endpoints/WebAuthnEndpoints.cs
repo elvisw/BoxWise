@@ -44,6 +44,17 @@ public static class WebAuthnEndpoints
             .WithTags("2FA")
             .ProducesProblem(401);
 
+        // Passkey 无密码登录（匿名访问，速率限制防止滥用）
+        group.MapPost("/login-begin", LoginBeginAsync)
+            .WithTags("2FA")
+            .AllowAnonymous()
+            .RequireRateLimiting("login-per-ip");
+
+        group.MapPost("/login-complete", LoginCompleteAsync)
+            .WithTags("2FA")
+            .AllowAnonymous()
+            .RequireRateLimiting("login-per-ip");
+
         return group;
     }
 
@@ -177,5 +188,41 @@ public static class WebAuthnEndpoints
 
         httpContext.Session.Remove("WebAuthnVerifyOptions");
         return TypedResults.Ok();
+    }
+
+    // ===== Passkey 无密码登录（匿名访问）=====
+
+    private static async Task<Results<Ok<object>, ProblemHttpResult>> LoginBeginAsync(
+        WebAuthnService webAuthnService, HttpContext httpContext)
+    {
+        var options = webAuthnService.StartLogin();
+        httpContext.Session.SetString("WebAuthnLoginOptions", options.ToJson());
+        return TypedResults.Ok<object>(options);
+    }
+
+    private static async Task<Results<Ok<AuthUserDto>, ProblemHttpResult>> LoginCompleteAsync(
+        WebAuthnService webAuthnService, SignInManager<AppUser> signInManager,
+        UserManager<AppUser> userManager, HttpContext httpContext)
+    {
+        var optionsJson = httpContext.Session.GetString("WebAuthnLoginOptions");
+        if (string.IsNullOrEmpty(optionsJson))
+            return TypedResults.Problem("登录会话已过期", statusCode: 400);
+
+        var options = AssertionOptions.FromJson(optionsJson);
+        var body = await new StreamReader(httpContext.Request.Body).ReadToEndAsync();
+        var assertion = JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(body,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (assertion is null)
+            return TypedResults.Problem("无效的请求数据", statusCode: 400);
+
+        var user = await webAuthnService.CompleteLoginAsync(assertion, options);
+        if (user is null)
+            return TypedResults.Problem("通行密钥验证失败", statusCode: 400);
+
+        httpContext.Session.Remove("WebAuthnLoginOptions");
+        await signInManager.SignInAsync(user, isPersistent: true);
+
+        var isAdmin = await userManager.IsInRoleAsync(user, "Admin");
+        return TypedResults.Ok(new AuthUserDto(user.UserName!, isAdmin, Email: user.Email));
     }
 }

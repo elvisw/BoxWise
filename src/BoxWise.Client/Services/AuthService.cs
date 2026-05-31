@@ -506,6 +506,31 @@ public class AuthService
         return result?.Codes;
     }
 
+    // ===== Passkey 无密码登录 =====
+
+    public async Task<string?> StartWebAuthnLoginAsync()
+    {
+        var response = await _http.PostAsync("api/auth/webauthn/login-begin", null);
+        if (!response.IsSuccessStatusCode) return null;
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    public async Task<LoginResult> CompleteWebAuthnLoginAsync(string assertionJson)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/auth/webauthn/login-complete");
+        request.Content = new StringContent(assertionJson, System.Text.Encoding.UTF8, "application/json");
+        var response = await _http.SendAsync(request);
+        if (!response.IsSuccessStatusCode) return LoginResult.Failure;
+
+        var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
+        if (user is not null)
+        {
+            _appState.SetUser(user.UserName, user.IsAdmin, user.PasswordManagedByEnv, user.Email);
+            _authStateProvider.NotifyAuthenticationStateChanged();
+        }
+        return LoginResult.Success;
+    }
+
     public async Task LogoutAsync()
     {
         await _http.PostAsync("api/auth/logout", null);

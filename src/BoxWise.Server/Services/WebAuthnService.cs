@@ -167,4 +167,51 @@ public class WebAuthnService
         await _db.SaveChangesAsync();
         return true;
     }
+
+    // ===== Passkey 无密码登录 =====
+
+    public AssertionOptions StartLogin()
+    {
+        return _fido2.GetAssertionOptions(new GetAssertionOptionsParams
+        {
+            // 不传 AllowedCredentials → 浏览器弹出通行密钥选择器
+            UserVerification = UserVerificationRequirement.Preferred
+        });
+    }
+
+    public async Task<AppUser?> CompleteLoginAsync(
+        AuthenticatorAssertionRawResponse assertion,
+        AssertionOptions options)
+    {
+        var allCredentials = await _db.WebAuthnCredentials
+            .Include(c => c.User)
+            .ToListAsync();
+
+        foreach (var credential in allCredentials)
+        {
+            try
+            {
+                var result = await _fido2.MakeAssertionAsync(new MakeAssertionParams
+                {
+                    AssertionResponse = assertion,
+                    OriginalOptions = options,
+                    StoredPublicKey = Convert.FromBase64String(credential.PublicKey),
+                    StoredSignatureCounter = (uint)credential.SignCount,
+                    IsUserHandleOwnerOfCredentialIdCallback = (args, ct) =>
+                        Task.FromResult(credential.CredentialId
+                            == Convert.ToBase64String(args.CredentialId))
+                });
+
+                credential.SignCount = (int)result.SignCount;
+                await _db.SaveChangesAsync();
+                return credential.User;
+            }
+            catch
+            {
+                // 凭证不匹配，继续尝试下一个
+            }
+        }
+
+        return null;
+    }
 }

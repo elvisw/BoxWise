@@ -43,6 +43,17 @@
                     @(_isLoading ? "登录中..." : "登录")
                 </MudButton>
             </EditForm>
+
+            <MudDivider Class="my-3" />
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       FullWidth="true"
+                       StartIcon="@Icons.Material.Filled.Fingerprint"
+                       Disabled="@_passkeyLoading"
+                       @onclick="HandlePasskeyLogin">
+                @(_passkeyLoading ? "验证中..." : "使用通行密钥登录")
+            </MudButton>
         }
         else if (_loginStep == LoginStep.TwoFactor)
         {
@@ -208,6 +219,52 @@
     private string? _emailToken;
     private bool _showRecoveryCode;
     private bool _hasRecoveryCodes;
+    private bool _passkeyLoading;
+
+    private async Task HandlePasskeyLogin()
+    {
+        _error = null;
+        _passkeyLoading = true;
+
+        try
+        {
+            var optionsJson = await AuthService.StartWebAuthnLoginAsync();
+            if (optionsJson is null)
+            {
+                _error = "通行密钥功能暂不可用";
+                return;
+            }
+
+            string assertionJson;
+            try
+            {
+                assertionJson = await JS.InvokeAsync<string>("webauthn.getCredential", optionsJson);
+            }
+            catch (JSException)
+            {
+                _error = "未找到通行密钥，请使用密码登录";
+                return;
+            }
+
+            var result = await AuthService.CompleteWebAuthnLoginAsync(assertionJson);
+            if (result == LoginResult.Success)
+            {
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                _error = "通行密钥验证失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _passkeyLoading = false;
+        }
+    }
 
     private async Task HandleLogin()
     {
