@@ -54,9 +54,15 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // SameSite=None 必须配合 Secure
     options.ExpireTimeSpan = TimeSpan.FromDays(30);
     options.SlidingExpiration = true;
+    options.LoginPath = "/Identity/Account/Login";
     options.Events.OnRedirectToLogin = ctx =>
     {
-        ctx.Response.StatusCode = 401;
+        if (ctx.Request.Path.StartsWithSegments("/api"))
+        {
+            ctx.Response.StatusCode = 401;
+            return Task.CompletedTask;
+        }
+        ctx.Response.Redirect(ctx.RedirectUri);
         return Task.CompletedTask;
     };
     options.Events.OnRedirectToAccessDenied = ctx =>

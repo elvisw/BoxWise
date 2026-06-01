@@ -102,7 +102,7 @@ development_status:
   epic-10: in-progress
   10-1-scaffold-identity-pages: done
   10-2-iemailsender-adapter: done
-  10-3-cookie-auth-bridge: backlog
+  10-3-cookie-auth-bridge: done
   10-4-2fa-login-workaround: backlog
   epic-10-retrospective: optional
   epic-11: backlog

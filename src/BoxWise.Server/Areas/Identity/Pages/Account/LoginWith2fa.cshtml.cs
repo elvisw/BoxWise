@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BoxWise.Server.Areas.Identity.Pages.Account
 {
+    [AllowAnonymous]
     public class LoginWith2faModel : PageModel
     {
         private readonly SignInManager<AppUser> _signInManager;

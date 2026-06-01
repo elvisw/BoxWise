@@ -4,7 +4,6 @@
 
 using System;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
 using BoxWise.Server.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -38,6 +37,13 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                 // request and the identity for the user gets updated.
                 return RedirectToPage();
             }
+        }
+
+        public async Task<IActionResult> OnGet(string returnUrl = null)
+        {
+            await _signInManager.SignOutAsync();
+            _logger.LogInformation("User logged out.");
+            return LocalRedirect(returnUrl ?? "/");
         }
     }
 }
