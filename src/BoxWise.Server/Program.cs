@@ -118,6 +118,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ISmtpConfigurationService, SmtpConfigurationService>();
 builder.Services.AddScoped<TwoFactorService>();
 builder.Services.AddScoped<EmailTwoFactorService>();
+builder.Services.AddTransient<Microsoft.AspNetCore.Identity.UI.Services.IEmailSender, IdentityEmailSender>();
 builder.Services.AddScoped<RecoveryCodeService>();
 builder.Services.AddScoped<WebAuthnService>();
 
