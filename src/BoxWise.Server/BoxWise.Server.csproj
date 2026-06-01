@@ -13,8 +13,11 @@
     <PackageReference Include="Fido2" />
     <PackageReference Include="Fido2.Models" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" PrivateAssets="all" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" PrivateAssets="all" />
     <PackageReference Include="MailKit" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Otp.NET" />
@@ -27,5 +30,17 @@
     <ProjectReference Include="..\BoxWise.Shared\BoxWise.Shared.csproj" />
     <ProjectReference Include="..\BoxWise.Client\BoxWise.Client.csproj" />
   </ItemGroup>
+
+  <!-- 解决 Identity.UI 静态资产 favicon.ico 与 Client 项目的冲突 -->
+  <Target Name="RemoveIdentityUIFaviconConflict" AfterTargets="ResolveProjectStaticWebAssets" BeforeTargets="ResolveStaticWebAssetsConflicts">
+    <ItemGroup>
+      <_IdFaviconAssets Include="@(StaticWebAsset)" Condition="'%(StaticWebAsset.SourceId)' == 'BoxWise.Server' and '%(StaticWebAsset.Filename)' == 'favicon'" />
+    </ItemGroup>
+    <ItemGroup>
+      <StaticWebAsset Remove="@(_IdFaviconAssets)" />
+    </ItemGroup>
+    <Message Importance="high" Text="Removed @(_IdFaviconAssets->Count()) Identity.UI favicon asset(s) to resolve conflict" />
+  </Target>
+
 
 </Project>
