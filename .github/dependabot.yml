@@ -16,8 +16,6 @@ updates:
     # 安全更新不受 schedule 限制，随时触发
     open-pull-requests-limit: 10
     # Central Package Management 自动兼容，直接更新 Directory.Packages.props
-    registries:
-      - nuget-org
     groups:
       microsoft-dotnet:
         patterns:
