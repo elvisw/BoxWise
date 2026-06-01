@@ -1,0 +1,20 @@
+@namespace BoxWise.Client.Components
+
+<MudText Typo="Typo.subtitle1" Class="mb-4">已注册的通行密钥</MudText>
+<WebAuthnCredentialList @ref="_credentialList" />
+
+<MudDivider Class="my-4" />
+
+<MudText Typo="Typo.subtitle1" Class="mb-3">注册新通行密钥</MudText>
+<WebAuthnSetup OnSetupComplete="HandleSetupComplete" />
+
+@code {
+    private WebAuthnCredentialList _credentialList = default!;
+
+    private async Task HandleSetupComplete()
+    {
+        try { await _credentialList.LoadCredentialsAsync(); }
+        catch { /* 列表刷新失败不影响已注册的通行密钥 */ }
+        StateHasChanged();
+    }
+}

@@ -105,8 +105,8 @@ development_status:
   10-3-cookie-auth-bridge: done
   10-4-2fa-login-workaround: done
   epic-10-retrospective: done
-  epic-11: backlog
-  11-1-settings-link-migration: backlog
+  epic-11: in-progress
+  11-1-settings-link-migration: review
   11-2-passkey-login-retention: backlog
   11-3-decommission-legacy-code: backlog
   11-4-samesite-docs-update: backlog
