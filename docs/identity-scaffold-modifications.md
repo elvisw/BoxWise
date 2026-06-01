@@ -19,6 +19,7 @@
 | 10 | `EnableAuthenticator.cshtml.cs` | `GenerateQrCodeUri` issuer `"Microsoft.AspNetCore.Identity.UI"` → `"BoxWise"` | TOTP App 显示正确的应用名称 | 10（回顾修复） | 保留 |
 | 11 | `Pages/_Layout.cshtml` | **新建** — CDN Bootstrap 5.3.3 + 响应式布局 + zh-CN | 替代不存在的 Identity UI NuGet 包布局，提供 Bootstrap 样式 | 10（回顾修复） | 保留（CDN URL 可能需要更新） |
 | 12 | `_ViewStart.cshtml` | `Layout` 从 `/Pages/Shared/_Layout.cshtml` → `/Areas/Identity/Pages/_Layout.cshtml` | 指向新建的 Identity 区域布局 | 10（回顾修复） | 保留 |
+| 13 | `Login.cshtml` | 在 `</form>` 后添加 `<a href="/login">使用通行密钥登录</a>` | 用户从 Identity 密码登录页导航到 Blazor WASM 通行密钥登录 | 11.2 | 保留 |
 
 ## 脚手架排除的文件
 

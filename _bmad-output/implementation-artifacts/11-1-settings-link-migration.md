@@ -4,7 +4,12 @@ baseline_commit: d2f38b3
 
 # Story 11.1: Settings.razor 替换为跳转链接
 
-Status: review
+Status: done
+
+### Review Findings
+
+- [x] [Review][Defer] DateTimeKind 比较 — SQLite/JSON 往返 Kind=Unspecified vs UtcNow，预存问题 [Settings.razor:108]
+- [x] [Review][Defer] LoadCredentialsAsync 仅捕获 InvalidOperationException — 预存问题 [WebAuthnCredentialList.razor:98]
 
 ## Story
 
