@@ -327,11 +327,12 @@ if (app.Environment.IsDevelopment())
     if (!string.IsNullOrWhiteSpace(adminPassword))
     {
         var adminUsername = config["Admin:Username"] ?? "admin";
+        var adminEmail = config["Admin:Email"] ?? "admin@boxwise.local";
         var adminUser = await userManager.FindByNameAsync(adminUsername);
 
         if (adminUser is null)
         {
-            adminUser = new AppUser { UserName = adminUsername };
+            adminUser = new AppUser { UserName = adminUsername, Email = adminEmail };
             // 管理员种子账户使用手动密码哈希，而非 CreateAsync(user, password)：
             // 种子密码来自管理员配置（可信来源），不受面向终端用户的密码验证器
             // （NoNumericOnlyValidator、CommonPasswordValidator）限制——否则强密码如
@@ -415,6 +416,7 @@ if (app.Environment.IsDevelopment())
                 + "Set the Admin__Password environment variable to create the admin account.");
         }
     }
+
 }
 
 app.UseHttpsRedirection();

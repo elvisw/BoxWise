@@ -64,23 +64,10 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
 
         public async Task<IActionResult> OnGetAsync(string returnUrl = null)
         {
-            // Workaround for dotnet/aspnetcore#66929: GetTwoFactorAuthenticationUserAsync()
-            // 在 .NET 10.0.8 中返回 null。手动从 TwoFactorUserId Cookie 提取
-            // NameIdentifier claim，绕过有问题的 GetUserId(principal) → FindByIdAsync 路径。
-            var authResult = await HttpContext.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme);
-            if (!authResult.Succeeded || authResult.Principal is null)
-                throw new InvalidOperationException($"Unable to load two-factor authentication user.");
-
-            var userId = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userId))
-                throw new InvalidOperationException($"Unable to load two-factor authentication user.");
-
-            var user = await _userManager.FindByIdAsync(userId);
+            var user = await GetTwoFactorUserAsync();
             if (user is null)
-                throw new InvalidOperationException($"Unable to load two-factor authentication user.");
-
+                return RedirectToPage("./Login");
             ReturnUrl = returnUrl;
-
             return Page();
         }
 
@@ -91,20 +78,9 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                 return Page();
             }
 
-            // Workaround for dotnet/aspnetcore#66929: GetTwoFactorAuthenticationUserAsync()
-            // 在 .NET 10.0.8 中返回 null。手动从 TwoFactorUserId Cookie 提取
-            // NameIdentifier claim，绕过有问题的 GetUserId(principal) → FindByIdAsync 路径。
-            var authResult = await HttpContext.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme);
-            if (!authResult.Succeeded || authResult.Principal is null)
-                throw new InvalidOperationException($"Unable to load two-factor authentication user.");
-
-            var userIdFromCookie = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrEmpty(userIdFromCookie))
-                throw new InvalidOperationException($"Unable to load two-factor authentication user.");
-
-            var user = await _userManager.FindByIdAsync(userIdFromCookie);
+            var user = await GetTwoFactorUserAsync();
             if (user is null)
-                throw new InvalidOperationException($"Unable to load two-factor authentication user.");
+                return RedirectToPage("./Login");
 
             var recoveryCode = Input.RecoveryCode.Replace(" ", string.Empty);
 
@@ -126,6 +102,30 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                 ModelState.AddModelError(string.Empty, "Invalid recovery code entered.");
                 return Page();
             }
+        }
+
+        // Workaround for dotnet/aspnetcore#66929: GetTwoFactorAuthenticationUserAsync()
+        // 在 .NET 10.0.8 中返回 null。.NET 10 将 UserId(GUID) 序列化到 Name claim，
+        // NameIdentifier claim 不存在。用 FindByIdAsync 尝试两个 claim。
+        private async Task<AppUser> GetTwoFactorUserAsync()
+        {
+            var authResult = await HttpContext.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme);
+            if (!authResult.Succeeded || authResult.Principal is null)
+                throw new InvalidOperationException("Unable to load two-factor authentication user.");
+
+            // .NET 10: UserId 在 Name claim（GUID），NameIdentifier 不存在
+            foreach (var claimType in new[] { ClaimTypes.NameIdentifier, ClaimTypes.Name })
+            {
+                var value = authResult.Principal.FindFirstValue(claimType);
+                if (string.IsNullOrWhiteSpace(value))
+                    continue;
+
+                var user = await _userManager.FindByIdAsync(value);
+                if (user is not null)
+                    return user;
+            }
+
+            throw new InvalidOperationException("Unable to load two-factor authentication user.");
         }
     }
 }

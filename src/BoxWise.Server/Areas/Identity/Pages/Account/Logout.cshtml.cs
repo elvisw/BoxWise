@@ -43,7 +43,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
         {
             await _signInManager.SignOutAsync();
             _logger.LogInformation("User logged out.");
-            return LocalRedirect(returnUrl ?? "/");
+            return LocalRedirect(returnUrl ?? "/Identity/Account/Login");
         }
     }
 }

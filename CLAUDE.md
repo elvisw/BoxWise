@@ -290,8 +290,9 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 - **Issue:** [dotnet/aspnetcore#66929](https://github.com/dotnet/aspnetcore/issues/66929)
 - **影响:** `SignInManager.GetTwoFactorAuthenticationUserAsync()` 在 .NET 10.0.8 中返回 null，即使 TwoFactorUserId Cookie 有效。内部 `UserManager.GetUserId(principal)` 返回 UserName 而非 UserId，导致 `FindByIdAsync` 用用户名查 GUID 列。
 - **症状:** 2FA 用户登录时挑战端点返回 401 → 前端提示"无法获取可用的验证方式"。
-- **Workaround:** 使用 `src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs` 中的 `GetTwoFactorUserAsync()` 辅助方法，手动提取 `ClaimTypes.NameIdentifier` claim 后直接调用 `FindByIdAsync`。**待上游修复后移除 workaround。**
+- **Workaround:** 使用 `src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs` 中的 `GetTwoFactorUserAsync()` 辅助方法，以及 `LoginWith2fa.cshtml.cs` / `LoginWithRecoveryCode.cshtml.cs` 中的 PageModel 层 workaround。**待上游修复后移除 workaround。**
 - **详细调查:** `_bmad-output/implementation-artifacts/investigations/2fa-gettwofactoruserasync-null-investigation.md`
+- **脚手架修改清单:** `docs/identity-scaffold-modifications.md` — 所有对 `Areas/Identity/` 下文件的修改必须记录在此。**每次涉及脚手架代码的改动，在修改代码前先查阅此文件。**
 
 ## BMad 工作流上下文
 

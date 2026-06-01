@@ -135,7 +135,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
             {
                 var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
                 RecoveryCodes = recoveryCodes.ToArray();
-                return RedirectToPage("./ShowRecoveryCodes");
+                return RedirectToPage("./GenerateRecoveryCodes");
             }
             else
             {
@@ -181,7 +181,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
             return string.Format(
                 CultureInfo.InvariantCulture,
                 AuthenticatorUriFormat,
-                _urlEncoder.Encode("Microsoft.AspNetCore.Identity.UI"),
+                _urlEncoder.Encode("BoxWise"),
                 _urlEncoder.Encode(email),
                 unformattedKey);
         }
