@@ -4,7 +4,7 @@ baseline_commit: 6693f35f784e28fe20c746d1ed97f911c5e8f3e2
 
 # Story 10.1: 脚手架 Identity 页面 + 构建验证
 
-Status: review
+Status: done
 
 ## Story
 
@@ -295,6 +295,22 @@ Claude Code (deepseek-v4-pro)
 - ✅ `dotnet test` 308 通过 0 失败（264 Server + 44 Client）
 - ✅ Server 启动成功，无 `IUserRoleStore` 异常
 - ✅ 3 个 NuGet 包添加到 CPM：`Identity.UI`(10.0.8)、`CodeGeneration.Design`(10.0.2)、`EF Tools`(10.0.8)
+- ✅ Code Review 通过：14 发现 → 9 dismiss + 5 defer（全部在后续 Story 中规划处理）
+- ✅ Commit: `392229d feat(identity): scaffold 17 Identity Razor Pages`
+
+### Change Log
+
+- 2026-06-01: Story created (Create Story + Validate)
+- 2026-06-01: Implementation completed (Dev Story) — 43 files, +2579 lines
+- 2026-06-01: Code Review passed — 0 blocking issues
+- 2026-06-01: Story marked `done`
+
+**Deferred to later stories:**
+- IEmailSender registration → Story 10.2
+- LoginWith2fa .NET 10 Bug workaround → Story 10.4
+- Logout OnGet handler → Story 10.3
+- Dead links (Register/ForgotPassword/ShowRecoveryCodes) → Story 11.1
+- TOTP Issuer name → Story 10.3/10.4
 
 ### File List
 
