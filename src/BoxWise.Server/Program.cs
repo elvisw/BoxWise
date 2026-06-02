@@ -46,11 +46,13 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 builder.Services.AddScoped<IPasswordValidator<AppUser>, NoNumericOnlyValidator>();
 builder.Services.AddScoped<IPasswordValidator<AppUser>, CommonPasswordValidator>();
 
+var env = builder.Environment;
+
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.None; // Blazor WASM 跨端口 fetch 需要 None
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // SameSite=None 必须配合 Secure
+    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     options.ExpireTimeSpan = TimeSpan.FromDays(30);
     options.SlidingExpiration = true;
     options.LoginPath = "/Identity/Account/Login";
@@ -71,12 +73,12 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
-// TwoFactorUserId Cookie — 也需要跨端口 SameSite=None（Blazor WASM:5001 → API:5000）
+// TwoFactorUserId Cookie — 开发环境跨端口需要 SameSite=None
 builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorUserIdScheme, options =>
 {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.None;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 });
 
 builder.Services.AddAuthentication();
@@ -150,8 +152,8 @@ builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(5);
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.None; // Blazor WASM 跨端口需要 None（与 auth cookie 一致）
+    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax; // 开发环境跨端口需要 None（与 auth cookie 一致）
+    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 });
 
 // Rate Limiting

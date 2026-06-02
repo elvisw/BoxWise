@@ -102,3 +102,9 @@
 ## Deferred from: code review of 11-2-passkey-login-retention (2026-06-02)
 
 - [Review][Defer] 开发环境跨端口链接 — /Identity/Account/Login 在 Client 开发服务器 (5001) 不可达，已知限制，仅影响开发环境 [Login.razor:13]
+
+## Deferred from: code review of 11-4-samesite-docs-update (2026-06-02)
+
+- [ ] **三处 Cookie SameSite/SecurePolicy 三元表达式重复** — 主 Cookie / TwoFactorUserId / Session 三处配置使用相同模式。可提取为 helper，但当前清晰度可接受。
+- [ ] **TwoFactorRememberMeScheme 未显式配置** — 使用框架默认值，生产环境 SameSite=Lax（默认）+ SecurePolicy=SameAsRequest → 无 Secure 标志。Story 边界表已明确排除，预存问题。
+- [ ] **UseForwardedHeaders 未配置** — Caddy 反向代理后 Request.IsHttps 可能不准确。预存问题，非本 Story 引入。

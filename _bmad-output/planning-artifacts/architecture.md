@@ -199,7 +199,7 @@ Upload (multipart/form-data) → Validate → Save original
 
 #### Identity Integration: Cookie + Blazor WASM
 
-**Decision:** ASP.NET Core Identity with Cookie authentication. Server hosts `/login`, `/logout`, `/register` (admin-only) endpoints. Blazor WASM uses a custom `CookieAuthenticationStateProvider` that calls `/api/auth/me` on startup to retrieve the current authenticated user.
+**Decision:** ASP.NET Core Identity with Cookie authentication. Login, logout, 2FA verification, and account management are handled by Identity scaffold Razor Pages (`Areas/Identity/Pages/Account/`). Blazor WASM uses a custom `CookieAuthenticationStateProvider` that calls `/api/auth/me` on startup to retrieve the current authenticated user. WebAuthn/Passkey login is retained in Blazor WASM (`Login.razor`).
 
 **Rationale:** Cookie-based auth is the standard pattern for Blazor WASM standalone with Identity (per Microsoft Learn: `standalone-with-identity`). No JWT token management needed — the browser automatically sends cookies with every API request.
 
@@ -249,6 +249,28 @@ Pages/Admin/
 **New FRs:** FR-21~FR-26 (see Sprint Change Proposal 2026-05-27)
 **New Epic:** Epic 5 — 用户管理增强 (proposed)
 
+#### Identity 脚手架混合模式迁移 (Epic 10-11, 2026-06-02)
+
+**决策：** 用 ASP.NET Core Identity 脚手架 Razor Pages 替换手写认证 UI 和 2FA 设置管理，退役 ~1600 行代码。
+
+**迁移范围：**
+- 登录/登出：`Areas/Identity/Pages/Account/Login.cshtml` + `Logout.cshtml`（替代 `AuthEndpoints.LoginAsync/LogoutAsync` + `Login.razor` 用户名密码表单）
+- 2FA 登录验证：`LoginWith2fa.cshtml` + `LoginWithRecoveryCode.cshtml`（替代 `TwoFactorEndpoints.VerifyAsync/VerifyRecoveryCodeDuringLoginAsync`）
+- 账户管理：`Account.Manage.*` 系列页面（替代 `TwoFactorModifyEndpoints.cs` + `TwoFactorManage.razor`）
+- 邮箱验证：`Account.Manage.Email`（替代 `EmailVerificationEndpoints.cs`）
+- 密码修改：`Account.Manage.ChangePassword`（替代 `ChangePasswordDialog.razor`）
+
+**保留的手写代码：**
+- WebAuthn/Passkey 端点（`WebAuthnEndpoints.cs`）——通行密钥登录不可替代
+- `CookieAuthenticationStateProvider` —— WASM 感知服务器 Cookie 的核心桥接
+- `GET /api/auth/me` —— 认证状态同步端点
+- `RecoveryCodeService` —— WebAuthn 注册后恢复码生成 + Admin 后台依赖
+
+**关键架构决策：**
+- 通行密钥验证成功后 `WebAuthnEndpoints.LoginCompleteAsync` 直接 `SignInAsync`，不经过 2FA 验证——通行密钥本身作为硬件令牌已满足第二因子要求
+- Identity 页面使用 Bootstrap 默认样式，不与 MudBlazor 做样式桥接——双 UI 风格并存是已接受的权衡
+- .NET 10 `GetTwoFactorAuthenticationUserAsync()` Bug (#66929)：在 `LoginWith2fa.cshtml.cs` / `LoginWithRecoveryCode.cshtml.cs` PageModel 中应用 workaround，待上游修复后移除
+
 ---
 
 ### API & Communication Patterns
@@ -256,9 +278,8 @@ Pages/Admin/
 #### Route Structure
 
 ```
-/api/auth/login         POST   匿名  登录
-/api/auth/logout        POST   认证  登出
 /api/auth/me            GET    认证  当前用户信息
+/api/auth/webauthn/*    POST   匿名/认证  通行密钥登录/注册
 /api/items              GET    认证  搜索 + 筛选（query params: q, locationId, tagId）
 /api/items              POST   认证  创建物品（multipart: JSON + image file）
 /api/items/{id}         GET    认证  物品详情
@@ -431,13 +452,18 @@ docker compose up -d
 ```
 BoxWise.Server/
 ├── Program.cs
+├── Areas/
+│   └── Identity/
+│       └── Pages/
+│           └── Account/          ← Identity 脚手架 Razor Pages
 ├── Endpoints/
 │   ├── AuthEndpoints.cs
 │   ├── ItemEndpoints.cs
 │   ├── LocationEndpoints.cs
 │   ├── TagEndpoints.cs
 │   ├── ImageEndpoints.cs
-│   └── AdminEndpoints.cs
+│   ├── WebAuthnEndpoints.cs
+│   └── AdminTwoFactorEndpoints.cs
 ├── Data/
 │   ├── AppDbContext.cs
 │   └── Migrations/
@@ -450,7 +476,10 @@ BoxWise.Server/
 │   ├── ItemService.cs
 │   ├── LocationRepository.cs
 │   ├── LlmClient.cs
-│   └── ImageProcessor.cs
+│   ├── ImageProcessor.cs
+│   └── IdentityEmailSender.cs    ← IEmailSender 适配器
+├── Utilities/
+│   └── AuthConstants.cs
 ├── Dtos/
 │   ├── ItemDto.cs
 │   ├── CreateItemRequest.cs

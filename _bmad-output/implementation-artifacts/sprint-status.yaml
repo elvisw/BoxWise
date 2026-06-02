@@ -109,5 +109,5 @@ development_status:
   11-1-settings-link-migration: done
   11-2-passkey-login-retention: done
   11-3-decommission-legacy-code: done
-  11-4-samesite-docs-update: backlog
+  11-4-samesite-docs-update: done
   epic-11-retrospective: done
