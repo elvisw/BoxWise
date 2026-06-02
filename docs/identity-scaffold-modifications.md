@@ -18,8 +18,20 @@
 | 9 | `GenerateRecoveryCodes.cshtml.cs` | `RedirectToPage("./ShowRecoveryCodes")` → `return Page()` | 同上 | 10（回顾修复） | 保留 |
 | 10 | `EnableAuthenticator.cshtml.cs` | `GenerateQrCodeUri` issuer `"Microsoft.AspNetCore.Identity.UI"` → `"BoxWise"` | TOTP App 显示正确的应用名称 | 10（回顾修复） | 保留 |
 | 11 | `Pages/_Layout.cshtml` | **新建** — CDN Bootstrap 5.3.3 + 响应式布局 + zh-CN | 替代不存在的 Identity UI NuGet 包布局，提供 Bootstrap 样式 | 10（回顾修复） | 保留（CDN URL 可能需要更新） |
+| 11a | `Pages/_Layout.cshtml` | Bootstrap CDN → 本地 `~/lib/bootstrap/bootstrap.min.css` + `.js` | CDN CSS 被浏览器隐私追踪保护拦截，侧边栏不可见 | tech-debt CAP-4 (D-10) | 保留；Bootstrap 升级时更新本地文件 |
 | 12 | `_ViewStart.cshtml` | `Layout` 从 `/Pages/Shared/_Layout.cshtml` → `/Areas/Identity/Pages/_Layout.cshtml` | 指向新建的 Identity 区域布局 | 10（回顾修复） | 保留 |
 | 13 | `Login.cshtml` | 在 `</form>` 后添加 `<a href="/login">使用通行密钥登录</a>` | 用户从 Identity 密码登录页导航到 Blazor WASM 通行密钥登录 | 11.2 | 保留 |
+| 14 | `ConfirmEmail.cshtml.cs` | 添加 `[AllowAnonymous]` | 防御性修复：启用 `RequireConfirmedAccount` 时邮箱确认链接需未登录可访问 | tech-debt CAP-3 (D-07) | 保留 |
+| 15 | `LoginWith2fa.cshtml.cs` | `returnUrl ?? Url.Content("~/")` → `string.IsNullOrEmpty(returnUrl) ? Url.Content("~/") : returnUrl` | `?returnUrl=` 空字符串绕过 `??` 守卫，`LocalRedirect("")` 触发异常 | tech-debt CAP-3 (D-09) | 保留 |
+| 16 | `LoginWithRecoveryCode.cshtml.cs` | `GetTwoFactorUserAsync()` 两处 `throw new InvalidOperationException` → `return null`；`returnUrl ?? Url.Content("~/")` → `string.IsNullOrEmpty` 守卫 | 直接导航至 RecoveryCode 页面时 throw → 500；空 returnUrl 绕过 `??` | tech-debt CAP-3 (D-08 + D-09) | 保留 |
+| 17 | `Manage/Index.cshtml` | 汉化用户可见文本：标题"Profile"→"个人信息"，placeholder 和按钮"Save"→"保存" | Identity 页面简体中文本地化 | Epic 11 | 保留（如上游更新需重新适配中文） |
+| 18 | `Manage/Email.cshtml` | 汉化：标题"Manage Email"→"管理邮箱"，placeholder，"Send verification email"→"发送验证邮件"，"Change email"→"修改邮箱" | 同上 | Epic 11 | 同上 |
+| 19 | `Manage/ChangePassword.cshtml` | 汉化：标题"Change password"→"修改密码"，placeholder，"Update password"→"更新密码" | 同上 | Epic 11 | 同上 |
+| 20 | `Manage/TwoFactorAuthentication.cshtml` | 汉化：标题、恢复码剩余警告、按钮（Forget/Disable/Reset）、验证器应用部分、隐私政策提示 | 同上 | Epic 11 | 同上 |
+| 21 | `Manage/EnableAuthenticator.cshtml` | 汉化：标题、步骤说明、placeholder、"Verification Code"→"验证码"、"Verify"→"验证" | 同上 | Epic 11 | 同上 |
+| 22 | `Manage/Disable2fa.cshtml` | 汉化：标题、警告说明、"Disable 2FA"→"禁用 2FA" | 同上 | Epic 11 | 同上 |
+| 23 | `Manage/GenerateRecoveryCodes.cshtml` | 汉化：标题、安全提示、说明文字、"Generate Recovery Codes"→"生成恢复码" | 同上 | Epic 11 | 同上 |
+| 24 | `Manage/ResetAuthenticator.cshtml` | 汉化：标题、警告说明、"Reset authenticator key"→"重置验证器密钥" | 同上 | Epic 11 | 同上 |
 
 ## 脚手架排除的文件
 
@@ -38,7 +50,7 @@
 
 ## Deferred to Epic 11
 
-- **Identity 页面简体中文本地化** — 所有 17 个脚手架页面为硬编码英文。方案：直接汉化 .cshtml 文本。
+- **Identity 页面简体中文本地化** — ✅ 已完成（2026-06-02）。8 个 Manage 页面已汉化，见上方 #17-#24。_Layout.cshtml 等共用布局未汉化（受上游更新影响较大，待后续评估）。
 
 - **Admin 面板 2FA 状态显示适配** — Identity 管理的 2FA 用户 `ConfiguredMethods` 为空，导致：<br>
   (1) 状态列显示 "已启用 ()"<br>

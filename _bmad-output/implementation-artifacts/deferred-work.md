@@ -7,12 +7,12 @@
 
 > 以下为 pre-existing issues，非本次 Cookie 认证桥接引入。
 
-- [ ] **AccessDeniedPath 未配置** — 默认 `/Account/AccessDenied` 路径不存在，非 API 页面的 403 拒绝访问可能触发 404。预存问题，非本 Story 引入。
-- [ ] **OnRedirectToAccessDenied 对所有请求返回 403** — 非 API 请求的重定向行为与修复后的 OnRedirectToLogin 不一致。预存问题，Story 明确声明"不改动"。
-- [ ] **ConfirmEmail.cshtml.cs 缺少 `[AllowAnonymous]`** — 如启用 `RequireConfirmedAccount`，邮箱确认链接无法在未登录时访问。当前项目不启用此配置。
-- [ ] **API 401 返回空内容体** — 未认证 API 请求返回裸 401（无 ProblemDetails JSON），与项目 `TypedResults.Problem()` 标准不一致。预存问题。
-- [ ] **LoginWith2fa/RecoveryCode OnGet null 未处理** — 直接导航至 2FA 页面时可能触发 500。预存问题，Story 10.4 将应用 .NET 10 Bug workaround。
-- [ ] **空 returnUrl 绕过 null 合并** — `LocalRedirect(returnUrl ?? "/")` 中 `?returnUrl=` 传递空字符串触发异常。预存问题，OnPost 中同样存在。
+- [x] **AccessDeniedPath 未配置** — 默认 `/Account/AccessDenied` 路径不存在，非 API 页面的 403 拒绝访问可能触发 404。预存问题，非本 Story 引入。→ CAP-1 已修复 (2026-06-02)
+- [x] **OnRedirectToAccessDenied 对所有请求返回 403** — 非 API 请求的重定向行为与修复后的 OnRedirectToLogin 不一致。预存问题，Story 明确声明"不改动"。→ CAP-1 已修复 (2026-06-02)
+- [x] **ConfirmEmail.cshtml.cs 缺少 `[AllowAnonymous]`** — 如启用 `RequireConfirmedAccount`，邮箱确认链接无法在未登录时访问。当前项目不启用此配置。→ CAP-3 已修复 (2026-06-02)
+- [x] **API 401 返回空内容体** — 未认证 API 请求返回裸 401（无 ProblemDetails JSON），与项目 `TypedResults.Problem()` 标准不一致。预存问题。→ CAP-2 已修复 (2026-06-02)
+- [x] **LoginWith2fa/RecoveryCode OnGet null 未处理** — 直接导航至 2FA 页面时可能触发 500。预存问题，Story 10.4 将应用 .NET 10 Bug workaround。→ CAP-3 已修复：LoginWith2fa 已有 null 守卫；LoginWithRecoveryCode GetTwoFactorUserAsync 改为 return null (2026-06-02)
+- [x] **空 returnUrl 绕过 null 合并** — `LocalRedirect(returnUrl ?? "/")` 中 `?returnUrl=` 传递空字符串触发异常。预存问题，OnPost 中同样存在。→ CAP-3 已修复：两文件均改为 IsNullOrEmpty 守卫 (2026-06-02)
 
 ## Deferred from: code review of 2fa-multi-method-login (2026-05-30)
 
@@ -105,12 +105,23 @@
 
 ## Deferred from: code review of 11-4-samesite-docs-update (2026-06-02)
 
-- [ ] **三处 Cookie SameSite/SecurePolicy 三元表达式重复** — 主 Cookie / TwoFactorUserId / Session 三处配置使用相同模式。可提取为 helper，但当前清晰度可接受。 → [#15](https://github.com/elvisw/BoxWise/issues/15)
-- [ ] **TwoFactorRememberMeScheme 未显式配置** — 使用框架默认值，生产环境 SameSite=Lax（默认）+ SecurePolicy=SameAsRequest → 无 Secure 标志。Story 边界表已明确排除，预存问题。 → [#16](https://github.com/elvisw/BoxWise/issues/16)
-- [ ] **UseForwardedHeaders 未配置** — Caddy 反向代理后 Request.IsHttps 可能不准确。预存问题，非本 Story 引入。 → [#17](https://github.com/elvisw/BoxWise/issues/17)
+- [x] **三处 Cookie SameSite/SecurePolicy 三元表达式重复** — 主 Cookie / TwoFactorUserId / Session 三处配置使用相同模式。可提取为 helper，但当前清晰度可接受。 → [#15](https://github.com/elvisw/BoxWise/issues/15) → CAP-1 已修复 (2026-06-02)
+- [x] **TwoFactorRememberMeScheme 未显式配置** — 使用框架默认值，生产环境 SameSite=Lax（默认）+ SecurePolicy=SameAsRequest → 无 Secure 标志。Story 边界表已明确排除，预存问题。 → [#16](https://github.com/elvisw/BoxWise/issues/16) → CAP-1 已修复 (2026-06-02)
+- [x] **UseForwardedHeaders 未配置** — Caddy 反向代理后 Request.IsHttps 可能不准确。预存问题，非本 Story 引入。 → [#17](https://github.com/elvisw/BoxWise/issues/17) → CAP-1 已修复 (2026-06-02)
 
 ## Deferred from: manual verification (2026-06-02)
 
-- [ ] **Bootstrap CDN 被浏览器拦截 → 侧边栏不可见** — Bootstrap 5.3.3 CDN CSS 被隐私追踪保护拦截，导致栅格布局失效。解决方案：改为本地静态文件引用。 → [#12](https://github.com/elvisw/BoxWise/issues/12)
-- [ ] **Identity 页面英文未汉化** — 17 个 Identity 脚手架页面均为英文。 → [#13](https://github.com/elvisw/BoxWise/issues/13)
-- [ ] **Settings 通行密钥管理对话框样式** — 按钮和文字边距丢失。 → [#14](https://github.com/elvisw/BoxWise/issues/14)
+- [x] **Bootstrap CDN 被浏览器拦截 → 侧边栏不可见** — Bootstrap 5.3.3 CDN CSS 被隐私追踪保护拦截，导致栅格布局失效。解决方案：改为本地静态文件引用。 → [#12](https://github.com/elvisw/BoxWise/issues/12) → CAP-4 已修复 (2026-06-02)
+- [x] **Identity 页面英文未汉化** — 17 个 Identity 脚手架页面均为英文。 → [#13](https://github.com/elvisw/BoxWise/issues/13) → CAP-5 已修复：17 个页面 + 3 个分部视图全部汉化 (2026-06-02)
+- [x] **Settings 通行密钥管理对话框样式** — 按钮和文字边距丢失。 → [#14](https://github.com/elvisw/BoxWise/issues/14) → CAP-4 已修复：PasskeyManageDialog 加 pa-2 容器、WebAuthnSetup 按钮加 mt-2、CredentialList 确认按钮间距优化 (2026-06-02)
+
+## 预存问题（CAP-1/2/3 代码评审发现，非本次改动引入）
+
+> 以下问题由 2026-06-02 三代理并行代码评审（Blind Hunter + Edge Case Hunter + Acceptance Auditor）发现，均存在于改动前的代码中，超出 CAP-1/2/3 范围。
+
+- [ ] **ConfirmEmail 空 `code` → CryptographicException 500** — `?code=` 空字符串绕过 `code == null` 检查，`Base64UrlDecode("")` → `ConfirmEmailAsync(user, "")` 抛出未捕获 `CryptographicException`。 → [#19](https://github.com/elvisw/BoxWise/issues/19)
+- [ ] **TryExtractUsernameFromBody 同步 I/O** — `StreamReader.ReadToEnd()` 在请求管道中同步阻塞线程池线程，高并发登录时可能导致线程池饥饿。 → [#20](https://github.com/elvisw/BoxWise/issues/20)
+- [ ] **TryExtractUsernameFromBody 空 catch 吞所有异常** — `catch { }` 吞掉 `JsonException`、`IOException` 等，静默失败无法诊断。 → [#20](https://github.com/elvisw/BoxWise/issues/20)
+- [ ] **AddToRoleAsync 返回值未检查** — 管理员种子中 `AddToRoleAsync` 失败被静默忽略，管理员可能无 Admin 角色。 → [#21](https://github.com/elvisw/BoxWise/issues/21)
+- [ ] **SameSite=None + HTTP 开发环境 → 浏览器静默拒绝 Cookie** — 通过 HTTP 访问时 Cookie 被浏览器拒绝，应用完全不可用且无控制台错误。当前开发环境使用 HTTPS 不受影响。 → [#22](https://github.com/elvisw/BoxWise/issues/22)
+- [ ] **DataProtection 密钥路径相对于 CWD** — `builder.Configuration["DataDirectory"] ?? "data"` 未解析为绝对路径，工作目录变化时密钥丢失导致 TOTP/Cookie 全部失效。 → [#23](https://github.com/elvisw/BoxWise/issues/23)
