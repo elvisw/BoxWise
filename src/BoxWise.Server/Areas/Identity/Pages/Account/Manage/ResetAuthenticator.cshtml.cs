@@ -54,8 +54,14 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
                 return NotFound($"Unable to load user with ID '{_userManager.GetUserId(User)}'.");
             }
 
-            await _userManager.SetTwoFactorEnabledAsync(user, false);
+            user.TwoFactorEnabled = false;
             await _userManager.ResetAuthenticatorKeyAsync(user);
+            user.ConfiguredMethods &= ~TwoFactorMethod.TOTP;
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                _logger.LogWarning("Failed to sync ConfiguredMethods after resetting authenticator for user {UserId}", user.Id);
+            }
             var userId = await _userManager.GetUserIdAsync(user);
             _logger.LogInformation("User with ID '{UserId}' has reset their authentication app key.", user.Id);
 

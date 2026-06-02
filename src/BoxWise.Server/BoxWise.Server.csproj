@@ -21,7 +21,7 @@
     <PackageReference Include="MailKit" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="Otp.NET" />
-    <PackageReference Include="QRCoder" />
+
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" />
   </ItemGroup>

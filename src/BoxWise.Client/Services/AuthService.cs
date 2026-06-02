@@ -150,8 +150,5 @@ public enum LoginResult
 {
     Success,
     Failure,
-    RequiresTwoFactor,
-    RequiresTwoFactorSetup,
-    PasswordRequiresChange,
     CredentialNotFound
 }

@@ -81,6 +81,10 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             var user = await GetTwoFactorUserAsync();
             if (user is null)
                 return RedirectToPage("./Login");
+
+            // 防御性数据完整性修复（迁移自已退役的 TwoFactorEndpoints.ChallengeAsync）
+            await AutoFixDataIntegrityAsync(user);
+
             ReturnUrl = returnUrl;
             RememberMe = rememberMe;
             return Page();
@@ -118,6 +122,57 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                 _logger.LogWarning("Invalid authenticator code entered for user with ID '{UserId}'.", user.Id);
                 ModelState.AddModelError(string.Empty, "Invalid authenticator code.");
                 return Page();
+            }
+        }
+
+        /// <summary>
+        /// 防御性数据完整性修复：检测并自动修复用户记录中的损坏状态。
+        /// 登录时静默修复，不阻塞登录流程——即使修复失败也不影响用户。
+        /// </summary>
+        private async Task AutoFixDataIntegrityAsync(AppUser user)
+        {
+            try
+            {
+                var needsUpdate = false;
+
+                // 1. ConfiguredMethods=None 但 TwoFactorEnabled=true → 自动禁用 2FA
+                if (user.ConfiguredMethods == TwoFactorMethod.None && user.TwoFactorEnabled)
+                {
+                    await _userManager.SetTwoFactorEnabledAsync(user, false);
+                    _logger.LogWarning(
+                        "Data integrity fix: Auto-disabled 2FA for user {UserId} (ConfiguredMethods=None, TwoFactorEnabled=true)",
+                        user.Id);
+                }
+
+                // 2. Email 方法但 EffectiveEmailForTwoFactor 为 null → 自动清除 Email 标志
+                if (user.ConfiguredMethods.HasFlag(TwoFactorMethod.Email)
+                    && string.IsNullOrEmpty(user.EffectiveEmailForTwoFactor))
+                {
+                    user.ConfiguredMethods &= ~TwoFactorMethod.Email;
+                    needsUpdate = true;
+                    _logger.LogWarning(
+                        "Data integrity fix: Cleared Email 2FA method for user {UserId} (no email available)",
+                        user.Id);
+                }
+
+                // 3. 清除标志后无剩余方法 → 同步禁用 TwoFactorEnabled
+                if (user.ConfiguredMethods == TwoFactorMethod.None && user.TwoFactorEnabled)
+                {
+                    user.TwoFactorEnabled = false;
+                    needsUpdate = true;
+                    _logger.LogWarning(
+                        "Data integrity fix: Disabled TwoFactorEnabled for user {UserId} (no methods remain after flag cleanup)",
+                        user.Id);
+                }
+
+                if (needsUpdate)
+                {
+                    await _userManager.UpdateAsync(user);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Data integrity fix failed for user {UserId}", user.Id);
             }
         }
 

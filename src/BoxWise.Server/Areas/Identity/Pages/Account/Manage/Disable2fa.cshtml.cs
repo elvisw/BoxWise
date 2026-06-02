@@ -56,8 +56,10 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
                 return NotFound($"Unable to load user with ID '{_userManager.GetUserId(User)}'.");
             }
 
-            var disable2faResult = await _userManager.SetTwoFactorEnabledAsync(user, false);
-            if (!disable2faResult.Succeeded)
+            user.TwoFactorEnabled = false;
+            user.ConfiguredMethods = TwoFactorMethod.None;
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
             {
                 throw new InvalidOperationException($"Unexpected error occurred disabling 2FA.");
             }

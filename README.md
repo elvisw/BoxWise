@@ -30,6 +30,7 @@
 | 配置键（JSON） | 环境变量 | 说明 |
 |---------------|---------|------|
 | `Admin:Username` | `Admin__Username` | 管理员用户名，默认 `admin` |
+| `Admin:Email` | `Admin__Email` | 管理员邮箱，默认 `admin@boxwise.local` |
 | `Admin:Password` | `Admin__Password` | 管理员密码（必填） |
 
 行为说明：
@@ -45,7 +46,7 @@
 ### 创建家庭成员账户
 
 1. 以 `admin` 登录，点击首页底部"管理后台" → `/admin`
-2. 点击"+ 创建账户"，填写用户名和密码分发给家人
+2. 点击"+ 创建账户"，填写用户名、邮箱和密码分发给家人
 3. **所有成员共享同一物品库，权限相同**
 
 ### AI 识别（可选）
@@ -76,7 +77,9 @@ API 调用超时 15s，失败时静默降级为手动输入。
 
 ### SMTP 邮件配置（可选）
 
-SMTP 邮件服务用于发送双因素认证（2FA）验证码。登录管理后台 → 点击 "SMTP 设置" 即可在线配置，**无需修改配置文件或重启服务**。
+SMTP 邮件服务用于发送账户相关邮件（如邮箱修改确认）。登录管理后台 → 点击 "SMTP 设置" 即可在线配置，**无需修改配置文件或重启服务**。
+
+> **注意：** Email 2FA 登录方式已在 v0.11 中退役，当前仅支持 TOTP 和通行密钥作为双因素认证方式。SMTP 配置为可选，仅在使用 Identity 邮箱管理功能时需要。
 
 配置项：
 
@@ -191,6 +194,7 @@ RestartSec=10
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://+:5000
 Environment=Admin__Username=admin
+Environment=Admin__Email=admin@你的域名
 Environment=Admin__Password=你的强密码
 Environment=DataDirectory=/opt/boxwise/data
 
@@ -250,6 +254,7 @@ New-Item -ItemType Directory -Force -Path "C:\BoxWise\data\images"
 $env:ASPNETCORE_ENVIRONMENT = "Production"
 $env:ASPNETCORE_URLS = "http://+:5000"
 $env:Admin__Username = "admin"
+$env:Admin__Email = "admin@你的域名"
 $env:Admin__Password = "你的强密码"
 $env:DataDirectory = "C:\BoxWise\data"
 dotnet C:\BoxWise\BoxWise.Server.dll

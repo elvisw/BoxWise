@@ -125,7 +125,15 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
                 return Page();
             }
 
-            await _userManager.SetTwoFactorEnabledAsync(user, true);
+            user.TwoFactorEnabled = true;
+            user.ConfiguredMethods |= TwoFactorMethod.TOTP;
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                ModelState.AddModelError(string.Empty, "Failed to enable 2FA. Please try again.");
+                await LoadSharedKeyAndQrCodeUriAsync(user);
+                return Page();
+            }
             var userId = await _userManager.GetUserIdAsync(user);
             _logger.LogInformation("User with ID '{UserId}' has enabled 2FA with an authenticator app.", userId);
 
