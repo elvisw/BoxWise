@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using BoxWise.Server.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace BoxWise.Server.Areas.Identity.Pages.Account
 {
@@ -83,7 +84,11 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                 return RedirectToPage("./Login");
 
             // 防御性数据完整性修复（迁移自已退役的 TwoFactorEndpoints.ChallengeAsync）
-            await AutoFixDataIntegrityAsync(user);
+            var fixDisabled2fa = await AutoFixDataIntegrityAsync(user);
+            if (fixDisabled2fa)
+            {
+                return RedirectToPage("./Login");
+            }
 
             ReturnUrl = returnUrl;
             RememberMe = rememberMe;
@@ -129,16 +134,19 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
         /// 防御性数据完整性修复：检测并自动修复用户记录中的损坏状态。
         /// 登录时静默修复，不阻塞登录流程——即使修复失败也不影响用户。
         /// </summary>
-        private async Task AutoFixDataIntegrityAsync(AppUser user)
+        private async Task<bool> AutoFixDataIntegrityAsync(AppUser user)
         {
             try
             {
                 var needsUpdate = false;
+                var twoFactorWasDisabled = false;
 
                 // 1. ConfiguredMethods=None 但 TwoFactorEnabled=true → 自动禁用 2FA
                 if (user.ConfiguredMethods == TwoFactorMethod.None && user.TwoFactorEnabled)
                 {
-                    await _userManager.SetTwoFactorEnabledAsync(user, false);
+                    user.TwoFactorEnabled = false;
+                    needsUpdate = true;
+                    twoFactorWasDisabled = true;
                     _logger.LogWarning(
                         "Data integrity fix: Auto-disabled 2FA for user {UserId} (ConfiguredMethods=None, TwoFactorEnabled=true)",
                         user.Id);
@@ -155,25 +163,23 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                         user.Id);
                 }
 
-                // 3. 清除标志后无剩余方法 → 同步禁用 TwoFactorEnabled
-                if (user.ConfiguredMethods == TwoFactorMethod.None && user.TwoFactorEnabled)
-                {
-                    user.TwoFactorEnabled = false;
-                    needsUpdate = true;
-                    _logger.LogWarning(
-                        "Data integrity fix: Disabled TwoFactorEnabled for user {UserId} (no methods remain after flag cleanup)",
-                        user.Id);
-                }
-
                 if (needsUpdate)
                 {
                     await _userManager.UpdateAsync(user);
                 }
+
+                return twoFactorWasDisabled;
             }
-            catch (Exception ex)
+            catch (DbUpdateException ex)
             {
-                _logger.LogWarning(ex, "Data integrity fix failed for user {UserId}", user.Id);
+                _logger.LogWarning(ex, "Data integrity fix failed (DB update) for user {UserId}", user.Id);
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning(ex, "Data integrity fix failed (invalid operation) for user {UserId}", user.Id);
+            }
+
+            return false;
         }
 
         // Workaround for dotnet/aspnetcore#66929: GetTwoFactorAuthenticationUserAsync()

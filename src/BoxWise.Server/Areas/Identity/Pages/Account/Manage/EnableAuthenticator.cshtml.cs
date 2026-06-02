@@ -130,6 +130,8 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
             var updateResult = await _userManager.UpdateAsync(user);
             if (!updateResult.Succeeded)
             {
+                user.TwoFactorEnabled = false;
+                user.ConfiguredMethods &= ~TwoFactorMethod.TOTP;
                 ModelState.AddModelError(string.Empty, "Failed to enable 2FA. Please try again.");
                 await LoadSharedKeyAndQrCodeUriAsync(user);
                 return Page();
