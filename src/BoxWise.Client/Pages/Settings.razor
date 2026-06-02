@@ -97,22 +97,6 @@
 </div>
 
 @code {
-    protected override async Task OnInitializedAsync()
-    {
-        try
-        {
-            var status = await AuthService.GetTwoFactorStatusAsync();
-            if (status is not null
-                && !status.TwoFactorEnabled
-                && status.GracePeriodEnd is not null
-                && status.GracePeriodEnd.Value <= DateTime.UtcNow)
-            {
-                Navigation.NavigateTo(GetServerUrl("Identity/Account/Manage"), forceLoad: true);
-            }
-        }
-        catch { /* 2FA 状态检查失败不影响 Settings 页面加载 */ }
-    }
-
     private string GetServerUrl(string path)
     {
         var apiBase = Config["ApiBaseUrl"];

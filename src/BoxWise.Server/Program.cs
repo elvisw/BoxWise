@@ -2,7 +2,6 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -201,97 +200,6 @@ builder.Services.AddRateLimiter(options =>
             });
     });
 
-    // 2FA TOTP 验证 - 按账户
-    options.AddPolicy<string>("2fa-totp", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:TwoFactorTotpPermitLimit", 3),
-                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:TwoFactorTotpWindowSeconds", 30)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
-
-    // 2FA 邮箱验证 - 按账户
-    options.AddPolicy<string>("2fa-email", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:TwoFactorEmailPermitLimit", 3),
-                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorEmailWindowMinutes", 5)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
-
-    // 2FA 恢复码验证 - 按账户
-    options.AddPolicy<string>("2fa-recovery", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:TwoFactorRecoveryPermitLimit", 5),
-                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorRecoveryWindowMinutes", 15)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
-
-    // 2FA modify 端点 - 按账户
-    options.AddPolicy<string>("2fa-modify", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-        {
-            // 对于 AllowAnonymous 端点（challenge/send-challenge-code），
-            // 用户仅持有 TwoFactorUserId Cookie，尝试从中提取用户标识
-            try
-            {
-                var authResult = httpContext.AuthenticateAsync(
-                    IdentityConstants.TwoFactorUserIdScheme).GetAwaiter().GetResult();
-                if (authResult.Succeeded && authResult.Principal is not null)
-                    userId = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            }
-            catch
-            {
-                // Cookie 损坏或认证异常时，回退到 anonymous 速率限制
-            }
-        }
-        userId ??= "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:TwoFactorModifyPermitLimit", 3),
-                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorModifyWindowMinutes", 5)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
-
-    // 邮箱验证码发送 + 验证 - 按用户（每 60s 2 次，允许发送+验证各一次）
-    options.AddPolicy<string>("email-verification", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 3),
-                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:EmailVerificationWindowSeconds", 300)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
 });
 
 builder.Services.AddScoped<CsrfValidationFilter>();
@@ -435,11 +343,7 @@ app.MapImageEndpoints();
 app.MapItemEndpoints();
 app.MapTagEndpoints();
 app.MapAiEndpoints();
-app.MapTwoFactorEndpoints();
-app.MapTwoFactorModifyEndpoints();
-app.MapEmailVerificationEndpoints();
 app.MapWebAuthnEndpoints();
-app.MapQrCodeEndpoints();
 app.MapAdminTwoFactorEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
