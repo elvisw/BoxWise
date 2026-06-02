@@ -5,8 +5,10 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
 using BoxWise.Server.Endpoints;
@@ -51,24 +53,44 @@ var env = builder.Environment;
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = GetSameSiteMode(env);
+    options.Cookie.SecurePolicy = GetSecurePolicy(env);
     options.ExpireTimeSpan = TimeSpan.FromDays(30);
     options.SlidingExpiration = true;
     options.LoginPath = "/Identity/Account/Login";
+    options.AccessDeniedPath = "/";
     options.Events.OnRedirectToLogin = ctx =>
     {
         if (ctx.Request.Path.StartsWithSegments("/api"))
         {
-            ctx.Response.StatusCode = 401;
-            return Task.CompletedTask;
+            ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            ctx.Response.ContentType = "application/problem+json";
+            return ctx.Response.WriteAsync(JsonSerializer.Serialize(new
+            {
+                type = "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                title = "Unauthorized",
+                status = 401,
+                detail = "Authentication is required to access this resource."
+            }));
         }
         ctx.Response.Redirect(ctx.RedirectUri);
         return Task.CompletedTask;
     };
     options.Events.OnRedirectToAccessDenied = ctx =>
     {
-        ctx.Response.StatusCode = 403;
+        if (ctx.Request.Path.StartsWithSegments("/api"))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            ctx.Response.ContentType = "application/problem+json";
+            return ctx.Response.WriteAsync(JsonSerializer.Serialize(new
+            {
+                type = "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                title = "Forbidden",
+                status = 403,
+                detail = "You do not have permission to access this resource."
+            }));
+        }
+        ctx.Response.Redirect(ctx.RedirectUri);
         return Task.CompletedTask;
     };
 });
@@ -77,8 +99,16 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorUserIdScheme, options =>
 {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = GetSameSiteMode(env);
+    options.Cookie.SecurePolicy = GetSecurePolicy(env);
+});
+
+// TwoFactorRememberMe Cookie — 与其他 Cookie 保持一致的 SameSite/SecurePolicy
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorRememberMeScheme, options =>
+{
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = GetSameSiteMode(env);
+    options.Cookie.SecurePolicy = GetSecurePolicy(env);
 });
 
 builder.Services.AddAuthentication();
@@ -152,8 +182,8 @@ builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(5);
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax; // 开发环境跨端口需要 None（与 auth cookie 一致）
-    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = GetSameSiteMode(env); // 开发环境跨端口需要 None（与 auth cookie 一致）
+    options.Cookie.SecurePolicy = GetSecurePolicy(env);
 });
 
 // Rate Limiting
@@ -206,6 +236,19 @@ builder.Services.AddRateLimiter(options =>
 
 builder.Services.AddScoped<CsrfValidationFilter>();
 
+// Forwarded Headers — 生产环境 Caddy 反向代理需要正确的 Request.IsHttps
+// 安全：仅信任本地回环 + Docker 默认桥接网络，而非任意代理
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownProxies.Add(IPAddress.Loopback);
+    options.KnownProxies.Add(IPAddress.IPv6Loopback);
+    // Docker 桥接子网（Caddy 反向代理在 compose 网络中；default bridge + compose project networks）
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse("172.17.0.0"), 16));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse("172.18.0.0"), 16));
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse("172.19.0.0"), 16));
+});
+
 builder.Services.AddRazorPages();
 
 var app = builder.Build();
@@ -214,6 +257,10 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseCors("Dev");
+}
+else
+{
+    app.UseForwardedHeaders();
 }
 
 // 数据库迁移 + 管理员种子数据（所有环境）
@@ -369,6 +416,12 @@ if (args.Length >= 3 && args[0] == "admin" && args[1] == "reset-2fa")
 }
 
 app.Run();
+
+static SameSiteMode GetSameSiteMode(IWebHostEnvironment env) =>
+    env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax;
+
+static CookieSecurePolicy GetSecurePolicy(IWebHostEnvironment env) =>
+    env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 
 static string? TryExtractUsernameFromBody(HttpContext httpContext)
 {
