@@ -1,5 +1,6 @@
 @namespace BoxWise.Client.Components
 
+<div class="pa-2">
 <MudText Typo="Typo.subtitle1" Class="mb-4">已注册的通行密钥</MudText>
 <WebAuthnCredentialList @ref="_credentialList" />
 
@@ -7,6 +8,7 @@
 
 <MudText Typo="Typo.subtitle1" Class="mb-3">注册新通行密钥</MudText>
 <WebAuthnSetup OnSetupComplete="HandleSetupComplete" />
+</div>
 
 @code {
     private WebAuthnCredentialList _credentialList = default!;

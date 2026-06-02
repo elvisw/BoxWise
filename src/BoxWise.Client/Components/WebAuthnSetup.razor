@@ -43,6 +43,7 @@ else
     <MudButton Variant="Variant.Filled"
                Color="Color.Primary"
                FullWidth="true"
+               Class="mt-2"
                Disabled="@(_isRegistering || string.IsNullOrWhiteSpace(_deviceName))"
                @onclick="StartRegistrationAsync">
         @(_isRegistering ? "正在注册..." : "开始注册")
