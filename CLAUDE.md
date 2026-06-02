@@ -280,6 +280,21 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 - **名称处理统一** — `Trim()` + `Length > N` 校验
 - **并发安全** — `DbUpdateException` 捕获兜底
 
+## 退役类 Story Definition of Done
+
+涉及代码退役（删除文件/方法/端点/组件）的 Story，除常规 DoD 外必须执行以下检查：
+
+```bash
+# 退役后文档墓碑检测 — 确认无已退役标识符的残留引用
+grep -rn "<已退役类名或端点路由>" docs/ CLAUDE.md _bmad-output/ --include="*.md"
+```
+
+- **零残留方为 close** — grep 必须返回空结果（或仅匹配自身退役说明）
+- **PR 描述同步** — 每个 Story 完成后，PR 描述必须反映最新完成状态（不等到 Epic 结束才一次性更新）
+- **`docs/identity-scaffold-modifications.md` 更新** — 任何对 `Areas/Identity/` 下文件的修改必须记录在此
+
+> **来源：** Epic 11 回顾发现 CLAUDE.md 中的 `TwoFactorEndpoints.cs` 引用在退役后未清理，PR 描述在 Epic 执行期间停滞在 "2/4 Stories"。两条规则防空此类问题。
+
 ## Epic 2 技术债务清理记录 (2026-05-24)
 
 | 债务 | 状态 | 修复 |
