@@ -32,6 +32,10 @@
 | 22 | `Manage/Disable2fa.cshtml` | 汉化：标题、警告说明、"Disable 2FA"→"禁用 2FA" | 同上 | Epic 11 | 同上 |
 | 23 | `Manage/GenerateRecoveryCodes.cshtml` | 汉化：标题、安全提示、说明文字、"Generate Recovery Codes"→"生成恢复码" | 同上 | Epic 11 | 同上 |
 | 24 | `Manage/ResetAuthenticator.cshtml` | 汉化：标题、警告说明、"Reset authenticator key"→"重置验证器密钥" | 同上 | Epic 11 | 同上 |
+| 25 | `Manage/Disable2fa.cshtml.cs` | `SetTwoFactorEnabledAsync(user, false)` → 直接赋值 `user.TwoFactorEnabled = false` + `ConfiguredMethods = None` + 单次 `UpdateAsync` | Issue #3：同步自定义 ConfiguredMethods 字段，合并为原子保存避免两步 UpdateAsync 不一致 | Epic 11 回顾 | 保留 |
+| 26 | `Manage/EnableAuthenticator.cshtml.cs` | `SetTwoFactorEnabledAsync(user, true)` → 直接赋值 `user.TwoFactorEnabled = true` + `ConfiguredMethods |= TOTP` + 单次 `UpdateAsync`；失败时回滚内存状态后重渲染 | 同上 + Issue #3：失败后 `LoadSharedKeyAndQrCodeUriAsync` 可能触发保存，需防止脏状态泄露 | Epic 11 回顾 | 保留 |
+| 27 | `Manage/ResetAuthenticator.cshtml.cs` | `SetTwoFactorEnabledAsync(user, false)` → 直接赋值 `TwoFactorEnabled=false`；`ConfiguredMethods &= ~TOTP` + `PendingTotpSecretKey=null` 移至 `ResetAuthenticatorKeyAsync` 之前，利用其内部 `UpdateAsync` 一次保存；检查 `ResetAuthenticatorKeyAsync` 返回值 | Issue #3：同步 ConfiguredMethods；Code Review P4：消除两步 UpdateAsync 的部分失败窗口；Code Review P1：检测静默 UpdateAsync 失败 | Epic 11 回顾 + Code Review | 保留 |
+| 28 | `Account/LoginWith2fa.cshtml.cs` | `OnGetAsync` 中添加 `AutoFixDataIntegrityAsync` 调用 + 禁用 2FA 后重定向 Login；新增私有方法 `AutoFixDataIntegrityAsync(bool)` — 检测并自动修复 3 类数据损坏；`catch(Exception)` → `catch(DbUpdateException)` + `catch(InvalidOperationException)` | Issue #5：迁移已退役 TwoFactorEndpoints.ChallengeAsync 的防御性检查；Code Review P1/P2/P5：窄化异常捕获、统一单次 UpdateAsync 模式、修复后重定向防用户陷于失效 2FA 页面 | Epic 11 回顾 + Code Review | 保留 |
 
 ## 脚手架排除的文件
 
