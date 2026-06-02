@@ -57,7 +57,12 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
             user.TwoFactorEnabled = false;
             user.ConfiguredMethods &= ~TwoFactorMethod.TOTP;
             user.PendingTotpSecretKey = null;
-            await _userManager.ResetAuthenticatorKeyAsync(user);
+            var resetResult = await _userManager.ResetAuthenticatorKeyAsync(user);
+            if (!resetResult.Succeeded)
+            {
+                _logger.LogWarning("ResetAuthenticatorKeyAsync failed for user {UserId}: {Errors}",
+                    user.Id, string.Join("; ", resetResult.Errors.Select(e => $"{e.Code}:{e.Description}")));
+            }
             var userId = await _userManager.GetUserIdAsync(user);
             _logger.LogInformation("User with ID '{UserId}' has reset their authentication app key.", user.Id);
 
