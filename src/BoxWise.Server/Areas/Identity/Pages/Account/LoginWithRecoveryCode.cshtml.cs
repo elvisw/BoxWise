@@ -89,7 +89,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             if (result.Succeeded)
             {
                 _logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", user.Id);
-                return LocalRedirect(returnUrl ?? Url.Content("~/"));
+                return LocalRedirect(string.IsNullOrEmpty(returnUrl) ? Url.Content("~/") : returnUrl);
             }
             if (result.IsLockedOut)
             {
@@ -111,7 +111,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
         {
             var authResult = await HttpContext.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme);
             if (!authResult.Succeeded || authResult.Principal is null)
-                throw new InvalidOperationException("Unable to load two-factor authentication user.");
+                return null;
 
             // .NET 10: UserId 在 Name claim（GUID），NameIdentifier 不存在
             foreach (var claimType in new[] { ClaimTypes.NameIdentifier, ClaimTypes.Name })
@@ -125,7 +125,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                     return user;
             }
 
-            throw new InvalidOperationException("Unable to load two-factor authentication user.");
+            return null;
         }
     }
 }

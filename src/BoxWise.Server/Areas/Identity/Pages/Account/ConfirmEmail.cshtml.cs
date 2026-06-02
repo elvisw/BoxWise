@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace BoxWise.Server.Areas.Identity.Pages.Account
 {
+    [AllowAnonymous]
     public class ConfirmEmailModel : PageModel
     {
         private readonly UserManager<AppUser> _userManager;
@@ -32,7 +33,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
         public string StatusMessage { get; set; }
         public async Task<IActionResult> OnGetAsync(string userId, string code)
         {
-            if (userId == null || code == null)
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(code))
             {
                 return RedirectToPage("/Index");
             }

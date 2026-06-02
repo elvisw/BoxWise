@@ -93,7 +93,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                 return Page();
             }
 
-            returnUrl = returnUrl ?? Url.Content("~/");
+            returnUrl = string.IsNullOrEmpty(returnUrl) ? Url.Content("~/") : returnUrl;
 
             var user = await GetTwoFactorUserAsync();
             if (user is null)
