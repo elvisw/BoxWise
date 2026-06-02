@@ -116,10 +116,10 @@ BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 - **所有端点加 `.ProducesProblem(401)`** 注解
 - **认证：** ASP.NET Core Identity + Cookie 认证 + Blazor WASM 侧自定义 `CookieAuthenticationStateProvider`
 - **授权：** 全局 `FallbackPolicy` 要求认证，匿名端点显式标记 `.AllowAnonymous()`
-- **UI 框架：** MudBlazor 9.4 — 见下方 [MudBlazor 9.x API 参考](#mudblazor-9x-api-参考)
+- **UI 框架：** MudBlazor 9.5 — 见下方 [MudBlazor 9.x API 参考](#mudblazor-9x-api-参考)
 - **数据库：** SQLite + EF Core，使用 CPM 管理包版本
 - **Admin UI：** 独立的 Server 端 Razor Pages 区域（`Pages/Admin/`），不走 Blazor WASM
-- **图片处理：** SkiaSharp 3.119.2（MIT 许可证），300px + 1200px 两级缩略图，后台异步生成
+- **图片处理：** SkiaSharp 3.119.4（MIT 许可证），300px + 1200px 两级缩略图，后台异步生成
 - **AI 集成：** OpenAI 兼容 API，`LlmClient` 通过 `AddHttpClient<T>()` 注册，15s 超时静默降级
 
 ## 认证流程
@@ -197,7 +197,7 @@ git push --tags
 
 ## MudBlazor 9.x API 参考
 
-*基于 MudBlazor 9.4 源码验证（2026-05-24）。以下 API 与 MudBlazor 8.x 及常见文档有显著差异，务必使用以下正确 API。*
+*基于 MudBlazor 9.5 源码验证（2026-05-24）。以下 API 与 MudBlazor 8.x 及常见文档有显著差异，务必使用以下正确 API。*
 
 ### MudTreeView<T>
 
@@ -320,5 +320,5 @@ grep -rn "<已退役类名或端点路由>" docs/ CLAUDE.md _bmad-output/ --incl
 - **BMad 版本：** v6.7.1（bmm + core 模块）
 - **规划工件：** `_bmad-output/planning-artifacts/`
 - **实施工件：** `_bmad-output/implementation-artifacts/`
-- **当前进度：** Epic 1 ✅ | Epic 2 ✅ | Epic 3 ✅ | Epic 4 ✅ — MVP 全部完成
+- **当前进度：** Epic 1 ✅ | Epic 2 ✅ | Epic 3 ✅ | Epic 4 ✅ | Epic 5 ✅ | Epic 6 ✅ | Epic 7 ✅ | Epic 8 ✅ | Epic 9 ✅ | Epic 10 ✅ | Epic 11 ✅ — 全部完成
 - **设置页重构 ✅** — 4 Tab 导航 + 位置/标签管理弹窗，34 测试通过

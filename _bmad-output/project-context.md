@@ -1,7 +1,7 @@
 ---
 project_name: 'BoxWise'
 user_name: 'Elvis'
-date: '2026-05-28'
+date: '2026-06-02'
 sections_completed:
   ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules', 'anti_patterns']
 status: 'complete'
@@ -20,7 +20,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ### 运行时与框架
 - **.NET SDK:** 10.0.300+ | **Target:** net10.0
 - **Web 框架:** ASP.NET Core Minimal API (Server) + Blazor WASM Standalone (Client)
-- **UI 框架:** MudBlazor 9.4.0
+- **UI 框架:** MudBlazor 9.5.0
 
 ### 数据与存储
 - **数据库:** SQLite (EF Core 10.0.8 + Microsoft.EntityFrameworkCore.Sqlite)
@@ -28,13 +28,18 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **文件存储:** 本地文件系统 (`{DataDirectory}/images/`)
 
 ### 认证
-- ASP.NET Core Identity 10.0.8 (Cookie 认证, SameSite=None, Secure, HttpOnly)
+- ASP.NET Core Identity 10.0.8（脚手架 Razor Pages + Cookie 认证）
+- 登录/2FA/账户管理由 Identity 脚手架页面处理（`Areas/Identity/Pages/Account/`）
+- 开发环境 SameSite=None + Secure（跨端口 5000↔5001），生产环境 Lax + Always
+- 通行密钥（WebAuthn/FIDO2）登录保留在 Blazor WASM（`Login.razor`）
 
 ### 关键依赖
 | 包 | 版本 | 用途 |
 |---|---|---|
-| MudBlazor | 9.4.0 | UI 组件库（API 与 v8 有显著差异） |
-| SkiaSharp | 3.119.2 | 缩略图生成（MIT 许可，跨平台） |
+| MudBlazor | 9.5.0 | UI 组件库（API 与 v8 有显著差异） |
+| SkiaSharp | 3.119.4 | 缩略图生成（MIT 许可，跨平台） |
+| Identity UI | 10.0.8 | Identity 脚手架 Razor Pages |
+| CodeGeneration.Design | 10.0.8 | Identity 脚手架代码生成 |
 | xUnit | 2.9.3 | 测试框架 |
 | EF Core InMemory | 10.0.8 | 测试数据库 |
 | Moq | 4.20.72 | Mock 框架 |
@@ -80,9 +85,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ### ASP.NET Core Minimal API
 
 **端点组织:**
-- 每个资源组一个文件：`Endpoints/AuthEndpoints.cs`、`ItemEndpoints.cs` 等
+- 每个资源组一个文件：`Endpoints/AuthEndpoints.cs`、`ItemEndpoints.cs`、`WebAuthnEndpoints.cs` 等
+- 退役端点（已删除）：TwoFactorEndpoints.cs、TwoFactorModifyEndpoints.cs、EmailVerificationEndpoints.cs
+- 新增：`Areas/Identity/Pages/Account/` — Identity 脚手架 Razor Pages 处理登录/登出/2FA/账户管理
 - 使用 `RouteGroupBuilder` 静态扩展方法组织路由
 - 路由命名：小写、复数资源名 — `/api/items`、`/api/locations`
+- `MapRazorPages()` 必须在 `MapFallbackToFile()` 之前 — 否则 Identity 页面被 Blazor WASM SPA 回退拦截
 
 **返回类型:**
 - 始终使用 `TypedResults.*` 静态方法 — `TypedResults.Ok()`、`TypedResults.Created()`、`TypedResults.NoContent()`
@@ -93,8 +101,9 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 **授权:**
 - 全局 `FallbackPolicy` = `RequireAuthenticatedUser()`，所有端点默认需认证
-- 匿名端点显式标记 `.AllowAnonymous()`（仅 login/logout）
+- 匿名端点显式标记 `.AllowAnonymous()`
 - Admin 端点使用 `AdminOnly` 策略：`policy.RequireRole("Admin")`
+- Identity 脚手架页面自带 `[Authorize]` 保护，Login/Register 页面匿名
 
 ### EF Core
 
@@ -135,6 +144,10 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 **认证状态:**
 - `CookieAuthenticationStateProvider` 启动时调用 `GET /api/auth/me`
+- 登录通过 Identity `Login.cshtml`（Server 端 Razor Page）→ Cookie 签发 → 302 重定向到 `/`
+- 通行密钥登录保留在 Blazor WASM `Login.razor`（仅 WebAuthn 按钮，无用户名/密码表单）
+- 客户端 `AuthService.cs` 仅保留 WebAuthn 方法 + `UpdateProfileAsync`（其余认证方法已退役）
+- `Settings.razor` "管理账户设置"按钮跳转到 Identity Manage 页面（新标签页打开）
 - 开发环境跨端口：`CookieHandler` 处理 cookie 跨源（SameSite=None + Secure）
 
 ### 测试
@@ -187,8 +200,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 **端口与入口:**
 | 地址 | 用途 | 热重载 |
 |------|------|--------|
-| `https://localhost:5001` | Blazor WASM UI 开发（推荐） | 有 |
-| `https://localhost:5000` | API + Admin + 完整集成测试 | 无 |
+| `https://localhost:5001` | Blazor WASM UI 开发（推荐，热重载） | 有 |
+| `https://localhost:5000` | API + Admin + Identity 页面 + 完整集成测试 | 无 |
 
 - 开发环境 Client 跨端口请求到 Server：`CookieHandler` + CORS `Dev` 策略
 - Admin 后台是 Server 端 Razor Pages，仅在 5000 端口可用
@@ -225,9 +238,14 @@ dotnet ef database update
 - ~~`TypedResults.BadRequest(TypedResults.Problem(...))`~~ — 直接 `TypedResults.Problem(...)`
 - ~~MudBlazor v8 API~~ — 使用 v9.x API（SelectedValue、SelectionMode、BodyContent）
 - ~~在 Singleton 中注入 Scoped~~ — 使用 `IServiceScopeFactory` 创建 scope
+- ~~重新实现登录/2FA/账户管理端点~~ — 已由 Identity 脚手架页面替代，自定义端点已退役
+- ~~`MapRazorPages()` 放在 `MapFallbackToFile()` 之后~~ — Identity 页面路由会被 Blazor WASM SPA 拦截
 
 **安全规则:**
-- Cookie: HttpOnly=true, Secure=true, SameSite=None（开发跨端口需要）
+- Cookie: HttpOnly=true, Secure 策略按环境切换
+- 三处 Cookie 配置（主/TwoFactorUserId/Session）**必须同步**更新 SameSite/SecurePolicy
+- 开发环境：SameSite=None + SecurePolicy.SameAsRequest（跨端口 5000↔5001）
+- 生产环境：SameSite=Lax + SecurePolicy.Always（Caddy 反向代理）
 - 所有端点默认需认证（FallbackPolicy），匿名端点显式 `.AllowAnonymous()`
 - Admin 页面：`[Authorize(Roles = "Admin")]` 双重保护（Razor Page + API 层）
 - 密码不记录日志，API key 不序列化到客户端
@@ -257,4 +275,4 @@ dotnet ef database update
 - Review quarterly for outdated rules
 - Remove rules that become obvious or are superseded by newer patterns
 
-Last Updated: 2026-05-28
+Last Updated: 2026-06-02
