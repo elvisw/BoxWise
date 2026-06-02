@@ -2,7 +2,6 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -47,16 +46,24 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 builder.Services.AddScoped<IPasswordValidator<AppUser>, NoNumericOnlyValidator>();
 builder.Services.AddScoped<IPasswordValidator<AppUser>, CommonPasswordValidator>();
 
+var env = builder.Environment;
+
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.None; // Blazor WASM 跨端口 fetch 需要 None
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // SameSite=None 必须配合 Secure
+    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
     options.ExpireTimeSpan = TimeSpan.FromDays(30);
     options.SlidingExpiration = true;
+    options.LoginPath = "/Identity/Account/Login";
     options.Events.OnRedirectToLogin = ctx =>
     {
-        ctx.Response.StatusCode = 401;
+        if (ctx.Request.Path.StartsWithSegments("/api"))
+        {
+            ctx.Response.StatusCode = 401;
+            return Task.CompletedTask;
+        }
+        ctx.Response.Redirect(ctx.RedirectUri);
         return Task.CompletedTask;
     };
     options.Events.OnRedirectToAccessDenied = ctx =>
@@ -66,12 +73,12 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
 });
 
-// TwoFactorUserId Cookie — 也需要跨端口 SameSite=None（Blazor WASM:5001 → API:5000）
+// TwoFactorUserId Cookie — 开发环境跨端口需要 SameSite=None
 builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.TwoFactorUserIdScheme, options =>
 {
     options.Cookie.HttpOnly = true;
-    options.Cookie.SameSite = SameSiteMode.None;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 });
 
 builder.Services.AddAuthentication();
@@ -118,6 +125,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ISmtpConfigurationService, SmtpConfigurationService>();
 builder.Services.AddScoped<TwoFactorService>();
 builder.Services.AddScoped<EmailTwoFactorService>();
+builder.Services.AddTransient<Microsoft.AspNetCore.Identity.UI.Services.IEmailSender, IdentityEmailSender>();
 builder.Services.AddScoped<RecoveryCodeService>();
 builder.Services.AddScoped<WebAuthnService>();
 
@@ -144,8 +152,8 @@ builder.Services.AddSession(options =>
 {
     options.IdleTimeout = TimeSpan.FromMinutes(5);
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.None; // Blazor WASM 跨端口需要 None（与 auth cookie 一致）
+    options.Cookie.SameSite = env.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Lax; // 开发环境跨端口需要 None（与 auth cookie 一致）
+    options.Cookie.SecurePolicy = env.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 });
 
 // Rate Limiting
@@ -194,97 +202,6 @@ builder.Services.AddRateLimiter(options =>
             });
     });
 
-    // 2FA TOTP 验证 - 按账户
-    options.AddPolicy<string>("2fa-totp", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:TwoFactorTotpPermitLimit", 3),
-                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:TwoFactorTotpWindowSeconds", 30)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
-
-    // 2FA 邮箱验证 - 按账户
-    options.AddPolicy<string>("2fa-email", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:TwoFactorEmailPermitLimit", 3),
-                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorEmailWindowMinutes", 5)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
-
-    // 2FA 恢复码验证 - 按账户
-    options.AddPolicy<string>("2fa-recovery", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:TwoFactorRecoveryPermitLimit", 5),
-                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorRecoveryWindowMinutes", 15)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
-
-    // 2FA modify 端点 - 按账户
-    options.AddPolicy<string>("2fa-modify", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-        {
-            // 对于 AllowAnonymous 端点（challenge/send-challenge-code），
-            // 用户仅持有 TwoFactorUserId Cookie，尝试从中提取用户标识
-            try
-            {
-                var authResult = httpContext.AuthenticateAsync(
-                    IdentityConstants.TwoFactorUserIdScheme).GetAwaiter().GetResult();
-                if (authResult.Succeeded && authResult.Principal is not null)
-                    userId = authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
-            }
-            catch
-            {
-                // Cookie 损坏或认证异常时，回退到 anonymous 速率限制
-            }
-        }
-        userId ??= "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:TwoFactorModifyPermitLimit", 3),
-                Window = TimeSpan.FromMinutes(config.GetValue("RateLimit:TwoFactorModifyWindowMinutes", 5)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
-
-    // 邮箱验证码发送 + 验证 - 按用户（每 60s 2 次，允许发送+验证各一次）
-    options.AddPolicy<string>("email-verification", httpContext =>
-    {
-        var config = httpContext.RequestServices.GetRequiredService<IConfiguration>();
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
-        return RateLimitPartition.GetFixedWindowLimiter(userId,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = config.GetValue("RateLimit:EmailVerificationPermitLimit", 3),
-                Window = TimeSpan.FromSeconds(config.GetValue("RateLimit:EmailVerificationWindowSeconds", 300)),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            });
-    });
 });
 
 builder.Services.AddScoped<CsrfValidationFilter>();
@@ -320,11 +237,12 @@ if (app.Environment.IsDevelopment())
     if (!string.IsNullOrWhiteSpace(adminPassword))
     {
         var adminUsername = config["Admin:Username"] ?? "admin";
+        var adminEmail = config["Admin:Email"] ?? "admin@boxwise.local";
         var adminUser = await userManager.FindByNameAsync(adminUsername);
 
         if (adminUser is null)
         {
-            adminUser = new AppUser { UserName = adminUsername };
+            adminUser = new AppUser { UserName = adminUsername, Email = adminEmail };
             // 管理员种子账户使用手动密码哈希，而非 CreateAsync(user, password)：
             // 种子密码来自管理员配置（可信来源），不受面向终端用户的密码验证器
             // （NoNumericOnlyValidator、CommonPasswordValidator）限制——否则强密码如
@@ -408,6 +326,7 @@ if (app.Environment.IsDevelopment())
                 + "Set the Admin__Password environment variable to create the admin account.");
         }
     }
+
 }
 
 app.UseHttpsRedirection();
@@ -426,11 +345,7 @@ app.MapImageEndpoints();
 app.MapItemEndpoints();
 app.MapTagEndpoints();
 app.MapAiEndpoints();
-app.MapTwoFactorEndpoints();
-app.MapTwoFactorModifyEndpoints();
-app.MapEmailVerificationEndpoints();
 app.MapWebAuthnEndpoints();
-app.MapQrCodeEndpoints();
 app.MapAdminTwoFactorEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 

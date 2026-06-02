@@ -68,6 +68,8 @@ Blazor WASM 原生 Material Design 组件库。
 **Key Components:**
 `MudGrid` + `MudItem` / `MudTreeView` / `MudChipSet` / `MudDialog` / `MudProgressCircular` / `MudTextField`
 
+> **注（2026-06）：** Identity 认证页面（登录/2FA/账户管理）使用 ASP.NET Core Identity 默认 Bootstrap 样式，与 Blazor WASM 的 MudBlazor Material Design 风格并存。这是 Epic 10-11 迁移的有意设计决策——双 UI 风格在 ≤5 人家用场景可接受。
+
 ---
 
 ## Design Direction Decision
@@ -84,7 +86,39 @@ Blazor WASM 原生 Material Design 组件库。
 
 ---
 
+## Identity 认证页面（Bootstrap 风格）
+
+**背景：** Epic 10-11 迁移后，登录/登出/2FA 验证/账户管理使用 ASP.NET Core Identity 脚手架 Razor Pages，默认 Bootstrap 样式。Blazor WASM 仅保留通行密钥登录。
+
+### 双 UI 风格并存
+
+| 页面类型 | UI 框架 | 路由 | 说明 |
+|---------|---------|------|------|
+| 登录/2FA/注册 | Bootstrap (Identity 默认) | `/Identity/Account/*` | Server 端 Razor Pages |
+| 账户管理 | Bootstrap (Identity 默认) | `/Identity/Account/Manage/*` | 2FA 设置、密码修改、邮箱管理 |
+| 通行密钥登录 | MudBlazor | `/login` | Blazor WASM，仅保留通行密钥按钮 |
+| 首页/录入/浏览/设置 | MudBlazor | `/` | Blazor WASM SPA 主体 |
+
+> **设计决策（2026-06）：** 双 UI 风格并存是 Epic 10-11 迁移的有意权衡——Identity 脚手架页面使用 Bootstrap 默认样式，不与 MudBlazor 做样式桥接。在 ≤5 人家用场景下可接受，避免为样式一致性引入额外维护成本。
+
+---
+
 ## Key Interaction Flows
+
+### Authentication Flow（2026-06 更新）
+
+**背景：** Epic 10-11 迁移后，登录/登出/2FA 验证/账户管理使用 ASP.NET Core Identity 脚手架 Razor Pages，默认 Bootstrap 样式。Blazor WASM 仅保留通行密钥登录。
+
+```
+未登录用户访问 Blazor WASM → Cookie 认证中间件拦截 → 302 重定向到 /Identity/Account/Login
+  → 输入用户名/密码 → POST Login.cshtml
+  → 无 2FA：签发 Cookie → 302 重定向到 / (Blazor WASM 首页)
+  → 有 2FA：重定向到 /Identity/Account/LoginWith2fa → 输入 TOTP 验证码
+    → 签发 Cookie → 重定向到 /
+  → CookieAuthenticationStateProvider 调用 GET /api/auth/me → AppState.SetUser() → UI 更新为已登录
+```
+
+**通行密钥登录（保留）：** 用户访问 `/login` (Blazor WASM) → 点击"使用通行密钥登录"按钮 → 浏览器 WebAuthn API → 验证成功 → AppState.SetUser() → 导航到 `/`
 
 ### Entry Flow
 

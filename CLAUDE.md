@@ -87,11 +87,16 @@ BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 │   │   ├── Components/             # 可复用 Blazor 组件（LocationTree, TagFilter, ImageUploader, ContinuityBanner, LocationManageDialog, TagManageDialog）
 │   │   └── Services/               # AuthService, AppState, LocationService, TagService, ItemEntryService, ItemService
 │   ├── BoxWise.Server/             # ASP.NET Core Web API - 后端
-│   │   ├── Endpoints/              # Minimal API 路由组（RouteGroupBuilder 模式）
+│   │   ├── Areas/
+│   │   │   └── Identity/
+│   │   │       └── Pages/
+│   │   │           └── Account/    # Identity 脚手架 Razor Pages（登录/2FA/账户管理）
+│   │   ├── Endpoints/              # Minimal API 路由组（Auth, Item, Location, Tag, Image, WebAuthn, AdminTwoFactor）
 │   │   ├── Data/                   # AppDbContext + EF Configurations
 │   │   ├── Models/                 # Identity 实体（AppUser）+ Location, Tag, Item
 │   │   ├── Repositories/           # LocationRepository, TagRepository, ItemRepository
-│   │   ├── Services/               # ImageStorageService, ThumbnailService (SkiaSharp), LlmClient
+│   │   ├── Services/               # IdentityEmailSender, ImageStorageService, ThumbnailService (SkiaSharp), LlmClient
+│   │   ├── Utilities/              # AuthConstants
 │   │   └── Migrations/             # EF Core 迁移
 │   └── BoxWise.Shared/             # 共享 DTO（record 类型）
 │       └── Dtos/
@@ -119,10 +124,11 @@ BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 
 ## 认证流程
 
-1. 浏览器首次加载 → `CookieAuthenticationStateProvider.GetAuthenticationStateAsync()` 调用 `GET /api/auth/me` 检查 Cookie 中的登录会话
-2. 登录 → `POST /api/auth/login` → Cookie 签发 → `AppState.SetUser()` 更新客户端状态
-3. Server `Program.cs` 中 FallbackPolicy = `RequireAuthenticatedUser()`，所有端点默认受保护
-4. `"Admin"` 角色通过 `userManager.IsInRoleAsync(user, "Admin")` 检查，结果通过 `AuthUserDto.IsAdmin` 传递到客户端
+1. 浏览器首次加载 → `CookieAuthenticationStateProvider.GetAuthenticationStateAsync()` 调用 `GET /api/auth/me` 检查 Identity Cookie 中的登录会话
+2. 登录 → Identity `Login.cshtml`（Server 端 Razor Page）→ Cookie 签发 → HTTP 302 重定向到 `/` → `AppState.SetUser()` 更新客户端状态
+3. 通行密钥登录 → 用户访问 `/login`（Blazor WASM）→ 点击"使用通行密钥登录" → WebAuthn API → 验证成功 → `AppState.SetUser()` → 导航到 `/`
+4. Server `Program.cs` 中 FallbackPolicy = `RequireAuthenticatedUser()`，所有端点默认受保护
+5. `"Admin"` 角色通过 `userManager.IsInRoleAsync(user, "Admin")` 检查，结果通过 `AuthUserDto.IsAdmin` 传递到客户端
 
 ## Client DI 注册注意事项
 
@@ -274,6 +280,21 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 - **名称处理统一** — `Trim()` + `Length > N` 校验
 - **并发安全** — `DbUpdateException` 捕获兜底
 
+## 退役类 Story Definition of Done
+
+涉及代码退役（删除文件/方法/端点/组件）的 Story，除常规 DoD 外必须执行以下检查：
+
+```bash
+# 退役后文档墓碑检测 — 确认无已退役标识符的残留引用
+grep -rn "<已退役类名或端点路由>" docs/ CLAUDE.md _bmad-output/ --include="*.md"
+```
+
+- **零残留方为 close** — grep 必须返回空结果（或仅匹配自身退役说明）
+- **PR 描述同步** — 每个 Story 完成后，PR 描述必须反映最新完成状态（不等到 Epic 结束才一次性更新）
+- **`docs/identity-scaffold-modifications.md` 更新** — 任何对 `Areas/Identity/` 下文件的修改必须记录在此
+
+> **来源：** Epic 11 回顾发现 CLAUDE.md 中的 `TwoFactorEndpoints.cs` 引用在退役后未清理，PR 描述在 Epic 执行期间停滞在 "2/4 Stories"。两条规则防空此类问题。
+
 ## Epic 2 技术债务清理记录 (2026-05-24)
 
 | 债务 | 状态 | 修复 |
@@ -290,8 +311,9 @@ https://raw.githubusercontent.com/MudBlazor/MudBlazor/dev/src/MudBlazor/Componen
 - **Issue:** [dotnet/aspnetcore#66929](https://github.com/dotnet/aspnetcore/issues/66929)
 - **影响:** `SignInManager.GetTwoFactorAuthenticationUserAsync()` 在 .NET 10.0.8 中返回 null，即使 TwoFactorUserId Cookie 有效。内部 `UserManager.GetUserId(principal)` 返回 UserName 而非 UserId，导致 `FindByIdAsync` 用用户名查 GUID 列。
 - **症状:** 2FA 用户登录时挑战端点返回 401 → 前端提示"无法获取可用的验证方式"。
-- **Workaround:** 使用 `src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs` 中的 `GetTwoFactorUserAsync()` 辅助方法，手动提取 `ClaimTypes.NameIdentifier` claim 后直接调用 `FindByIdAsync`。**待上游修复后移除 workaround。**
+- **Workaround:** 使用 `LoginWith2fa.cshtml.cs` / `LoginWithRecoveryCode.cshtml.cs` 中 PageModel 层的内联 workaround（`HttpContext.AuthenticateAsync` + `FindByIdAsync`）。`TwoFactorEndpoints.cs` 已在 Story 11.3 退役。**待上游修复后移除 workaround。**
 - **详细调查:** `_bmad-output/implementation-artifacts/investigations/2fa-gettwofactoruserasync-null-investigation.md`
+- **脚手架修改清单:** `docs/identity-scaffold-modifications.md` — 所有对 `Areas/Identity/` 下文件的修改必须记录在此。**每次涉及脚手架代码的改动，在修改代码前先查阅此文件。**
 
 ## BMad 工作流上下文
 

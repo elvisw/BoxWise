@@ -4,6 +4,7 @@
 @using BoxWise.Shared.Dtos
 
 @inject AuthService AuthService
+@inject IConfiguration Config
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 
@@ -11,41 +12,29 @@
 
 <div class="bw-settings-list">
 
-    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
-         @onclick="OpenAccountInfoDialog" @onkeydown="HandleAccountKey" @onkeydown:preventDefault>
-        <div class="d-flex align-center">
-            <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
-            <div class="flex-grow-1">
-                <MudText Typo="Typo.body1" Style="font-weight:500;">账户信息</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Default">查看用户名和修改邮箱</MudText>
+    <MudButton Href="@GetServerUrl("Identity/Account/Manage")"
+               Target="_blank"
+               StartIcon="@Icons.Material.Filled.Security"
+               Color="Color.Primary"
+               Variant="Variant.Text"
+               Class="bw-settings-item pa-4 mb-1"
+               FullWidth="true">
+        <div class="d-flex align-center flex-grow-1">
+            <div class="flex-grow-1" style="text-align:left;">
+                <MudText Typo="Typo.body1" Style="font-weight:500;">管理账户设置</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">管理密码、邮箱与两步验证</MudText>
             </div>
-            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+            <MudIcon Icon="@Icons.Material.Filled.OpenInNew" Color="Color.Default" Size="Size.Small" />
         </div>
-    </div>
+    </MudButton>
 
     <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
-         @onclick="OpenChangePasswordDialog" @onkeydown="HandlePasswordKey" @onkeydown:preventDefault>
+         @onclick="OpenPasskeyManageDialog" @onkeydown="HandlePasskeyKey">
         <div class="d-flex align-center">
-            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Medium" Class="mr-3" Color="Color.Secondary" />
+            <MudIcon Icon="@Icons.Material.Filled.Fingerprint" Size="Size.Medium" Class="mr-3" Color="Color.Tertiary" />
             <div class="flex-grow-1">
-                <MudText Typo="Typo.body1" Style="font-weight:500;">修改密码</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Default">修改登录密码</MudText>
-            </div>
-            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
-        </div>
-    </div>
-
-    <MudDivider Class="my-3" />
-
-    <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
-         @onclick="OpenTwoFactorSetupDialog" @onkeydown="HandleTwoFactorKey" @onkeydown:preventDefault>
-        <div class="d-flex align-center">
-            <MudIcon Icon="@Icons.Material.Filled.Security" Size="Size.Medium" Class="mr-3" Color="Color.Tertiary" />
-            <div class="flex-grow-1">
-                <MudText Typo="Typo.body1" Style="font-weight:500;">双因素认证与通行密钥</MudText>
-                <MudText Typo="Typo.caption" Color="Color.Default">
-                    @_twoFactorStatusText
-                </MudText>
+                <MudText Typo="Typo.body1" Style="font-weight:500;">通行密钥管理</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Default">管理已注册的指纹/面容/硬件密钥</MudText>
             </div>
             <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
         </div>
@@ -54,7 +43,7 @@
     <MudDivider Class="my-3" />
 
     <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
-         @onclick="OpenLocationManageDialog" @onkeydown="HandleLocationKey" @onkeydown:preventDefault>
+         @onclick="OpenLocationManageDialog" @onkeydown="HandleLocationKey">
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Medium" Class="mr-3" Color="Color.Primary" />
             <div class="flex-grow-1">
@@ -66,7 +55,7 @@
     </div>
 
     <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
-         @onclick="OpenTagManageDialog" @onkeydown="HandleTagKey" @onkeydown:preventDefault>
+         @onclick="OpenTagManageDialog" @onkeydown="HandleTagKey">
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.Label" Size="Size.Medium" Class="mr-3" Color="Color.Secondary" />
             <div class="flex-grow-1">
@@ -80,7 +69,7 @@
     <MudDivider Class="my-3" />
 
     <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
-         @onclick="GoAbout" @onkeydown="HandleAboutKey" @onkeydown:preventDefault>
+         @onclick="GoAbout" @onkeydown="HandleAboutKey">
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Medium" Class="mr-3" Color="Color.Tertiary" />
             <div class="flex-grow-1">
@@ -94,7 +83,7 @@
     <MudDivider Class="my-3" />
 
     <div class="pa-4 mb-1 bw-settings-item" role="button" tabindex="0"
-         @onclick="LogoutAsync" @onkeydown="HandleLogoutKey" @onkeydown:preventDefault>
+         @onclick="Logout" @onkeydown="HandleLogoutKey">
         <div class="d-flex align-center">
             <MudIcon Icon="@Icons.Material.Filled.Logout" Size="Size.Medium" Class="mr-3" Color="Color.Error" />
             <div class="flex-grow-1">
@@ -108,115 +97,21 @@
 </div>
 
 @code {
-    private string _twoFactorStatusText = "加载中...";
-    private bool _twoFactorEnabled;
-
-    protected override async Task OnInitializedAsync()
+    private string GetServerUrl(string path)
     {
-        await LoadTwoFactorStatusAsync();
+        var apiBase = Config["ApiBaseUrl"];
+        if (!string.IsNullOrEmpty(apiBase))
+        {
+            var trimmed = apiBase.TrimEnd('/');
+            return $"{trimmed}/{path.TrimStart('/')}";
+        }
+        return $"/{path.TrimStart('/')}";
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            var status = await LoadTwoFactorStatusAsync();
-
-            // 如果 2FA 宽限期已过期，自动弹出设置对话框
-            if (status is not null
-                && !status.TwoFactorEnabled
-                && status.GracePeriodEnd is not null
-                && status.GracePeriodEnd.Value <= DateTime.UtcNow)
-            {
-                await OpenTwoFactorSetupDialog();
-            }
-            StateHasChanged();
-        }
-    }
-
-    private async Task<TwoFactorStatusDto?> LoadTwoFactorStatusAsync()
-    {
-        try
-        {
-            var status = await AuthService.GetTwoFactorStatusAsync();
-            if (status is null)
-            {
-                _twoFactorStatusText = "设置 TOTP 两步验证";
-                _twoFactorEnabled = false;
-            }
-            else if (status.TwoFactorEnabled)
-            {
-                _twoFactorEnabled = true;
-                // 使用 ConfiguredMethods 列表（服务器端已正确解析 [Flags] 枚举），
-                // 避免依赖 Flags.ToString() 的未文档化格式化行为
-                var methodName = status.ConfiguredMethods switch
-                {
-                    { Count: >= 2 } => string.Join(" + ", status.ConfiguredMethods.Select(m => m switch
-                    {
-                        "TOTP" => "TOTP 验证器",
-                        "Email" => "邮箱验证码",
-                        _ => m
-                    })),
-                    [var single] => single switch
-                    {
-                        "TOTP" => "TOTP 验证器",
-                        "Email" => "邮箱验证码",
-                        _ => single
-                    },
-                    _ => "未知"
-                };
-                _twoFactorStatusText = $"已启用（{methodName}）";
-            }
-            else
-            {
-                _twoFactorEnabled = false;
-                _twoFactorStatusText = "设置 TOTP 两步验证";
-            }
-            return status;
-        }
-        catch
-        {
-            _twoFactorStatusText = "设置 TOTP 两步验证";
-            return null;
-        }
-    }
-
-    private async Task OpenAccountInfoDialog()
+    private async Task OpenPasskeyManageDialog()
     {
         var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        await DialogService.ShowAsync<AccountInfoDialog>("账户信息", options);
-    }
-
-    private async Task OpenChangePasswordDialog()
-    {
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-        await DialogService.ShowAsync<ChangePasswordDialog>("修改密码", options);
-    }
-
-    private async Task OpenTwoFactorSetupDialog()
-    {
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
-
-        if (_twoFactorEnabled)
-        {
-            var dialog = await DialogService.ShowAsync<TwoFactorManage>("管理双因素认证与通行密钥", options);
-            var result = await dialog.Result;
-            if (result?.Canceled == false)
-            {
-                await LoadTwoFactorStatusAsync();
-                StateHasChanged();
-            }
-        }
-        else
-        {
-            var dialog = await DialogService.ShowAsync<TwoFactorSetup>("双因素认证与通行密钥", options);
-            var result = await dialog.Result;
-            if (result?.Canceled == false)
-            {
-                await LoadTwoFactorStatusAsync();
-                StateHasChanged();
-            }
-        }
+        await DialogService.ShowAsync<PasskeyManageDialog>("通行密钥管理", options);
     }
 
     private async Task OpenLocationManageDialog()
@@ -231,53 +126,44 @@
         await DialogService.ShowAsync<TagManageDialog>("管理标签", options);
     }
 
-    private async Task LogoutAsync()
+    private void Logout()
     {
-        try { await AuthService.LogoutAsync(); }
-        catch { }
-        Navigation.NavigateTo("/", forceLoad: true);
+        Navigation.NavigateTo(GetServerUrl("Identity/Account/Logout?returnUrl=/"), forceLoad: true);
     }
 
     private void GoAbout() => Navigation.NavigateTo("/about");
 
-    private async void HandleAccountKey(KeyboardEventArgs e)
+    private async Task HandlePasskeyKey(KeyboardEventArgs e)
     {
-        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenAccountInfoDialog); }
+        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenPasskeyManageDialog); }
     }
 
-    private async void HandlePasswordKey(KeyboardEventArgs e)
-    {
-        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenChangePasswordDialog); }
-    }
-
-    private async void HandleTwoFactorKey(KeyboardEventArgs e)
-    {
-        if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenTwoFactorSetupDialog); }
-    }
-
-    private async void HandleLocationKey(KeyboardEventArgs e)
+    private async Task HandleLocationKey(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenLocationManageDialog); }
     }
 
-    private async void HandleTagKey(KeyboardEventArgs e)
+    private async Task HandleTagKey(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or " ") { await InvokeSafeAsync(OpenTagManageDialog); }
     }
 
-    private async void HandleAboutKey(KeyboardEventArgs e)
+    private void HandleAboutKey(KeyboardEventArgs e)
     {
         if (e.Key is "Enter" or " ") { GoAbout(); }
     }
 
-    private async void HandleLogoutKey(KeyboardEventArgs e)
+    private void HandleLogoutKey(KeyboardEventArgs e)
     {
-        if (e.Key is "Enter" or " ") { await LogoutAsync(); }
+        if (e.Key is "Enter" or " ") { Logout(); }
     }
 
     private static async Task InvokeSafeAsync(Func<Task> action)
     {
         try { await action(); }
-        catch { }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[Settings] Unhandled exception: {ex.Message}");
+        }
     }
 }

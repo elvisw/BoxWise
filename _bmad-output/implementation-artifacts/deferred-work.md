@@ -3,6 +3,17 @@
 > **清偿日期：** 2026-05-31
 > **状态：** 全部 19 条已清偿（14 条修复 + 3 条验证已修复 + 2 条文档说明）
 
+## Deferred from: code review of 10-3-cookie-auth-bridge (2026-06-01)
+
+> 以下为 pre-existing issues，非本次 Cookie 认证桥接引入。
+
+- [ ] **AccessDeniedPath 未配置** — 默认 `/Account/AccessDenied` 路径不存在，非 API 页面的 403 拒绝访问可能触发 404。预存问题，非本 Story 引入。
+- [ ] **OnRedirectToAccessDenied 对所有请求返回 403** — 非 API 请求的重定向行为与修复后的 OnRedirectToLogin 不一致。预存问题，Story 明确声明"不改动"。
+- [ ] **ConfirmEmail.cshtml.cs 缺少 `[AllowAnonymous]`** — 如启用 `RequireConfirmedAccount`，邮箱确认链接无法在未登录时访问。当前项目不启用此配置。
+- [ ] **API 401 返回空内容体** — 未认证 API 请求返回裸 401（无 ProblemDetails JSON），与项目 `TypedResults.Problem()` 标准不一致。预存问题。
+- [ ] **LoginWith2fa/RecoveryCode OnGet null 未处理** — 直接导航至 2FA 页面时可能触发 500。预存问题，Story 10.4 将应用 .NET 10 Bug workaround。
+- [ ] **空 returnUrl 绕过 null 合并** — `LocalRedirect(returnUrl ?? "/")` 中 `?returnUrl=` 传递空字符串触发异常。预存问题，OnPost 中同样存在。
+
 ## Deferred from: code review of 2fa-multi-method-login (2026-05-30)
 
 > 以下为 pre-existing issues，非本次 2FA 多方法修复引入。已于 2026-05-31 清偿。
@@ -82,3 +93,18 @@
 - [x] ~~保存按钮 disabled 逻辑无法感知服务器错误~~ → 添加注释说明行为（服务器错误后需修改字段重新激活），当前 UX 可接受
 - [x] ~~AppState 无线程同步保护~~ → 添加 XML doc：Blazor WASM UI 线程单线程模型，无需额外同步
 - [x] ~~NewUsername.Trim() 无 null 守卫~~ → `request.NewUsername?.Trim() ?? ""`
+
+## Deferred from: code review of 10-2-iemailsender-adapter (2026-06-01)
+
+- [ ] **参数 null 校验缺失** — SendEmailAsync 的 email/subject/htmlMessage 未做 null 检查。C# nullable 已启用且 Identity UI 始终传入非 null 值，实际风险极低。接口契约（非 null 引用类型）不支持添加 null 检查。
+- [ ] **无 CancellationToken 支持** — IEmailSender 接口本身不暴露 CancellationToken，30s 超时的 SMTP 操作无法中途取消。接口限制，非本 Story 能解决。
+- [ ] **SMTP Port 未校验** — config.Port 为 0/负数/>65535 时会产生晦涩的 SMTP 异常。端口值由 Admin SMTP Settings 页面校验，非此 Service 职责。
+## Deferred from: code review of 11-2-passkey-login-retention (2026-06-02)
+
+- [Review][Defer] 开发环境跨端口链接 — /Identity/Account/Login 在 Client 开发服务器 (5001) 不可达，已知限制，仅影响开发环境 [Login.razor:13]
+
+## Deferred from: code review of 11-4-samesite-docs-update (2026-06-02)
+
+- [ ] **三处 Cookie SameSite/SecurePolicy 三元表达式重复** — 主 Cookie / TwoFactorUserId / Session 三处配置使用相同模式。可提取为 helper，但当前清晰度可接受。
+- [ ] **TwoFactorRememberMeScheme 未显式配置** — 使用框架默认值，生产环境 SameSite=Lax（默认）+ SecurePolicy=SameAsRequest → 无 Secure 标志。Story 边界表已明确排除，预存问题。
+- [ ] **UseForwardedHeaders 未配置** — Caddy 反向代理后 Request.IsHttps 可能不准确。预存问题，非本 Story 引入。

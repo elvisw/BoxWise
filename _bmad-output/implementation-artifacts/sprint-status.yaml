@@ -1,5 +1,5 @@
 # generated: 2026-05-23
-# last_updated: 2026-05-24
+# last_updated: 2026-06-02
 # project: BoxWise
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-23
-last_updated: 2026-05-31
+last_updated: 2026-06-02
 project: BoxWise
 project_key: NOKEY
 tracking_system: file-system
@@ -99,3 +99,15 @@ development_status:
   epic-9: done
   9-1-2fa-modify-settings: done
   epic-9-retrospective: done
+  epic-10: done
+  10-1-scaffold-identity-pages: done
+  10-2-iemailsender-adapter: done
+  10-3-cookie-auth-bridge: done
+  10-4-2fa-login-workaround: done
+  epic-10-retrospective: done
+  epic-11: in-progress
+  11-1-settings-link-migration: done
+  11-2-passkey-login-retention: done
+  11-3-decommission-legacy-code: done
+  11-4-samesite-docs-update: done
+  epic-11-retrospective: done
