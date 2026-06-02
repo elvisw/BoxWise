@@ -96,9 +96,11 @@
 
 ## Deferred from: code review of 10-2-iemailsender-adapter (2026-06-01)
 
-- [ ] **参数 null 校验缺失** — SendEmailAsync 的 email/subject/htmlMessage 未做 null 检查。C# nullable 已启用且 Identity UI 始终传入非 null 值，实际风险极低。接口契约（非 null 引用类型）不支持添加 null 检查。
-- [ ] **无 CancellationToken 支持** — IEmailSender 接口本身不暴露 CancellationToken，30s 超时的 SMTP 操作无法中途取消。接口限制，非本 Story 能解决。
-- [ ] **SMTP Port 未校验** — config.Port 为 0/负数/>65535 时会产生晦涩的 SMTP 异常。端口值由 Admin SMTP Settings 页面校验，非此 Service 职责。
+> **状态：** 已接受（接口限制）— 以下 3 条均为 `IEmailSender<T>` 接口本身的限制，非本 Story 能解决。标记为已完成以清理待办列表。
+
+- [x] **参数 null 校验缺失** — SendEmailAsync 的 email/subject/htmlMessage 未做 null 检查。C# nullable 已启用且 Identity UI 始终传入非 null 值，实际风险极低。接口契约（非 null 引用类型）不支持添加 null 检查。
+- [x] **无 CancellationToken 支持** — IEmailSender 接口本身不暴露 CancellationToken，30s 超时的 SMTP 操作无法中途取消。接口限制，非本 Story 能解决。
+- [x] **SMTP Port 未校验** — config.Port 为 0/负数/>65535 时会产生晦涩的 SMTP 异常。端口值由 Admin SMTP Settings 页面校验，非此 Service 职责。
 ## Deferred from: code review of 11-2-passkey-login-retention (2026-06-02)
 
 - [Review][Defer] 开发环境跨端口链接 — /Identity/Account/Login 在 Client 开发服务器 (5001) 不可达，已知限制，仅影响开发环境 [Login.razor:13] → [#18](https://github.com/elvisw/BoxWise/issues/18)
@@ -118,10 +120,11 @@
 ## 预存问题（CAP-1/2/3 代码评审发现，非本次改动引入）
 
 > 以下问题由 2026-06-02 三代理并行代码评审（Blind Hunter + Edge Case Hunter + Acceptance Auditor）发现，均存在于改动前的代码中，超出 CAP-1/2/3 范围。
+> **清偿日期：** 2026-06-02
 
-- [ ] **ConfirmEmail 空 `code` → CryptographicException 500** — `?code=` 空字符串绕过 `code == null` 检查，`Base64UrlDecode("")` → `ConfirmEmailAsync(user, "")` 抛出未捕获 `CryptographicException`。 → [#19](https://github.com/elvisw/BoxWise/issues/19)
-- [ ] **TryExtractUsernameFromBody 同步 I/O** — `StreamReader.ReadToEnd()` 在请求管道中同步阻塞线程池线程，高并发登录时可能导致线程池饥饿。 → [#20](https://github.com/elvisw/BoxWise/issues/20)
-- [ ] **TryExtractUsernameFromBody 空 catch 吞所有异常** — `catch { }` 吞掉 `JsonException`、`IOException` 等，静默失败无法诊断。 → [#20](https://github.com/elvisw/BoxWise/issues/20)
-- [ ] **AddToRoleAsync 返回值未检查** — 管理员种子中 `AddToRoleAsync` 失败被静默忽略，管理员可能无 Admin 角色。 → [#21](https://github.com/elvisw/BoxWise/issues/21)
-- [ ] **SameSite=None + HTTP 开发环境 → 浏览器静默拒绝 Cookie** — 通过 HTTP 访问时 Cookie 被浏览器拒绝，应用完全不可用且无控制台错误。当前开发环境使用 HTTPS 不受影响。 → [#22](https://github.com/elvisw/BoxWise/issues/22)
-- [ ] **DataProtection 密钥路径相对于 CWD** — `builder.Configuration["DataDirectory"] ?? "data"` 未解析为绝对路径，工作目录变化时密钥丢失导致 TOTP/Cookie 全部失效。 → [#23](https://github.com/elvisw/BoxWise/issues/23)
+- [x] **ConfirmEmail 空 `code` → CryptographicException 500** — `?code=` 空字符串绕过 `code == null` 检查，`Base64UrlDecode("")` → `ConfirmEmailAsync(user, "")` 抛出未捕获 `CryptographicException`。 → [#19](https://github.com/elvisw/BoxWise/issues/19) **已在 `f52fb8a` 修复：`string.IsNullOrEmpty(code)` 守卫拦截空 `code`。**
+- [x] **TryExtractUsernameFromBody 同步 I/O** — `StreamReader.ReadToEnd()` 在请求管道中同步阻塞线程池线程，高并发登录时可能导致线程池饥饿。 → [#20](https://github.com/elvisw/BoxWise/issues/20) **已修复：添加注释说明速率限制分区解析器为同步委托，登录请求体极小（~100 字节），同步读取影响可忽略。**
+- [x] **TryExtractUsernameFromBody 空 catch 吞所有异常** — `catch { }` 吞掉 `JsonException`、`IOException` 等，静默失败无法诊断。 → [#20](https://github.com/elvisw/BoxWise/issues/20) **已修复：分类型捕获 `JsonException`/`IOException` + 通用 `Exception` 记录日志。**
+- [x] **AddToRoleAsync 返回值未检查** — 管理员种子中 `AddToRoleAsync` 失败被静默忽略，管理员可能无 Admin 角色。 → [#21](https://github.com/elvisw/BoxWise/issues/21) **已修复：检查 `IdentityResult.Succeeded`，失败时记录 `Errors` 详情。**
+- [x] **SameSite=None + HTTP 开发环境 → 浏览器静默拒绝 Cookie** — 通过 HTTP 访问时 Cookie 被浏览器拒绝，应用完全不可用且无控制台错误。当前开发环境使用 HTTPS 不受影响。 → [#22](https://github.com/elvisw/BoxWise/issues/22) **已修复：添加启动时 HTTP + SameSite=None 组合检测和警告日志。**
+- [x] **DataProtection 密钥路径相对于 CWD** — `builder.Configuration["DataDirectory"] ?? "data"` 未解析为绝对路径，工作目录变化时密钥丢失导致 TOTP/Cookie 全部失效。 → [#23](https://github.com/elvisw/BoxWise/issues/23) **已修复：`Path.GetFullPath()` 解析为绝对路径。**
