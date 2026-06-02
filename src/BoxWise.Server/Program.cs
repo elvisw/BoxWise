@@ -123,8 +123,11 @@ builder.Services.AddAuthorization(options =>
 });
 
 // Data Protection - 持久化到文件系统（TOTP 密钥加密依赖）
-var dataProtectionKeysPath = Path.Combine(
-    builder.Configuration["DataDirectory"] ?? "data", "keys");
+// 使用 Path.GetFullPath 解析为绝对路径，防止工作目录变化导致密钥丢失。
+// 注意：使用 IsNullOrEmpty 而非 ?? ，因为空字符串配置值也会绕过回退。
+var dataDir = builder.Configuration["DataDirectory"];
+if (string.IsNullOrEmpty(dataDir)) dataDir = "data";
+var dataProtectionKeysPath = Path.GetFullPath(Path.Combine(dataDir, "keys"));
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
 
@@ -350,8 +353,16 @@ else
         {
             try
             {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
-                app.Logger.LogInformation("Admin role assigned to '{Username}'", adminUsername);
+                var roleResult = await userManager.AddToRoleAsync(adminUser, "Admin");
+                if (roleResult.Succeeded)
+                {
+                    app.Logger.LogInformation("Admin role assigned to '{Username}'", adminUsername);
+                }
+                else
+                {
+                    app.Logger.LogWarning("Failed to assign Admin role to '{Username}': {Errors}",
+                        adminUsername, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
+                }
             }
             catch (DbUpdateException)
             {
@@ -415,6 +426,28 @@ if (args.Length >= 3 && args[0] == "admin" && args[1] == "reset-2fa")
     }
 }
 
+// 开发环境 HTTP + SameSite=None 检查：SameSite=None 要求 Secure 标志，
+// 但 Secure Cookie 在 HTTP 连接上会被浏览器拒绝，导致应用完全不可用。
+// 开发环境默认使用 HTTPS（launchSettings.json 中配置），此警告仅在手动改为 HTTP 时触发。
+// 注意：解析分号分隔的多 URL 列表，仅在所有 URL 均为 HTTP（无 HTTPS）时才告警。
+if (env.IsDevelopment())
+{
+    var configuredUrls = builder.Configuration.GetValue<string>("ASPNETCORE_URLS")
+        ?? builder.Configuration.GetValue<string>("urls")
+        ?? string.Empty;
+    var urls = configuredUrls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var hasHttps = urls.Any(u => u.StartsWith("https://", StringComparison.OrdinalIgnoreCase));
+    var hasHttp = urls.Any(u => u.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
+    if (hasHttp && !hasHttps)
+    {
+        app.Logger.LogWarning(
+            "SameSite=None is configured (Development) but only HTTP URLs detected (no HTTPS). "
+            + "Browsers require Secure (HTTPS) for SameSite=None cookies — "
+            + "cookies will be silently rejected, and the app will be unusable. "
+            + "Use HTTPS URLs (e.g., https://localhost:5000) instead.");
+    }
+}
+
 app.Run();
 
 static SameSiteMode GetSameSiteMode(IWebHostEnvironment env) =>
@@ -431,17 +464,33 @@ static string? TryExtractUsernameFromBody(HttpContext httpContext)
             return null;
 
         httpContext.Request.EnableBuffering();
+        // 注意：速率限制分区解析器为同步委托，无法使用 ReadToEndAsync。
+        // 登录请求体（~100 字节）极小，同步读取对线程池影响可忽略。
+        // 限制最大读取 4096 字节，防止恶意大请求体导致每次限流检查时内存耗尽。
         using var reader = new StreamReader(httpContext.Request.Body, Encoding.UTF8, leaveOpen: true);
-        var body = reader.ReadToEnd();
+        var buffer = new char[4096];
+        var charsRead = reader.ReadBlock(buffer, 0, buffer.Length);
+        var body = new string(buffer, 0, charsRead);
         httpContext.Request.Body.Position = 0;
 
         using var doc = JsonDocument.Parse(body);
         if (doc.RootElement.TryGetProperty("username", out var prop))
             return prop.GetString();
     }
-    catch
+    catch (JsonException)
     {
-        // Body reading failed — fall back to IP-based partitioning
+        // 请求体不是有效 JSON — 回退到 IP 分区
+    }
+    catch (IOException)
+    {
+        // 请求体读取失败（连接中断等） — 回退到 IP 分区
+    }
+    catch (Exception ex)
+    {
+        // 其他未预期异常 — 记录日志以便诊断，然后回退到 IP 分区
+        // 使用 GetService（非抛出）防止 DI 解析失败覆盖原始异常
+        var logger = httpContext.RequestServices.GetService<ILogger<Program>>();
+        logger?.LogWarning(ex, "Failed to extract username from login body for rate limiting");
     }
     return null;
 }
