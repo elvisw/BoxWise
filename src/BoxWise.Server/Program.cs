@@ -124,9 +124,9 @@ builder.Services.AddAuthorization(options =>
 
 // Data Protection - 持久化到文件系统（TOTP 密钥加密依赖）
 // 使用 Path.GetFullPath 解析为绝对路径，防止工作目录变化导致密钥丢失。
-// 注意：使用 IsNullOrEmpty 而非 ?? ，因为空字符串配置值也会绕过回退。
+// 注意：使用 IsNullOrWhiteSpace 而非 ?? ，因为空字符串/纯空白配置值也会绕过回退。
 var dataDir = builder.Configuration["DataDirectory"];
-if (string.IsNullOrEmpty(dataDir)) dataDir = "data";
+if (string.IsNullOrWhiteSpace(dataDir)) dataDir = "data";
 var dataProtectionKeysPath = Path.GetFullPath(Path.Combine(dataDir, "keys"));
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
@@ -360,8 +360,11 @@ else
                 }
                 else
                 {
+                    var errorDetail = roleResult.Errors.Any()
+                        ? string.Join("; ", roleResult.Errors.Select(e => e.Description))
+                        : "no error details available";
                     app.Logger.LogWarning("Failed to assign Admin role to '{Username}': {Errors}",
-                        adminUsername, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
+                        adminUsername, errorDetail);
                 }
             }
             catch (DbUpdateException)
