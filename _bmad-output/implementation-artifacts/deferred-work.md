@@ -101,10 +101,16 @@
 - [ ] **SMTP Port 未校验** — config.Port 为 0/负数/>65535 时会产生晦涩的 SMTP 异常。端口值由 Admin SMTP Settings 页面校验，非此 Service 职责。
 ## Deferred from: code review of 11-2-passkey-login-retention (2026-06-02)
 
-- [Review][Defer] 开发环境跨端口链接 — /Identity/Account/Login 在 Client 开发服务器 (5001) 不可达，已知限制，仅影响开发环境 [Login.razor:13]
+- [Review][Defer] 开发环境跨端口链接 — /Identity/Account/Login 在 Client 开发服务器 (5001) 不可达，已知限制，仅影响开发环境 [Login.razor:13] → [#18](https://github.com/elvisw/BoxWise/issues/18)
 
 ## Deferred from: code review of 11-4-samesite-docs-update (2026-06-02)
 
-- [ ] **三处 Cookie SameSite/SecurePolicy 三元表达式重复** — 主 Cookie / TwoFactorUserId / Session 三处配置使用相同模式。可提取为 helper，但当前清晰度可接受。
-- [ ] **TwoFactorRememberMeScheme 未显式配置** — 使用框架默认值，生产环境 SameSite=Lax（默认）+ SecurePolicy=SameAsRequest → 无 Secure 标志。Story 边界表已明确排除，预存问题。
-- [ ] **UseForwardedHeaders 未配置** — Caddy 反向代理后 Request.IsHttps 可能不准确。预存问题，非本 Story 引入。
+- [ ] **三处 Cookie SameSite/SecurePolicy 三元表达式重复** — 主 Cookie / TwoFactorUserId / Session 三处配置使用相同模式。可提取为 helper，但当前清晰度可接受。 → [#15](https://github.com/elvisw/BoxWise/issues/15)
+- [ ] **TwoFactorRememberMeScheme 未显式配置** — 使用框架默认值，生产环境 SameSite=Lax（默认）+ SecurePolicy=SameAsRequest → 无 Secure 标志。Story 边界表已明确排除，预存问题。 → [#16](https://github.com/elvisw/BoxWise/issues/16)
+- [ ] **UseForwardedHeaders 未配置** — Caddy 反向代理后 Request.IsHttps 可能不准确。预存问题，非本 Story 引入。 → [#17](https://github.com/elvisw/BoxWise/issues/17)
+
+## Deferred from: manual verification (2026-06-02)
+
+- [ ] **Bootstrap CDN 被浏览器拦截 → 侧边栏不可见** — Bootstrap 5.3.3 CDN CSS 被隐私追踪保护拦截，导致栅格布局失效。解决方案：改为本地静态文件引用。 → [#12](https://github.com/elvisw/BoxWise/issues/12)
+- [ ] **Identity 页面英文未汉化** — 17 个 Identity 脚手架页面均为英文。 → [#13](https://github.com/elvisw/BoxWise/issues/13)
+- [ ] **Settings 通行密钥管理对话框样式** — 按钮和文字边距丢失。 → [#14](https://github.com/elvisw/BoxWise/issues/14)
