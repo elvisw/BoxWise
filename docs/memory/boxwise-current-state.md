@@ -1,13 +1,13 @@
 ---
 name: boxwise-current-state
-description: BoxWise 项目当前状态 — 4 Epics 完成，34 测试通过，设置页与导航重构完成
+description: BoxWise 项目当前状态 — 11 Epics 全部完成，261 测试通过
 metadata: 
   node_type: memory
   type: project
   originSessionId: 4b67de02-6453-49b3-b222-1f179c273181
 ---
 
-BoxWise MVP 在 2026-05-24 全部完成，共 4 个 Epic、18 个 Story，34 个测试全部通过。
+BoxWise 项目在 2026-06-02 全部完成，共 11 个 Epic、43 个 Story，261 个测试全部通过（29 Client + 232 Server）。
 
 **2026-05-27 新增：设置页与导航重构**
 - 底部导航从 3 Tab 扩展为 4 Tab（新增"设置"）

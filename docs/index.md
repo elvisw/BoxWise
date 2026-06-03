@@ -47,6 +47,7 @@
 - [数据模型](./data-models-server.md) — EF Core 实体与数据库
 - [UI 组件清单](./component-inventory-client.md) — 7 页面 + 12 组件
 - [状态管理](./state-management-client.md) — AppState + 认证状态
+- [Identity 脚手架修改记录](./identity-scaffold-modifications.md) — Areas/Identity/ 修改清单
 
 ## 已有文档（项目自带）
 

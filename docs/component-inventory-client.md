@@ -158,9 +158,17 @@ record PhotoCapture(string FileName, string ContentType, byte[] Bytes)
 
 ---
 
-## JavaScript (1)
+## JavaScript (3)
 
 ### camera-capture.js
 ES 模块。创建 `<input type="file" capture="environment">` 调起设备相机。`FileReader.readAsDataURL` → base64 → `DotNetObjectReference` 回调 C#。
 
 **限制:** 10MB，重复触发防抖
+
+### webauthn.js
+ES 模块。封装 WebAuthn API（`navigator.credentials.create` / `get`），供通行密钥注册和登录组件通过 `IJSRuntime` 调用 `window.webauthn.*`。
+
+**使用方:** `Login.razor`、`WebAuthnSetup`、`WebAuthnCredentialList`、`PasskeyManageDialog`
+
+### utils.js
+工具函数模块。提供 `window.downloadFile` 辅助函数（触发浏览器文件下载），由 `index.html` 引用加载。

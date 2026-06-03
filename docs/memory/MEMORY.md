@@ -1,3 +1,3 @@
-- [BoxWise 项目当前状态](boxwise-current-state.md) — 3 Epics 完成，Epic 4 待开发，22 测试通过
+- [BoxWise 项目当前状态](boxwise-current-state.md) — 11 Epics 全部完成，261 测试通过
 - [BoxWise 运行时常见问题](boxwise-runtime-gotchas.md) — DI 注册顺序、端口配置、MudBlazor 9.x API 注意事项
 - [Windows Python 命令](windows-python-command.md) — 使用 `python` 而非 `python3`

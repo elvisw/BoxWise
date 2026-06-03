@@ -66,7 +66,10 @@ BoxWise/                              # 解决方案根目录
 │   │       ├── icon-512.png          # PWA 图标 512px
 │   │       ├── appsettings.Development.json # 开发配置 (ApiBaseUrl)
 │   │       ├── css/app.css           # 自定义样式
-│   │       └── js/camera-capture.js  # 原生相机调用 (ES Module)
+│   │       └── js/
+│   │           ├── camera-capture.js  # 原生相机调用 (ES Module)
+│   │           ├── webauthn.js        # WebAuthn API 封装
+│   │           └── utils.js           # 浏览器下载辅助函数
 │   │
 │   ├── BoxWise.Server/               # [Part: server] ASP.NET Core API
 │   │   ├── BoxWise.Server.csproj     # SDK: Web
