@@ -24,7 +24,7 @@
 - **WebAuthn 通行密钥** — 支持指纹、面容、硬件密钥（如 YubiKey）
 - **PWA 安装与离线浏览** — 安装到桌面，离线查看已缓存的物品信息
 - **Admin 后台** — 独立 Razor Pages 管理界面，支持账户管理、2FA 重置、SMTP 在线配置
-- **登录速率限制** — 登录尝试频率保护（按 IP + 按账户）
+- **通行密钥与 2FA 操作速率限制** — WebAuthn 登录和 2FA 管理端点频率保护
 
 ## 技术栈
 
@@ -201,6 +201,7 @@ sudo cat > /opt/boxwise/.env << 'EOF'
 Admin__Username=admin
 Admin__Email=admin@你的域名
 Admin__Password=你的强密码
+ConnectionStrings__DefaultConnection=Data Source=/opt/boxwise/data/boxwise.db
 EOF
 sudo chown boxwise:boxwise /opt/boxwise/.env
 sudo chmod 600 /opt/boxwise/.env
@@ -347,7 +348,7 @@ sc.exe description "BoxWise" "箱知 · BoxWise 家庭物品管理服务"
 sc.exe start "BoxWise"
 ```
 
-> **Windows 服务环境变量：** `sc.exe` 不支持直接传递环境变量。建议在 `C:\BoxWise\appsettings.Production.json` 中配置管理员信息（参考"配置 → 管理员账户"章节）。
+> **Windows 服务环境变量：** `sc.exe` 不支持直接传递环境变量。建议在 `C:\BoxWise\appsettings.Production.json` 中配置管理员信息（详见"配置 → 管理员账户"章节）。
 >
 > **路径差异：** Windows 版归档文件名为 `boxwise-win-x64.zip`，Linux 版为 `boxwise-linux-x64.tar.gz`。
 >
@@ -391,7 +392,6 @@ boxwise.example.com {
 }
 ```
 
-> **注意：** Docker 场景的 Caddyfile 与二进制部署不同 — Caddy 容器中不包含 SPA 静态文件，所有请求均反向代理到 boxwise 容器，由 ASP.NET Core 负责 SPA 回退（`MapFallbackToFile("index.html")`）。
 
 **持久化目录：**
 
@@ -498,7 +498,7 @@ dotnet build                    # 3. 本地构建自动读取标签作为版本�
 - **产物：**
   - `boxwise-linux-x64.tar.gz` — Linux 二进制发布包
   - `boxwise-win-x64.zip` — Windows 二进制发布包
-- **配置：** [`.github/workflows/release.yml`](.github/workflows/release.yml)
+- **配置：** [.github/workflows/release.yml](.github/workflows/release.yml)
 
 ## 已知限制
 
@@ -530,7 +530,7 @@ dotnet ef database update
 #   data/keys/       — Data Protection 密钥环
 
 # Linux 二进制部署
-cp -r data/ backup-$(date +%Y%m%d)/
+sudo cp -r /opt/boxwise/data/ /opt/boxwise/backup-$(date +%Y%m%d)/
 
 # Docker 部署
 sudo cp -r ./data/ ./backup-$(date +%Y%m%d)/
@@ -545,9 +545,9 @@ sudo cp -r ./data/ ./backup-$(date +%Y%m%d)/
 # Linux 二进制：sudo systemctl stop boxwise
 # Docker：docker compose down
 
-# 2. 还原 data/ 目录
-# Linux 二进制：cp -r backup-$(date +%Y%m%d)/data/* /opt/boxwise/data/
-# Docker：cp -r backup-$(date +%Y%m%d)/data/* ./data/
+# 2. 还原 data/ 目录（将 <备份日期> 替换为实际日期，如 20260603）
+# Linux 二进制：cp -r /opt/boxwise/backup-<备份日期>/data/* /opt/boxwise/data/
+# Docker：cp -r ./backup-<备份日期>/data/* ./data/
 
 # 3. 启动服务
 # Linux 二进制：sudo systemctl start boxwise
