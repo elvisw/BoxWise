@@ -179,7 +179,7 @@ SMTP 邮件服务用于发送账户相关邮件（如邮箱修改确认）。登
 
 ### 二进制部署（Linux VPS）
 
-适合无 Docker 环境，通过 systemd 管理进程。**CI 已自动构建，直接从 GitHub 下载即可。**
+适合无 Docker 环境，通过 systemd 管理进程。生产通信使用 **Unix Domain Socket** 代替 TCP 端口（零端口冲突、无网络栈开销、文件系统权限隔离）。**CI 已自动构建，直接从 GitHub 下载即可。**
 
 **前置条件：** .NET 10 Runtime + Caddy 或 Nginx。
 
@@ -254,12 +254,17 @@ After=network.target
 User=boxwise
 Group=boxwise
 WorkingDirectory=/opt/boxwise
+# 清理上次异常退出残留的 socket 文件（Kestrel 正常退出时会自动删除）
+ExecStartPre=/bin/rm -f /opt/boxwise/boxwise.sock
 ExecStart=/usr/bin/dotnet /opt/boxwise/BoxWise.Server.dll
 Restart=always
 RestartSec=10
 EnvironmentFile=/opt/boxwise/.env
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment=ASPNETCORE_URLS=http://+:5000
+# UMask=0007 确保 socket 文件权限为 770（owner+group 可读写，Caddy 通过 boxwise 组访问）
+UMask=0007
+# 使用 Unix Domain Socket 代替 TCP 端口 — 零端口冲突、无网络栈开销、文件系统权限隔离
+Environment=ASPNETCORE_URLS=http://unix:/opt/boxwise/boxwise.sock
 Environment=DataDirectory=/opt/boxwise/data
 
 [Install]
@@ -275,13 +280,17 @@ sudo systemctl enable --now boxwise
 ```bash
 sudo apt install caddy
 
+# 允许 Caddy 通过 Unix socket 访问应用
+sudo usermod -aG boxwise caddy
+
+# Caddy 语法：unix// 表示 Unix socket 传输，// 后跟 socket 文件绝对路径
 # /etc/caddy/Caddyfile
 你的域名 {
     handle /api/* {
-        reverse_proxy localhost:5000
+        reverse_proxy unix//opt/boxwise/boxwise.sock
     }
     handle /admin/* {
-        reverse_proxy localhost:5000
+        reverse_proxy unix//opt/boxwise/boxwise.sock
     }
     handle {
         root * /opt/boxwise/wwwroot
@@ -566,9 +575,9 @@ docker compose logs -f
 
 ## 常见问题
 
-### 5000 端口被占用怎么办？
+### Kestrel 监听地址如何修改？
 
-修改启动端口。开发环境在 `Properties/launchSettings.json` 中调整 `applicationUrl`；生产环境修改环境变量 `ASPNETCORE_URLS`（如 `http://+:5001`），同时更新反向代理配置中的 `localhost:5000` 为目标端口。
+修改监听地址。开发环境在 `Properties/launchSettings.json` 中调整 `applicationUrl`；生产环境修改环境变量 `ASPNETCORE_URLS`（Unix socket 格式 `http://unix:/路径/boxwise.sock` 或 TCP 格式 `http://+:5001`），同时更新反向代理配置指向新地址。
 
 ### AI 识别没有响应？
 
