@@ -407,7 +407,6 @@ boxwise.example.com {
 }
 ```
 
-
 **持久化目录：**
 
 | 路径 | 内容 |
@@ -545,10 +544,10 @@ dotnet ef database update
 #   data/keys/       — Data Protection 密钥环
 
 # Linux 二进制部署
-sudo cp -r /opt/boxwise/data/ /opt/boxwise/backup-$(date +%Y%m%d)/
+sudo cp -r /opt/boxwise/data /opt/boxwise/backup-$(date +%Y%m%d)/
 
 # Docker 部署
-sudo cp -r ./data/ ./backup-$(date +%Y%m%d)/
+sudo cp -r ./data ./backup-$(date +%Y%m%d)/
 ```
 
 > **Data Protection 密钥警告：** `data/keys/` 目录存储 ASP.NET Core Data Protection 密钥环，用于加密 SMTP 密码等敏感数据。**密钥丢失后已存储的加密数据将无法解密**，需重新配置。确保该目录已纳入备份或持久化卷。
