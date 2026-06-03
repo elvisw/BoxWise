@@ -1,12 +1,7 @@
 # 将 boxwise.example.com 替换为你的实际域名
 # 本地测试可使用 tls internal 自签证书
 boxwise.example.com {
-    root * /app/wwwroot
-    try_files {path} /index.html
-    file_server
+    reverse_proxy boxwise:5000
     encode gzip
-
-    reverse_proxy /api/* boxwise:5000
-    reverse_proxy /admin/* boxwise:5000
     header /api/images/* Cache-Control "public, max-age=86400"
 }

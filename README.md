@@ -24,7 +24,7 @@
 - **WebAuthn 通行密钥** — 支持指纹、面容、硬件密钥（如 YubiKey）
 - **PWA 安装与离线浏览** — 安装到桌面，离线查看已缓存的物品信息
 - **Admin 后台** — 独立 Razor Pages 管理界面，支持账户管理、2FA 重置、SMTP 在线配置
-- **速率限制** — API 端点速率保护
+- **登录速率限制** — 登录尝试频率保护（按 IP + 按账户）
 
 ## 技术栈
 
@@ -125,6 +125,7 @@ AI 识别为可选功能。未配置时拍照后自动切换为手动输入，�
 cd src/BoxWise.Server
 dotnet user-secrets set "Llm:ApiKey" "sk-xxx"
 dotnet user-secrets set "Llm:Model" "gpt-4o-mini"
+# 注：默认 model 为 gpt-4o，示例使用 gpt-4o-mini 以获得更快的识别速度和更低的成本
 # 可选：切换提供商
 dotnet user-secrets set "Llm:BaseUrl" "https://api.openai.com/v1"
 
@@ -174,6 +175,8 @@ SMTP 邮件服务用于发送账户相关邮件（如邮箱修改确认）。登
 
 ## 部署
 
+三种部署方式：**Docker（推荐，开箱即用）| Linux 二进制（无 Docker 的 VPS）| Windows 二进制（Windows Server 环境）**。
+
 ### 二进制部署（Linux VPS）
 
 适合无 Docker 环境，通过 systemd 管理进程。**CI 已自动构建，直接从 GitHub 下载即可。**
@@ -199,6 +202,7 @@ Admin__Username=admin
 Admin__Email=admin@你的域名
 Admin__Password=你的强密码
 EOF
+sudo chown boxwise:boxwise /opt/boxwise/.env
 sudo chmod 600 /opt/boxwise/.env
 
 # 5. 安装 .NET Runtime（如未安装）
@@ -236,6 +240,8 @@ sudo cat > /opt/boxwise/appsettings.Production.json << 'EOF'
   }
 }
 EOF
+sudo chown boxwise:boxwise /opt/boxwise/appsettings.Production.json
+sudo chmod 600 /opt/boxwise/appsettings.Production.json
 
 # 7. 安装 systemd 服务
 sudo cat > /etc/systemd/system/boxwise.service << 'EOF'
@@ -365,7 +371,8 @@ sed -i 's/boxwise.example.com/你的域名/' Caddyfile
 # 3. 修改 docker-compose.yml 中的管理员密码
 #    将 Admin__Password=请替换为强密码 改为实际密码
 
-# 4. 启动
+# 4. 拉取最新镜像并启动
+docker compose pull
 docker compose up -d
 
 # 5. 查看状态
@@ -378,15 +385,13 @@ docker compose logs -f
 ```caddyfile
 # 将 boxwise.example.com 替换为你的实际域名
 boxwise.example.com {
-    reverse_proxy /api/* boxwise:5000
-    reverse_proxy /admin/* boxwise:5000
-    reverse_proxy * boxwise:5000
+    reverse_proxy boxwise:5000
     encode gzip
     header /api/images/* Cache-Control "public, max-age=86400"
 }
 ```
 
-> **注意：** Docker 场景的 Caddyfile 与二进制部署不同 — Caddy 容器中不包含 SPA 静态文件，所有请求（含根路径）均反向代理到 boxwise 容器。由 boxwise 容器内的 ASP.NET Core 负责 SPA 回退（`MapFallbackToFile("index.html")`）。
+> **注意：** Docker 场景的 Caddyfile 与二进制部署不同 — Caddy 容器中不包含 SPA 静态文件，所有请求均反向代理到 boxwise 容器，由 ASP.NET Core 负责 SPA 回退（`MapFallbackToFile("index.html")`）。
 
 **持久化目录：**
 
@@ -499,9 +504,9 @@ dotnet build                    # 3. 本地构建自动读取标签作为版本�
 
 1. **.NET 10 `GetTwoFactorAuthenticationUserAsync()` Bug**（[dotnet/aspnetcore#66929](https://github.com/dotnet/aspnetcore/issues/66929)）— 影响 2FA 用户登录流程。Workaround 已就位（内联 `HttpContext.AuthenticateAsync` + `FindByIdAsync`）。待上游修复后移除。
 
-2. **Docker 构建版本号始终回退 v1.0.0** — `.dockerignore` 排除了 `.git/` 目录，构建时 `git describe` 无法获取标签。宿主机构建后 COPY 发布产物进镜像可解决。
+2. **Docker 构建版本号始终回退 v1.0.0** — `.dockerignore` 排除了 `.git/` 目录。详见上方"版本管理"章节的 CI/Docker 注意事项。
 
-3. **ConfiguredMethods 同步** — Identity 页面操作（如邮箱修改）不自动更新 `AppUser` 的自定义扩展字段，需手动调用 `ConfiguredMethods` 同步。
+3. **ConfiguredMethods 同步** — Identity 页面操作（如邮箱修改）不自动更新 `AppUser` 的自定义扩展字段，需手动同步（内部机制，供开发者参考）。
 
 4. **Email 2FA 登录路径已退役** — 自 v0.11 起移除 Email 验证码双因素登录，当前仅支持 TOTP + WebAuthn。SMTP 配置仅用于 Identity 邮箱管理功能。
 
@@ -528,8 +533,6 @@ dotnet ef database update
 cp -r data/ backup-$(date +%Y%m%d)/
 
 # Docker 部署
-docker compose exec boxwise cp -r /app/data /app/data-backup-$(date +%Y%m%d)
-# 或从宿主机直接复制
 sudo cp -r ./data/ ./backup-$(date +%Y%m%d)/
 ```
 
@@ -543,8 +546,8 @@ sudo cp -r ./data/ ./backup-$(date +%Y%m%d)/
 # Docker：docker compose down
 
 # 2. 还原 data/ 目录
-# Linux 二进制：cp -r backup-20260603/data/* /opt/boxwise/data/
-# Docker：cp -r backup-20260603/data/* ./data/
+# Linux 二进制：cp -r backup-$(date +%Y%m%d)/data/* /opt/boxwise/data/
+# Docker：cp -r backup-$(date +%Y%m%d)/data/* ./data/
 
 # 3. 启动服务
 # Linux 二进制：sudo systemctl start boxwise
