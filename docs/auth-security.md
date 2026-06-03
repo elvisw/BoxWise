@@ -166,6 +166,8 @@ sequenceDiagram
   "RateLimit": {
     "LoginPermitLimit": 5,
     "LoginWindowMinutes": 15,
+    "PasskeyLoginPermitLimit": 30,
+    "PasskeyLoginWindowMinutes": 5,
     "TwoFactorTotpPermitLimit": 3,
     "TwoFactorTotpWindowSeconds": 30,
     "TwoFactorEmailPermitLimit": 3,
@@ -175,6 +177,7 @@ sequenceDiagram
   }
 }
 ```
+> **注：** `LoginPermitLimit`/`LoginWindowMinutes` 用于登录和 2FA 重置端点；`PasskeyLoginPermitLimit`/`PasskeyLoginWindowMinutes` 用于 WebAuthn 通行密钥登录。`TwoFactor*` 系列键已存在于配置文件但尚未在速率限制策略中使用，预留将来扩展。
 
 超过限制时返回 HTTP 429。
 

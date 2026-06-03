@@ -74,9 +74,9 @@ BoxWise/                              # 解决方案根目录
 │   │   ├── appsettings.json          # 基础配置（连接字符串）
 │   │   ├── appsettings.Development.json # 开发配置
 │   │   ├── Endpoints/                # Minimal API 路由组 (8 个文件)
-│   │   │   ├── AuthEndpoints.cs          # /api/auth (login/logout/me)
+│   │   │   ├── AuthEndpoints.cs          # /api/auth (me)
 │   │   │   ├── WebAuthnEndpoints.cs      # /api/auth/webauthn (通行密钥注册与登录)
-│   │   │   ├── AdminTwoFactorEndpoints.cs # /api/auth/admin-2fa (管理员 2FA 管理)
+│   │   │   ├── AdminTwoFactorEndpoints.cs # /api/admin/users/{userId}/two-factor
 │   │   │   ├── LocationEndpoints.cs      # /api/locations (CRUD + children)
 │   │   │   ├── ItemEndpoints.cs          # /api/items (CRUD + search)
 │   │   │   ├── ImageEndpoints.cs         # /api/images (upload + serve)

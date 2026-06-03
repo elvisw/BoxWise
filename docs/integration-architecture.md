@@ -42,7 +42,7 @@
 │  │  /api/locations                     │ │
 │  │  /api/items  /api/images            │ │
 │  │  /api/tags   /api/ai                │ │
-│  │  /api/auth/admin-2fa               │ │
+│  │  /api/admin/users/{userId}/two-factor               │ │
 │  └──────────┬───────────────────────────┘ │
 │             │                              │
 │  ┌──────────▼───────────────────────────┐ │
@@ -92,9 +92,8 @@
 ### 1. 认证流程
 ```
 1. 用户提交登录表单
-2. AuthService.LoginAsync() → POST /api/auth/login (JSON)
-3. Server 验证密码 → Set-Cookie → 200 Ok<AuthUserDto>
-4. AppState.SetUser() → UI 刷新
+2. Identity Login.cshtml Razor Page 验证密码 → Set-Cookie → 302 重定向
+3. AppState.SetUser() 通过 GET /api/auth/me 获取用户状态 → UI 刷新
 5. 后续请求自动附带 Cookie (CookieHandler)
 6. 页面刷新时 CookieAuthenticationStateProvider → GET /api/auth/me 恢复会话
 ```
