@@ -37,10 +37,12 @@
 │  ASP.NET Core Server (localhost:5000)      │
 │                                            │
 │  ┌──────────────────────────────────────┐ │
-│  │  Minimal API Endpoints (6 groups)    │ │
-│  │  /api/auth  /api/locations           │ │
-│  │  /api/items /api/images              │ │
-│  │  /api/tags  /api/ai                  │ │
+│  │  Minimal API Endpoints (8 groups)    │ │
+│  │  /api/auth  /api/auth/webauthn      │ │
+│  │  /api/locations                     │ │
+│  │  /api/items  /api/images            │ │
+│  │  /api/tags   /api/ai                │ │
+│  │  /api/auth/admin-2fa               │ │
 │  └──────────┬───────────────────────────┘ │
 │             │                              │
 │  ┌──────────▼───────────────────────────┐ │
@@ -63,6 +65,10 @@
 │  │  ImageStorageService (文件系统)       │ │
 │  │  ThumbnailService (SkiaSharp 后台)    │ │
 │  │  LlmClient (OpenAI 兼容 API)          │ │
+│  │  TwoFactorService / EmailTwoFactor    │ │
+│  │  WebAuthnService / RecoveryCodeService│ │
+│  │  SmtpConfigurationService            │ │
+│  │  IdentityEmailSender / CsrfValidate  │ │
 │  └──────────────────────────────────────┘ │
 │                                            │
 │  Admin UI:                                 │

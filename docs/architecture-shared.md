@@ -15,16 +15,16 @@ BoxWise.Shared 是零依赖的 .NET 类库，定义 Client 和 Server 之间共�
 | 引用 | 无外部 NuGet 依赖 |
 | 使用者 | BoxWise.Client, BoxWise.Server |
 
-## DTO 清单 (17 个)
+## DTO 清单 (30 个)
 
 ### 认证
 
 | DTO | 类型 | 方向 |
 |-----|------|------|
 | `LoginRequest` | `record (string Username, string Password)` | Client → Server |
-| `AuthUserDto` | `record (string UserName, bool IsAdmin)` | Server → Client |
-| `UserListItemDto` | `record (string UserName, bool IsAdmin)` | Server → Client (Admin) |
-| `CreateAccountRequest` | `class (string Username, string Password)` | Admin → Server |
+| `AuthUserDto` | `record (string UserName, bool IsAdmin, bool PasswordManagedByEnv, bool PasswordRequiresChange, string? Email)` | Server → Client |
+| `UserListItemDto` | `record (string Id, string UserName, bool IsAdmin, bool TwoFactorEnabled, string? TwoFactorMethod, string? ConfiguredMethods)` | Server → Client (Admin) |
+| `CreateAccountRequest` | `class (string Username, string Password, string Email)` | Admin → Server |
 
 ### 位置
 
@@ -47,8 +47,9 @@ BoxWise.Shared 是零依赖的 .NET 类库，定义 Client 和 Server 之间共�
 | DTO | 类型 | 方向 |
 |-----|------|------|
 | `CreateItemRequest` | `record (string Name, int LocationId, List<int> TagIds, string? Note)` | Client → Server |
-| `ItemDto` | `record (...)` — 完整字段含位置/标签/创建者 | Server → Client |
-| `ItemSummaryDto` | `record (...)` — 精简字段用于列表/搜索 | Server → Client |
+| `UpdateItemRequest` | `record (string Name, int LocationId, List<int> TagIds, string? Note)` | Client → Server |
+| `ItemDto` | `record` — 完整字段含位置/标签/创建者/更新者 | Server → Client |
+| `ItemSummaryDto` | `record` — 精简字段用于列表/搜索 | Server → Client |
 
 ### 图片
 
@@ -61,6 +62,40 @@ BoxWise.Shared 是零依赖的 .NET 类库，定义 Client 和 Server 之间共�
 | DTO | 类型 | 方向 |
 |-----|------|------|
 | `RecognitionResultDto` | `record (string Name, string Note)` | Server → Client |
+
+### 双因素认证 (2FA)
+
+| DTO | 类型 | 方向 |
+|-----|------|------|
+| `TwoFactorStatusDto` | `record` — 含 `TwoFactorEnabled`, `TwoFactorMethod`, `AvailableMethods`, `ConfiguredMethods`, `HasRecoveryCodes`, `GracePeriodEnd`, `SetupCompletedAt` | Server → Client |
+| `VerifyTwoFactorRequest` | `record (string Code, string? Token, string? Method)` | Client → Server |
+| `SwitchMethodRequest` | `record (string Method)` | Client → Server |
+| `SetupEmailTwoFactorRequest` | `record (string Email)` | Client → Server |
+| `RecoveryCodesResponse` | `record (List<string> Codes)` | Server → Client |
+| `ReAuthenticateRequest` | `record (string Password)` | Client → Server |
+
+### WebAuthn / 通行密钥
+
+| DTO | 类型 | 方向 |
+|-----|------|------|
+| `WebAuthnAvailableResponse` | `record (bool Available, string Origin, string? UserHandle)` | Server → Client |
+| `WebAuthnChallengeResponse` | `record (string Challenge)` | Server → Client |
+| `WebAuthnCredentialDto` | `record (int Id, string DeviceName, DateTime CreatedAt, string CredentialId)` | Server → Client |
+
+### 个人资料管理
+
+| DTO | 类型 | 方向 |
+|-----|------|------|
+| `UpdateProfileRequest` | `record (string? NewUsername, string? NewEmail, string? OperationToken)` | Client → Server |
+| `ChangePasswordRequest` | `record (string CurrentPassword, string NewPassword)` | Client → Server |
+
+### Admin / SMTP 配置
+
+| DTO | 类型 | 方向 |
+|-----|------|------|
+| `SmtpConfigDto` | `sealed record` — 含 Host, Port, Username, Password, FromAddress, FromName（ToString 遮蔽密码） | 双向 |
+| `SmtpTestResult` | `sealed record (bool Success, string? ErrorMessage)` | Server → Client (Admin) |
+| `AdminTwoFactorStatusResponse` | `record (string UserName, TwoFactorStatusDto Status)` | Server → Client (Admin) |
 
 ## 设计原则
 

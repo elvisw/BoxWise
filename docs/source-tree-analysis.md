@@ -27,21 +27,24 @@ BoxWise/                              # 解决方案根目录
 │   │   │   ├── Browse.razor          # /browse  位置/标签筛选浏览
 │   │   │   ├── ItemEntry.razor       # /entry   物品录入（拍照+AI+位置+标签）
 │   │   │   ├── ItemDetail.razor      # /items/{id} 物品详情+图片+删除
-│   │   │   ├── Login.razor           # /login   登录表单
-│   │   │   ├── Settings.razor        # /settings 设置页（位置/标签管理入口）
+│   │   │   ├── Login.razor           # /login   登录表单（含通行密钥登录）
+│   │   │   ├── Settings.razor        # /settings 设置页（位置/标签/通行密钥管理入口）
 │   │   │   └── NotFound.razor        # /not-found 404
 │   │   ├── Layout/                   # 布局
 │   │   │   └── MainLayout.razor      # 主题+顶栏+4Tab底栏+对话框/提示容器
-│   │   ├── Components/               # 可复用组件 (9 个)
-│   │   │   ├── ContinuityBanner.razor # 连续收纳绿色提示
-│   │   │   ├── SearchBar.razor       # 搜索文本框（去抖，未实际使用）
+│   │   ├── Components/               # 可复用组件 (12 个)
+│   │   │   ├── ContinuityBanner.razor    # 连续收纳绿色提示
+│   │   │   ├── SearchBar.razor          # 搜索文本框（去抖，未实际使用）
 │   │   │   ├── ConfirmDeleteDialog.razor # 删除确认弹窗
-│   │   │   ├── TagFilter.razor       # 多选标签芯片组
-│   │   │   ├── ItemCard.razor        # 物品网格卡片
-│   │   │   ├── LocationTree.razor    # 位置树选择器
+│   │   │   ├── TagFilter.razor          # 多选标签芯片组
+│   │   │   ├── ItemCard.razor           # 物品网格卡片
+│   │   │   ├── LocationTree.razor       # 位置树选择器
 │   │   │   ├── LocationManageDialog.razor # 位置 CRUD 弹窗
-│   │   │   ├── TagManageDialog.razor # 标签 CRUD 弹窗
-│   │   │   └── ImageUploader.razor   # 拍照/文件选择+预览
+│   │   │   ├── TagManageDialog.razor    # 标签 CRUD 弹窗
+│   │   │   ├── ImageUploader.razor      # 拍照/文件选择+预览
+│   │   │   ├── WebAuthnSetup.razor      # 通行密钥注册（Epic 10）
+│   │   │   ├── WebAuthnCredentialList.razor # 通行密钥凭据列表（Epic 10）
+│   │   │   └── PasskeyManageDialog.razor # 通行密钥管理弹窗（Epic 10）
 │   │   ├── Services/                 # 服务层 (9 个 .cs)
 │   │   │   ├── AppState.cs           # 全局状态（Singleton, 事件驱动）
 │   │   │   ├── AuthService.cs        # 登录/登出
@@ -70,13 +73,15 @@ BoxWise/                              # 解决方案根目录
 │   │   ├── Program.cs                # 入口: 服务注册, 中间件, 端点映射, 种子数据
 │   │   ├── appsettings.json          # 基础配置（连接字符串）
 │   │   ├── appsettings.Development.json # 开发配置
-│   │   ├── Endpoints/                # Minimal API 路由组 (6 个文件)
-│   │   │   ├── AuthEndpoints.cs      # /api/auth (login/logout/me)
-│   │   │   ├── LocationEndpoints.cs  # /api/locations (CRUD + children)
-│   │   │   ├── ItemEndpoints.cs      # /api/items (CRUD + search)
-│   │   │   ├── ImageEndpoints.cs     # /api/images (upload + serve)
-│   │   │   ├── TagEndpoints.cs       # /api/tags (CRUD)
-│   │   │   └── AiEndpoints.cs        # /api/ai (recognize)
+│   │   ├── Endpoints/                # Minimal API 路由组 (8 个文件)
+│   │   │   ├── AuthEndpoints.cs          # /api/auth (login/logout/me)
+│   │   │   ├── WebAuthnEndpoints.cs      # /api/auth/webauthn (通行密钥注册与登录)
+│   │   │   ├── AdminTwoFactorEndpoints.cs # /api/auth/admin-2fa (管理员 2FA 管理)
+│   │   │   ├── LocationEndpoints.cs      # /api/locations (CRUD + children)
+│   │   │   ├── ItemEndpoints.cs          # /api/items (CRUD + search)
+│   │   │   ├── ImageEndpoints.cs         # /api/images (upload + serve)
+│   │   │   ├── TagEndpoints.cs           # /api/tags (CRUD)
+│   │   │   └── AiEndpoints.cs            # /api/ai (recognize)
 │   │   ├── Data/                     # EF Core 数据层
 │   │   │   ├── AppDbContext.cs       # IdentityDbContext<AppUser>
 │   │   │   └── Configurations/       # Fluent API 实体配置
@@ -93,42 +98,91 @@ BoxWise/                              # 解决方案根目录
 │   │   │   ├── LocationRepository.cs
 │   │   │   ├── ItemRepository.cs
 │   │   │   └── TagRepository.cs
-│   │   ├── Services/                 # 业务服务
-│   │   │   ├── ImageStorageService.cs    # Singleton - 图片文件管理
-│   │   │   ├── ThumbnailService.cs       # Singleton - SkiaSharp 缩略图生成
-│   │   │   └── LlmClient.cs             # HttpClient - AI 集成
+│   │   ├── Services/                 # 业务服务 (11 个 .cs)
+│   │   │   ├── ImageStorageService.cs       # Singleton - 图片文件管理
+│   │   │   ├── ThumbnailService.cs          # Singleton - SkiaSharp 缩略图生成
+│   │   │   ├── LlmClient.cs                 # HttpClient - AI 集成
+│   │   │   ├── CsrfValidationFilter.cs      # CSRF 验证过滤器
+│   │   │   ├── TwoFactorService.cs          # 双因素认证核心服务
+│   │   │   ├── EmailTwoFactorService.cs     # 邮箱 2FA 验证码服务
+│   │   │   ├── WebAuthnService.cs           # FIDO2 WebAuthn 通行密钥服务
+│   │   │   ├── RecoveryCodeService.cs       # 恢复码生成与验证
+│   │   │   ├── SmtpConfigurationService.cs  # SMTP 配置管理服务
+│   │   │   ├── ISmtpConfigurationService.cs # SMTP 配置服务接口
+│   │   │   └── IdentityEmailSender.cs       # Identity 邮箱发送（MailKit）
 │   │   ├── Configuration/            # 选项配置
 │   │   │   └── LlmOptions.cs         # AI 客户端选项
 │   │   ├── Dtos/                     # Server 端 DTO (空，共用 Shared)
 │   │   ├── Pages/Admin/              # Admin Razor Pages (Server 端)
+│   │   │   ├── Index.cshtml          # 管理后台首页
+│   │   │   ├── CreateAccount.cshtml  # 创建用户
+│   │   │   ├── EditAccount.cshtml     # 编辑用户
+│   │   │   ├── ChangeUserPassword.cshtml # 修改用户密码
+│   │   │   ├── ResetTwoFactor.cshtml  # 重置用户 2FA
+│   │   │   └── SmtpSettings.cshtml    # SMTP 配置管理
 │   │   ├── Migrations/               # EF Core 迁移文件
 │   │   └── certs/                    # 开发证书
 │   │
 │   ├── BoxWise.Shared/               # [Part: shared] 共享 DTO
 │   │   ├── BoxWise.Shared.csproj     # SDK: Microsoft.NET.Sdk (纯类库)
-│   │   └── Dtos/                     # 共享 record 类型 (17 个)
+│   │   └── Dtos/                     # 共享 record 类型 (30 个)
 │   │       ├── LoginRequest.cs
 │   │       ├── AuthUserDto.cs
 │   │       ├── UserListItemDto.cs
 │   │       ├── CreateAccountRequest.cs
+│   │       ├── ChangePasswordRequest.cs
+│   │       ├── UpdateProfileRequest.cs
+│   │       ├── ReAuthenticateRequest.cs
 │   │       ├── LocationDto.cs
 │   │       ├── CreateLocationRequest.cs
 │   │       ├── RenameLocationRequest.cs
+│   │       ├── TagDto.cs
 │   │       ├── CreateTagRequest.cs
 │   │       ├── RenameTagRequest.cs
-│   │       ├── TagDto.cs
 │   │       ├── CreateItemRequest.cs
+│   │       ├── UpdateItemRequest.cs
 │   │       ├── ItemDto.cs
 │   │       ├── ItemSummaryDto.cs
 │   │       ├── UploadResultDto.cs
-│   │       └── RecognitionResultDto.cs
+│   │       ├── RecognitionResultDto.cs
+│   │       ├── TwoFactorStatusDto.cs
+│   │       ├── VerifyTwoFactorRequest.cs
+│   │       ├── SetupEmailTwoFactorRequest.cs
+│   │       ├── SwitchMethodRequest.cs
+│   │       ├── RecoveryCodesResponse.cs
+│   │       ├── WebAuthnChallengeResponse.cs
+│   │       ├── WebAuthnAvailableResponse.cs
+│   │       ├── WebAuthnCredentialDto.cs
+│   │       ├── AdminTwoFactorStatusResponse.cs
+│   │       ├── SmtpConfigDto.cs
+│   │       └── SmtpTestResult.cs
 │   │
 │   └── BoxWise.Server.Tests/         # [Part: tests] xUnit 测试
 │       ├── BoxWise.Server.Tests.csproj
-│       └── Repositories/             # Repository 层单元测试
-│           ├── LocationRepositoryTests.cs
-│           ├── ItemRepositoryTests.cs
-│           └── TagRepositoryTests.cs
+│       ├── TestDbContextFactory.cs         # InMemory DbContext 工厂
+│       ├── TestIdentityFactory.cs          # Identity 测试工厂
+│       ├── AdminUserManagementTests.cs     # Admin 用户管理测试
+│       ├── AuthEndpointsTests.cs           # 认证端点集成测试
+│       ├── Repositories/                   # Repository 层单元测试
+│       │   ├── LocationRepositoryTests.cs
+│       │   ├── ItemRepositoryTests.cs
+│       │   └── TagRepositoryTests.cs
+│       ├── Services/                       # 服务层单元测试
+│       │   ├── LlmClientTests.cs
+│       │   ├── ImageStorageServiceTests.cs
+│       │   ├── ThumbnailServiceTests.cs
+│       │   ├── CsrfValidationFilterTests.cs
+│       │   ├── PasswordValidatorTests.cs
+│       │   ├── RecoveryCodeServiceTests.cs
+│       │   ├── TwoFactorServiceTests.cs
+│       │   ├── EmailTwoFactorServiceTests.cs
+│       │   └── SmtpConfigurationServiceTests.cs
+│       └── Endpoints/                      # 端点集成测试
+│           ├── AuthEndpointsTests.cs
+│           ├── ItemEndpointsTests.cs
+│           ├── LocationEndpointsTests.cs
+│           ├── TagEndpointsTests.cs
+│           └── TwoFactorFlowE2ETests.cs
 │
 ├── docs/                             # 项目文档（本次生成）
 │   ├── index.md                      # 主索引入口
@@ -163,6 +217,8 @@ BoxWise/                              # 解决方案根目录
 | 客户端服务 | `src/BoxWise.Client/Services/*.cs` |
 | PWA 配置 | `src/BoxWise.Client/wwwroot/manifest.webmanifest` |
 | JS 互操作 | `src/BoxWise.Client/wwwroot/js/camera-capture.js` |
-| 测试 | `src/BoxWise.Server.Tests/Repositories/*.cs` |
+| Repository 测试 | `src/BoxWise.Server.Tests/Repositories/*.cs` |
+| Services 测试 | `src/BoxWise.Server.Tests/Services/*.cs` |
+| Endpoints 测试 | `src/BoxWise.Server.Tests/Endpoints/*.cs` |
 | CI/CD | `.github/workflows/release.yml` |
 | Docker | `Dockerfile`, `docker-compose.yml` |

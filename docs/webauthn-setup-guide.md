@@ -43,15 +43,23 @@ dotnet run
 项目默认配置位于 `Program.cs`：
 
 ```csharp
+var webAuthnOrigin = builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001";
 var fido2Config = new Fido2Configuration
 {
-    ServerDomain = "localhost",
+    ServerDomain = builder.Configuration["WebAuthn:ServerDomain"]
+        ?? new Uri(webAuthnOrigin).Host,
     ServerName = "BoxWise",
-    Origins = new HashSet<string> { "https://localhost:5001" }
+    Origins = new HashSet<string>
+    {
+        webAuthnOrigin,
+        // 开发环境同时允许两个 localhost 端口
+        "https://localhost:5000",
+        "https://localhost:5001"
+    }
 };
 ```
 
-可通过 `appsettings.Development.json` 覆盖：
+可通过 `appsettings.Development.json` 覆盖 `WebAuthn:Origin`：
 
 ```json
 {
@@ -61,6 +69,8 @@ var fido2Config = new Fido2Configuration
   }
 }
 ```
+
+**注意：** `Origins` 集合始终包含 `https://localhost:5000` 和 `https://localhost:5001` 两个端口，确保开发环境下无论用户使用哪个端口访问，通行密钥认证都能正常工作。`WebAuthn:Origin` 配置仅控制 `ServerDomain` 的 fallback 解析，不影响 `Origins` 的多端口支持。
 
 ---
 

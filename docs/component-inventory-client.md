@@ -4,7 +4,7 @@
 
 ## 概览
 
-- **UI 框架:** MudBlazor 9.4.0
+- **UI 框架:** MudBlazor 9.5.0
 - **组件模式:** 所有逻辑内嵌在 `.razor` 的 `@code {}` 块中
 - **JS 互操作:** `camera-capture.js` (ES Module)
 - **主题色:** Primary `#546E7A`, Secondary `#80CBC4`
@@ -34,12 +34,12 @@
 **MudBlazor:** `MudText`, `MudPaper`, `MudProgressCircular`, `MudTextField`, `MudDivider`, `MudButton`
 
 ### 5. Login.razor — `/login`
-Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门槛。
+Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门槛。支持通行密钥（Passkey）无密码登录。
 
 **MudBlazor:** `MudContainer`, `MudPaper`, `MudText`, `MudTextField`, `MudAlert`, `MudButton`
 
 ### 6. Settings.razor — `/settings`
-集中设置页。包含位置管理入口、标签管理入口、退出登录按钮。列表式入口 + 弹窗模式。
+集中设置页。包含位置管理入口、标签管理入口、通行密钥凭证管理入口、退出登录按钮。列表式入口 + 弹窗模式。
 
 **MudBlazor:** `MudText`, `MudIcon`, `MudDivider`, `MudPaper`
 
@@ -48,7 +48,7 @@ Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门
 
 ---
 
-## 可复用组件 (9)
+## 可复用组件 (12)
 
 ### ContinuityBanner.razor
 "连续收纳中"绿色提示横幅。读取 `AppState.ContinuousLocationId`，显示当前收纳位置并提供"取消连续收纳"按钮。
@@ -101,6 +101,24 @@ Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门
 **参数:** `EventCallback<PhotoCapture> PhotoCaptured`
 **注入:** `IJSRuntime`
 **MudBlazor:** `MudButton`, `MudProgressCircular`, `MudText`, `MudPaper`
+
+### WebAuthnSetup.razor
+通行密钥注册组件。调用 WebAuthn API 注册通行密钥，注册成功后显示恢复码。
+
+**注入:** `AuthService`
+**MudBlazor:** `MudButton`, `MudAlert`, `MudProgressCircular`
+
+### WebAuthnCredentialList.razor
+已注册通行密钥凭据列表。显示设备名称、注册时间、凭据 ID，支持删除。
+
+**注入:** `AuthService`
+**MudBlazor:** `MudTable`, `MudButton`, `MudText`
+
+### PasskeyManageDialog.razor
+通行密钥管理弹窗（设置页调用）。列出并管理已注册的通行密钥，支持删除和查看恢复码。
+
+**参数:** 无（通过 `AuthService` 注入读取）
+**MudBlazor:** `MudDialog`, `MudButton`, `MudText`
 
 ---
 

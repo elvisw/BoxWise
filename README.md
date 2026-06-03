@@ -473,13 +473,19 @@ BoxWise/
 
 | 文档 | 说明 |
 |------|------|
-| [WebAuthn 通行密钥配置指南](docs/webauthn-setup-guide.md) | 通行密钥生产环境配置 |
-| [Identity 脚手架修改记录](docs/identity-scaffold-modifications.md) | Areas/Identity/ 下文件的修改清单 |
-| [部署指南](docs/deployment-guide.md) | 详细部署步骤 |
-| [API 合约](docs/api-contracts-server.md) | 服务端 API 接口定义 |
-| [数据模型](docs/data-models-server.md) | 数据库实体关系 |
-| [架构概览](docs/architecture-server.md) | 服务端架构说明 |
-| [认证与安全](docs/auth-security.md) | 认证流程与安全策略 |
+| [WebAuthn 通行密钥配置指南](docs/webauthn-setup-guide.md) | 通行密钥注册、登录、生产环境 origin 配置 |
+| [Identity 脚手架修改记录](docs/identity-scaffold-modifications.md) | Areas/Identity/ 下所有文件的修改清单（持续维护） |
+| [部署指南](docs/deployment-guide.md) | 二进制 / Docker / Windows 部署详细步骤 |
+| [开发指南](docs/development-guide.md) | 本地开发环境搭建、调试、测试运行 |
+| [API 合约](docs/api-contracts-server.md) | 服务端 Minimal API 端点定义与请求/响应格式 |
+| [数据模型](docs/data-models-server.md) | 数据库实体（AppUser/Item/Location/Tag/RecoveryCode/WebAuthnCredential）与关系 |
+| [服务端架构](docs/architecture-server.md) | 路由组、服务层、中间件、项目分层 |
+| [客户端架构](docs/architecture-client.md) | Blazor WASM 组件树、服务层、状态管理 |
+| [共享层架构](docs/architecture-shared.md) | Shared 项目 DTO 清单与分类 |
+| [认证与安全](docs/auth-security.md) | Identity Cookie 认证、2FA（TOTP/WebAuthn）、速率限制、CSRF |
+| [集成架构](docs/integration-architecture.md) | Client-Server 数据流、跨源通信、认证桥接 |
+| [客户端组件清单](docs/component-inventory-client.md) | Blazor 组件与 MudBlazor 使用情况 |
+| [源码树分析](docs/source-tree-analysis.md) | 完整项目文件清单与目录结构 |
 
 ## 版本管理
 

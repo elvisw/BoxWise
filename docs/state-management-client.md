@@ -16,7 +16,9 @@ builder.Services.AddSingleton<AppState>();
 | 属性 | 类型 | 说明 |
 |------|------|------|
 | `CurrentUserName` | `string?` | 当前登录用户名，null = 未登录 |
+| `CurrentUserEmail` | `string?` | 当前登录用户邮箱，null = 未登录 |
 | `IsAdmin` | `bool` | 管理员标志 |
+| `IsPasswordManagedByEnv` | `bool` | 密码是否由环境变量管理（不可修改） |
 | `IsLoggedIn` | `bool` (计算) | `CurrentUserName is not null` |
 | `ContinuousLocationId` | `int?` | 连续收纳模式的位置 ID |
 | `ContinuousLocationName` | `string?` | 连续收纳模式的位置名称 |
@@ -25,7 +27,7 @@ builder.Services.AddSingleton<AppState>();
 
 | 方法 | 说明 |
 |------|------|
-| `SetUser(userName, isAdmin)` | 登录成功后设置用户状态 |
+| `SetUser(userName, isAdmin, isPasswordManagedByEnv, email)` | 登录成功后设置用户状态 |
 | `Clear()` | 登出时清空所有状态 |
 | `SetContinuousLocation(locationId, locationName)` | 保存物品后预填下次位置 |
 | `ClearContinuousLocation()` | 取消连续收纳模式 |
@@ -62,7 +64,7 @@ builder.Services.AddScoped<AuthenticationStateProvider>(sp =>
 
 **工作流:**
 1. 浏览器加载 → `GetAuthenticationStateAsync()` 调用 `GET /api/auth/me`
-2. Cookie 有效 → 构建 `ClaimsPrincipal` (Name claim + "IsAdmin" claim)
+2. Cookie 有效 → 从 `AuthUserDto` 解析 `UserName`, `IsAdmin`, `IsPasswordManagedByEnv`, `Email`，通过 `AppState.SetUser()` 同步到全局状态，构建 `ClaimsPrincipal` (Name claim + "IsAdmin" claim)
 3. Cookie 无效/过期 → 返回匿名 `ClaimsPrincipal`
 4. `AuthorizeRouteView` 自动响应认证状态变化
 

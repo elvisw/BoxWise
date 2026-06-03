@@ -11,7 +11,7 @@
 
 ### Client — Blazor WASM PWA
 - **类型:** Web 前端
-- **技术栈:** .NET 10, Blazor WebAssembly, MudBlazor 9.4
+- **技术栈:** .NET 10, Blazor WebAssembly, MudBlazor 9.5
 - **根目录:** `src/BoxWise.Client/`
 
 ### Server — ASP.NET Core API
@@ -43,9 +43,9 @@
 
 ### 专项文档
 
-- [API 合约 - Server](./api-contracts-server.md) — 全部 6 组端点
+- [API 合约 - Server](./api-contracts-server.md) — 全部 8 组端点
 - [数据模型](./data-models-server.md) — EF Core 实体与数据库
-- [UI 组件清单](./component-inventory-client.md) — 7 页面 + 9 组件
+- [UI 组件清单](./component-inventory-client.md) — 7 页面 + 12 组件
 - [状态管理](./state-management-client.md) — AppState + 认证状态
 
 ## 已有文档（项目自带）
@@ -101,4 +101,4 @@ Admin__Password="your-password" dotnet run
 
 ---
 
-**文档生成日期:** 2026-05-27 | **扫描级别:** 详尽扫描 | **工作流版本:** 1.2.0
+**文档生成日期:** 2026-06-03 | **Epic 状态:** 1-11 全部完成 | **工作流版本:** 1.3.0

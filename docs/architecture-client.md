@@ -11,7 +11,7 @@ BoxWise.Client 是基于 Blazor WebAssembly 的单页应用（SPA），采用 Mu
 | 层 | 技术 | 版本 |
 |----|------|------|
 | 运行时 | .NET Blazor WebAssembly | 10.0 |
-| UI | MudBlazor | 9.4.0 |
+| UI | MudBlazor | 9.5.0 |
 | 认证 | ASP.NET Core Identity + Cookie | 10.0.8 |
 | PWA | Service Worker + Web Manifest | - |
 | JS 互操作 | IJSRuntime + ES Modules | - |
@@ -27,11 +27,12 @@ MainLayout (主题/导航容器)
 │   ├── Browse        → ItemService, LocationTree, TagFilter
 │   ├── ItemEntry     → ItemEntryService, AiService, ImageUploader
 │   ├── ItemDetail    → ItemService
-│   ├── Login         → AuthService
-│   ├── Settings      → AuthService, LocationManageDialog, TagManageDialog
+│   ├── Login         → AuthService (含通行密钥登录)
+│   ├── Settings      → AuthService, LocationManageDialog, TagManageDialog, WebAuthnSetup, WebAuthnCredentialList
 │   └── NotFound
-├── Components/ (9 可复用组件)
-│   └── ItemCard, LocationTree, TagFilter, ImageUploader...
+├── Components/ (12 可复用组件)
+│   ├── 核心: ItemCard, LocationTree, TagFilter, ImageUploader...
+│   └── Epic 10-11 新增: WebAuthnSetup, WebAuthnCredentialList, PasskeyManageDialog
 ├── Services/ (9 服务类)
 │   └── HttpClient → Server API
 └── Shared DTOs (BoxWise.Shared)
@@ -40,7 +41,7 @@ MainLayout (主题/导航容器)
 ## 数据架构
 
 ### 状态管理
-- **AppState** (Singleton): 全局用户状态 + 连续收纳模式
+- **AppState** (Singleton): 全局用户状态（用户名、邮箱、管理员标志、连续收纳模式）
 - **CookieAuthenticationStateProvider**: Blazor ↔ ASP.NET Identity 桥接
 - **组件本地状态**: 每个页面维护自己的加载/错误/数据字段
 - **EventCallback**: 父子组件数据流
@@ -69,13 +70,15 @@ MainLayout (主题/导航容器)
 2. **Browse** — 位置树 + 标签芯片双筛选
 3. **ItemEntry** — 拍照 → AI → 表单 → 保存流程
 4. **ItemDetail** — 详情 + 图片 + 删除确认
-5. **Settings** — 列表入口 + 弹窗管理
+5. **Settings** — 列表入口 + 弹窗管理，含通行密钥凭证管理
 
 ### 关键组件
 - **ImageUploader** — JS 互操作调起原生相机（`capture="environment"`）
 - **LocationTree** — `MudTreeView<LocationDto>` 树形选择
 - **TagFilter** — `MudChipSet` 多选标签
 - **LocationManageDialog / TagManageDialog** — 完整 CRUD 弹窗
+- **WebAuthnSetup / WebAuthnCredentialList** — 通行密钥注册与凭证管理（Epic 10）
+- **PasskeyManageDialog** — 无密码登录密钥管理弹窗（Epic 10）
 
 ## 开发工作流
 
