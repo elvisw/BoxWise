@@ -1,17 +1,75 @@
 # 箱知 · BoxWise
 
-家庭物品收纳管理 PWA。拍照→AI 识别→选位置→保存，搜一下就知道东西在哪。
+把家变成可搜索的。拍照、AI 识别、分类存放——再也不用翻箱倒柜找东西。
+
+家庭物品收纳管理 PWA（Progressive Web App，渐进式 Web 应用）。
+
+[查看最新版本](https://github.com/elvisw/BoxWise/releases)
+
+---
+
+## 功能一览
+
+- **拍照录入 + AI 识别** — 拍照后自动识别物品名称，支持 OpenAI 兼容 API（15s 超时静默降级为手动输入）
+- **层级位置管理** — 用户自定义任意深度位置树，物化路径（通过存储完整路径字符串实现任意深度层级）
+- **标签系统** — 多对多标签，跨位置组合筛选
+- **连续收纳** — 录入时自动继承上次使用的位置
+- **全文搜索** — 模糊匹配物品名称、备注、标签
+- **缩略图网格浏览** — 响应式 2/3/4/6 列自适应布局
+- **位置 + 标签组合筛选** — 浏览时按位置树与标签交叉筛选
+- **物品详情查看与编辑** — 点击卡片进入详情页，可编辑完整信息
+- **物品删除（级联）** — 删除物品时自动清理关联的原图与缩略图
+- **缩略图自动生成** — 300px + 1200px 两级缩略图（SkiaSharp），后台异步生成
+- **TOTP 双因素认证** — TOTP（Time-based One-Time Password，基于时间的一次性密码）身份验证器
+- **WebAuthn 通行密钥** — 支持指纹、面容、硬件密钥（如 YubiKey）
+- **PWA 安装与离线浏览** — 安装到桌面，离线查看已缓存的物品信息
+- **Admin 后台** — 独立 Razor Pages 管理界面，支持账户管理、2FA 重置、SMTP 在线配置
+- **速率限制** — API 端点速率保护
 
 ## 技术栈
 
-| 层 | 技术 |
-|----|------|
-| 前端 | Blazor WASM (PWA) + MudBlazor 9.x |
-| 后端 | ASP.NET Core Minimal API (.NET 10) |
-| 数据库 | SQLite + EF Core |
-| 认证 | ASP.NET Core Identity + Cookie |
-| AI | OpenAI 兼容 Vision API |
-| 图片 | SkiaSharp (300px + 1200px 缩略图) |
+| 层 | 技术 | 版本 |
+|----|------|------|
+| 前端 | Blazor WASM (PWA) + MudBlazor | .NET 10 / 9.x |
+| 后端 | ASP.NET Core Minimal API | .NET 10 |
+| 数据库 | SQLite + EF Core | 10.0 |
+| 认证 | ASP.NET Core Identity + Cookie | 10.0 |
+| AI | OpenAI 兼容 Vision API | — |
+| 图片处理 | SkiaSharp | 3.x |
+| 反向代理 | Caddy / IIS / Nginx | — |
+
+## 快速开始（本地开发）
+
+本地开发零配置即可运行，无需数据库、无需 AI 密钥。
+
+```bash
+# 构建 + 测试
+dotnet build BoxWise.slnx
+dotnet test BoxWise.slnx
+
+# 启动 Server（API + Admin 后台 + Blazor WASM 静态回退）
+cd src/BoxWise.Server && dotnet run
+# → https://localhost:5000
+
+# （推荐）启动 Client 开发服务器（Blazor WASM 热重载）
+cd src/BoxWise.Client && dotnet run
+# → https://localhost:5001
+```
+
+**开发入口选择：**
+
+| 地址 | 提供内容 | 热重载 | 推荐场景 |
+|------|---------|--------|---------|
+| `https://localhost:5001` | Blazor WASM 页面（Client 开发服务器） | 有 | **日常 UI 开发（推荐）** |
+| `https://localhost:5000` | API + Admin + WASM 静态回退（Server） | 无 | 测试 Admin / 完整集成测试 |
+
+> **日常开发用 `https://localhost:5001`。** API 请求通过 `wwwroot/appsettings.Development.json` 中的 `ApiBaseUrl` 配置自动跨源发送到 5000 端口。Admin 后台（`/admin`）是 Server 端 Razor Pages，在 5001 点击"管理后台"按钮自动跳转到 5000。
+>
+> **仅需一个端口时**，只启动 Server，访问 `https://localhost:5000` 即可同时使用页面 + API + Admin。
+>
+> **生产环境无需配置 `ApiBaseUrl`** — 不配置时 `Http.BaseAddress` 为 null，所有请求走同源，Admin 链接走 `/admin`。
+
+登录：`admin` / `BoxWise!2024Dev`
 
 ## 配置
 
@@ -27,11 +85,12 @@
 
 配置键名：
 
-| 配置键（JSON） | 环境变量 | 说明 |
-|---------------|---------|------|
-| `Admin:Username` | `Admin__Username` | 管理员用户名，默认 `admin` |
-| `Admin:Email` | `Admin__Email` | 管理员邮箱，默认 `admin@boxwise.local` |
-| `Admin:Password` | `Admin__Password` | 管理员密码（必填） |
+| 配置键（JSON） | 环境变量 | 默认值 | 说明 |
+|---------------|---------|--------|------|
+| `Admin:Username` | `Admin__Username` | `admin` | 管理员用户名 |
+| `Admin:Email` | `Admin__Email` | `admin@boxwise.local` | 管理员邮箱 |
+| `Admin:Password` | `Admin__Password` | （空） | 管理员密码（必填） |
+| `ConnectionStrings:DefaultConnection` | `ConnectionStrings__DefaultConnection` | `Data Source=data/boxwise.db` | SQLite 数据库路径 |
 
 行为说明：
 
@@ -113,38 +172,7 @@ SMTP 邮件服务用于发送账户相关邮件（如邮箱修改确认）。登
 
 > **快速配置：** 开发环境开箱即用（`localhost` HTTPS）。生产环境需配置 `WebAuthn:Origin` 和 `WebAuthn:ServerDomain`。
 
-## 运行
-
-### 本地开发
-
-```bash
-# 构建 + 测试
-dotnet build BoxWise.slnx
-dotnet test BoxWise.slnx
-
-# 启动 Server（API + Admin 后台 + Blazor WASM 静态回退）
-cd src/BoxWise.Server && dotnet run
-# → https://localhost:5000
-
-# （推荐）启动 Client 开发服务器（Blazor WASM 热重载）
-cd src/BoxWise.Client && dotnet run
-# → https://localhost:5001
-```
-
-**开发入口选择：**
-
-| 地址 | 提供内容 | 热重载 | 推荐场景 |
-|------|---------|--------|---------|
-| `https://localhost:5001` | Blazor WASM 页面 | 有 | **日常 UI 开发（推荐）** |
-| `https://localhost:5000` | API + Admin + WASM 静态回退 | 无 | 测试 Admin / 集成测试 |
-
-> **日常开发用 `https://localhost:5001`。** API 请求通过 `wwwroot/appsettings.Development.json` 中的 `ApiBaseUrl` 配置自动跨源发送到 5000 端口。Admin 后台（`/admin`）是 Server 端 Razor Pages，在 5001 点击"管理后台"按钮自动跳转到 5000。
->
-> **仅需一个端口时**，只启动 Server，访问 `https://localhost:5000` 即可同时使用页面 + API + Admin。
->
-> **生产环境无需配置 `ApiBaseUrl`** — 不配置时 `Http.BaseAddress` 为 null，所有请求走同源，Admin 链接走 `/admin`。
-
-登录: `admin` / `BoxWise!2024Dev`
+## 部署
 
 ### 二进制部署（Linux VPS）
 
@@ -159,17 +187,46 @@ curl -L https://github.com/elvisw/BoxWise/releases/latest/download/boxwise-linux
 # 2. 解压到服务器
 sudo mkdir -p /opt/boxwise
 sudo tar -xzf boxwise-linux-x64.tar.gz -C /opt/boxwise
-mkdir -p /opt/boxwise/data/images
+sudo mkdir -p /opt/boxwise/data/images
 
-# 3. 安装 .NET Runtime（如未安装）
-# Ubuntu/Debian:
-wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
-chmod +x dotnet-install.sh
-./dotnet-install.sh --channel 10.0 --runtime aspnetcore
-# Fedora/CentOS:
-sudo dnf install dotnet-runtime-10.0
+# 3. 创建专用系统用户
+sudo useradd -r -s /bin/false boxwise
+sudo chown -R boxwise:boxwise /opt/boxwise
 
-# 4. 创建生产配置（AI 可选，不做 AI 可跳过）
+# 4. 创建环境变量文件
+sudo cat > /opt/boxwise/.env << 'EOF'
+Admin__Username=admin
+Admin__Email=admin@你的域名
+Admin__Password=你的强密码
+EOF
+sudo chmod 600 /opt/boxwise/.env
+
+# 5. 安装 .NET Runtime（如未安装）
+# 注意：以下 APT/DNF 方式仅支持 x64 架构。
+# ARM64 Ubuntu 可直接使用官方源；其他 ARM 架构请用 dotnet-install.sh。
+#
+# Ubuntu 24.04+：直接使用 Ubuntu 官方源（无需额外配置）
+sudo apt-get update && sudo apt-get install -y aspnetcore-runtime-10.0
+
+# Ubuntu 22.04：需先安装 add-apt-repository（最小化安装可能缺失），再添加 backports PPA
+sudo apt-get update && sudo apt-get install -y software-properties-common
+sudo add-apt-repository -y ppa:dotnet/backports
+sudo apt-get update && sudo apt-get install -y aspnetcore-runtime-10.0
+
+# Debian 13（Trixie）
+wget https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb
+sudo apt-get update && sudo apt-get install -y aspnetcore-runtime-10.0
+
+# Debian 12（Bookworm）
+wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+sudo dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb
+sudo apt-get update && sudo apt-get install -y aspnetcore-runtime-10.0
+
+# Fedora 42+：
+sudo dnf install aspnetcore-runtime-10.0
+
+# 6. 创建 AI 识别配置（可选，详见"配置 → AI 识别"章节）
 sudo cat > /opt/boxwise/appsettings.Production.json << 'EOF'
 {
   "Llm": {
@@ -180,22 +237,22 @@ sudo cat > /opt/boxwise/appsettings.Production.json << 'EOF'
 }
 EOF
 
-# 5. 安装 systemd 服务
+# 7. 安装 systemd 服务
 sudo cat > /etc/systemd/system/boxwise.service << 'EOF'
 [Unit]
 Description=BoxWise Server
 After=network.target
 
 [Service]
+User=boxwise
+Group=boxwise
 WorkingDirectory=/opt/boxwise
-ExecStart=dotnet /opt/boxwise/BoxWise.Server.dll
+ExecStart=/usr/bin/dotnet /opt/boxwise/BoxWise.Server.dll
 Restart=always
 RestartSec=10
+EnvironmentFile=/opt/boxwise/.env
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=ASPNETCORE_URLS=http://+:5000
-Environment=Admin__Username=admin
-Environment=Admin__Email=admin@你的域名
-Environment=Admin__Password=你的强密码
 Environment=DataDirectory=/opt/boxwise/data
 
 [Install]
@@ -213,17 +270,25 @@ sudo apt install caddy
 
 # /etc/caddy/Caddyfile
 你的域名 {
-    root * /opt/boxwise/wwwroot
-    try_files {path} /index.html
-    file_server
+    handle /api/* {
+        reverse_proxy localhost:5000
+    }
+    handle /admin/* {
+        reverse_proxy localhost:5000
+    }
+    handle {
+        root * /opt/boxwise/wwwroot
+        try_files {path} /index.html
+        file_server
+    }
     encode gzip
-    reverse_proxy /api/* localhost:5000
-    reverse_proxy /admin/* localhost:5000
     header /api/images/* Cache-Control "public, max-age=86400"
 }
 
 sudo systemctl restart caddy
 ```
+
+> **Caddy 路由说明：** 使用 `handle` 块明确分离路由，避免 `try_files` + `file_server` 在 `reverse_proxy` 之前拦截 API 请求。二进制部署中 Caddy 直接提供 `wwwroot/` 下的静态文件，仅将 `/api/*` 和 `/admin/*` 请求转发到 Kestrel。
 
 ### 二进制部署（Windows Server）
 
@@ -239,18 +304,12 @@ Invoke-WebRequest -Uri "https://github.com/elvisw/BoxWise/releases/latest/downlo
 Expand-Archive -Path boxwise-win-x64.zip -DestinationPath "C:\BoxWise"
 New-Item -ItemType Directory -Force -Path "C:\BoxWise\data\images"
 
-# 3. 创建生产配置（AI 可选）
-@'
-{
-  "Llm": {
-    "BaseUrl": "https://api.openai.com/v1",
-    "ApiKey": "sk-xxx",
-    "Model": "gpt-4o-mini"
-  }
-}
-'@ | Out-File -FilePath "C:\BoxWise\appsettings.Production.json" -Encoding UTF8
+# 3. 配置管理员信息（可通过系统环境变量或 appsettings.Production.json 设置）
+#    详见"配置 → 管理员账户"章节
 
-# 4. 直接运行测试
+# 4. 配置 AI（可选，详见"配置 → AI 识别"章节）
+
+# 5. 直接运行测试
 $env:ASPNETCORE_ENVIRONMENT = "Production"
 $env:ASPNETCORE_URLS = "http://+:5000"
 $env:Admin__Username = "admin"
@@ -265,7 +324,9 @@ dotnet C:\BoxWise\BoxWise.Server.dll
 1. 安装 [ASP.NET Core Hosting Bundle](https://dotnet.microsoft.com/download/dotnet/10.0)（选择 Hosting Bundle 下载）
 2. IIS 管理器 → 应用程序池 → 添加应用程序池 → 名称 `BoxWise`，.NET CLR 版本选"无托管代码"
 3. 添加网站 → 物理路径 `C:\BoxWise\`，端口 `80`，应用程序池 `BoxWise`
-4. IIS 自动通过 ASP.NET Core Module（ANCM）将请求转发到 Kestrel，无需额外配置反向代理
+4. IIS 自动通过 ASP.NET Core Module（ANCM，ASP.NET Core 模块）将请求转发到 Kestrel，无需额外配置反向代理
+
+> **IIS 环境变量配置：** 可通过系统环境变量或 IIS 的 `web.config` 中的 `<environmentVariables>` 节设置 `Admin__Username`、`Admin__Email`、`Admin__Password`。
 
 **注册为 Windows 服务（无 IIS 方案）：**
 
@@ -280,6 +341,8 @@ sc.exe description "BoxWise" "箱知 · BoxWise 家庭物品管理服务"
 sc.exe start "BoxWise"
 ```
 
+> **Windows 服务环境变量：** `sc.exe` 不支持直接传递环境变量。建议在 `C:\BoxWise\appsettings.Production.json` 中配置管理员信息（参考"配置 → 管理员账户"章节）。
+>
 > **路径差异：** Windows 版归档文件名为 `boxwise-win-x64.zip`，Linux 版为 `boxwise-linux-x64.tar.gz`。
 >
 > **自包含发布：** 如需在未安装 .NET Runtime 的机器上运行，可手动执行 `dotnet publish -c Release -r win-x64 --self-contained true`。
@@ -288,20 +351,16 @@ sc.exe start "BoxWise"
 
 **前置条件：** Docker + Docker Compose、域名指向服务器 IP。
 
+> **Docker Caddyfile 说明：** Docker 场景下 Caddy 和 boxwise 是独立容器，SPA 静态文件位于 boxwise 容器中。因此 Caddyfile 将所有请求（包括根路径）反向代理到 `boxwise:5000`，与二进制部署中 Caddy 直接提供静态文件的配置不同。
+
 ```bash
-# 1. 创建生产配置（AI 可选）
-cat > src/BoxWise.Server/appsettings.Production.json << 'EOF'
-{
-  "Llm": {
-    "BaseUrl": "https://api.openai.com/v1",
-    "ApiKey": "sk-xxx",
-    "Model": "gpt-4o-mini"
-  }
-}
-EOF
+# 1. 配置 AI（可选，详见"配置 → AI 识别"章节）
 
 # 2. 修改 Caddyfile 中的域名
+# Linux
 sed -i 's/boxwise.example.com/你的域名/' Caddyfile
+# macOS（BSD sed）
+# sed -i '' 's/boxwise.example.com/你的域名/' Caddyfile
 
 # 3. 修改 docker-compose.yml 中的管理员密码
 #    将 Admin__Password=请替换为强密码 改为实际密码
@@ -314,6 +373,21 @@ docker compose ps
 docker compose logs -f
 ```
 
+**默认 Caddyfile（Docker 场景）：**
+
+```caddyfile
+# 将 boxwise.example.com 替换为你的实际域名
+boxwise.example.com {
+    reverse_proxy /api/* boxwise:5000
+    reverse_proxy /admin/* boxwise:5000
+    reverse_proxy * boxwise:5000
+    encode gzip
+    header /api/images/* Cache-Control "public, max-age=86400"
+}
+```
+
+> **注意：** Docker 场景的 Caddyfile 与二进制部署不同 — Caddy 容器中不包含 SPA 静态文件，所有请求（含根路径）均反向代理到 boxwise 容器。由 boxwise 容器内的 ASP.NET Core 负责 SPA 回退（`MapFallbackToFile("index.html")`）。
+
 **持久化目录：**
 
 | 路径 | 内容 |
@@ -323,6 +397,8 @@ docker compose logs -f
 | `./data/caddy/` | Caddy TLS 证书 |
 
 容器重启后数据完整保留。
+
+> **Docker 版本号说明：** 因 `.dockerignore` 排除 `.git/` 目录，Docker 构建时 `git describe` 无法获取标签，版本号始终回退到 `v1.0.0`。如需嵌入真实版本，可在宿主机构建后 COPY 发布产物进镜像。
 
 ## 日常使用
 
@@ -339,35 +415,52 @@ docker compose logs -f
 ```
 BoxWise/
 ├── src/
-│   ├── BoxWise.Client/        # Blazor WASM (PWA)
-│   │   ├── Pages/             # 页面组件
-│   │   ├── Components/        # 可复用组件
-│   │   └── Services/          # HTTP 客户端服务
-│   ├── BoxWise.Server/        # ASP.NET Core Web API
-│   │   ├── Endpoints/         # Minimal API 路由
-│   │   ├── Repositories/      # 数据访问层
-│   │   ├── Services/          # 业务逻辑 + AI + 图片
-│   │   ├── Models/            # EF Core 实体
-│   │   └── Data/              # DbContext + Configurations
-│   └── BoxWise.Shared/        # 共享 DTO
-├── Dockerfile                 # 多阶段构建
-├── docker-compose.yml         # 双服务编排
-├── Caddyfile                  # 反向代理配置
-└── CLAUDE.md                  # AI 辅助开发上下文
+│   ├── BoxWise.Client/              # Blazor WASM (PWA)
+│   │   ├── Pages/                   # 页面组件
+│   │   ├── Components/              # 可复用组件
+│   │   └── Services/                # HTTP 客户端服务
+│   ├── BoxWise.Server/              # ASP.NET Core Web API
+│   │   ├── Endpoints/               # Minimal API 路由
+│   │   ├── Repositories/            # 数据访问层
+│   │   ├── Services/                # 业务逻辑 + AI + 图片处理
+│   │   │   ├── TwoFactorService.cs
+│   │   │   ├── RecoveryCodeService.cs
+│   │   │   ├── LlmClient.cs
+│   │   │   ├── ImageStorageService.cs
+│   │   │   ├── ThumbnailService.cs
+│   │   │   └── IdentityEmailSender.cs
+│   │   ├── Models/                  # EF Core 实体
+│   │   ├── Data/                    # DbContext + Configurations
+│   │   ├── Configuration/           # 配置选项类
+│   │   ├── Areas/
+│   │   │   └── Identity/
+│   │   │       └── Pages/
+│   │   │           └── Account/     # Identity 脚手架 Razor Pages
+│   │   ├── Pages/
+│   │   │   └── Admin/               # Admin Razor Pages 管理后台
+│   │   ├── Migrations/              # EF Core 迁移
+│   │   └── wwwroot/                 # 静态资源
+│   ├── BoxWise.Shared/              # 共享 DTO
+│   └── BoxWise.Server.Tests/        # xUnit 单元测试
+├── docs/                            # 项目文档
+├── .github/workflows/               # CI/CD 配置
+├── Dockerfile                       # 多阶段构建
+├── docker-compose.yml               # 双服务编排
+├── Caddyfile                        # 反向代理配置（Docker 场景）
+└── CLAUDE.md                        # AI 辅助开发上下文
 ```
 
-## 功能
+## 相关文档
 
-- 物品拍照录入 + AI 自动识别（OpenAI 兼容 API，15s 超时静默降级）
-- 层级位置管理（用户自定义深度，物化路径）
-- 标签系统（多对多，跨位置筛选）
-- 连续收纳（自动继承位置）
-- 全文搜索（模糊匹配名称/备注/标签）
-- 缩略图网格浏览（响应式 2/3/4/6 列）
-- 位置 + 标签组合筛选
-- 物品删除（级联清理图片文件）
-- PWA（安装到桌面 + 离线浏览缓存图片）
-- 管理员后台（Razor Pages，创建家庭账户）
+| 文档 | 说明 |
+|------|------|
+| [WebAuthn 通行密钥配置指南](docs/webauthn-setup-guide.md) | 通行密钥生产环境配置 |
+| [Identity 脚手架修改记录](docs/identity-scaffold-modifications.md) | Areas/Identity/ 下文件的修改清单 |
+| [部署指南](docs/deployment-guide.md) | 详细部署步骤 |
+| [API 合约](docs/api-contracts-server.md) | 服务端 API 接口定义 |
+| [数据模型](docs/data-models-server.md) | 数据库实体关系 |
+| [架构概览](docs/architecture-server.md) | 服务端架构说明 |
+| [认证与安全](docs/auth-security.md) | 认证流程与安全策略 |
 
 ## 版本管理
 
@@ -389,19 +482,78 @@ dotnet build                    # 3. 本地构建自动读取标签作为版本�
 
 **工作原理：** `Directory.Build.targets` 中的 MSBuild Target 在 `dotnet build` 前自动执行 `git describe --tags`，提取版本号写入程序集属性。关于页面（`/about`）读取并显示。
 
-> **CI/Docker 注意事项：** CI 构建前需 `git fetch --tags` 获取标签。Docker 构建因 `.dockerignore` 排除 `.git/` 目录，版本号始终回退到 `1.0.0`；如需嵌入真实版本，应在宿主机构建后 COPY 发布产物进镜像。
+> **CI/Docker 注意事项：** CI 构建前需 `git fetch --tags` 获取标签。
+
+## CI/CD
+
+- **平台：** GitHub Actions
+- **触发条件：**
+  - 推标签 `v*` → 构建发布包 + 创建 GitHub Release
+  - 推 `main` 分支 / Pull Request → build + test
+- **产物：**
+  - `boxwise-linux-x64.tar.gz` — Linux 二进制发布包
+  - `boxwise-win-x64.zip` — Windows 二进制发布包
+- **配置：** [`.github/workflows/release.yml`](.github/workflows/release.yml)
+
+## 已知限制
+
+1. **.NET 10 `GetTwoFactorAuthenticationUserAsync()` Bug**（[dotnet/aspnetcore#66929](https://github.com/dotnet/aspnetcore/issues/66929)）— 影响 2FA 用户登录流程。Workaround 已就位（内联 `HttpContext.AuthenticateAsync` + `FindByIdAsync`）。待上游修复后移除。
+
+2. **Docker 构建版本号始终回退 v1.0.0** — `.dockerignore` 排除了 `.git/` 目录，构建时 `git describe` 无法获取标签。宿主机构建后 COPY 发布产物进镜像可解决。
+
+3. **ConfiguredMethods 同步** — Identity 页面操作（如邮箱修改）不自动更新 `AppUser` 的自定义扩展字段，需手动调用 `ConfiguredMethods` 同步。
+
+4. **Email 2FA 登录路径已退役** — 自 v0.11 起移除 Email 验证码双因素登录，当前仅支持 TOTP + WebAuthn。SMTP 配置仅用于 Identity 邮箱管理功能。
 
 ## 维护
 
 ```bash
-# EF Core 迁移
+# EF Core 迁移（开发环境）
 cd src/BoxWise.Server
 dotnet ef migrations add <MigrationName>
 dotnet ef database update
+```
 
-# 备份数据
+> **自动迁移：** 新版本启动时自动执行 EF Core 迁移（`MigrateAsync()`），无需手动 `dotnet ef database update`。**升级前请先备份数据。**
+
+### 数据备份
+
+```bash
+# 需备份的完整目录：
+#   data/boxwise.db  — SQLite 数据库
+#   data/images/     — 物品图片
+#   data/keys/       — Data Protection 密钥环
+
+# Linux 二进制部署
 cp -r data/ backup-$(date +%Y%m%d)/
 
+# Docker 部署
+docker compose exec boxwise cp -r /app/data /app/data-backup-$(date +%Y%m%d)
+# 或从宿主机直接复制
+sudo cp -r ./data/ ./backup-$(date +%Y%m%d)/
+```
+
+> **Data Protection 密钥警告：** `data/keys/` 目录存储 ASP.NET Core Data Protection 密钥环，用于加密 SMTP 密码等敏感数据。**密钥丢失后已存储的加密数据将无法解密**，需重新配置。确保该目录已纳入备份或持久化卷。
+
+### 数据恢复
+
+```bash
+# 1. 停止服务
+# Linux 二进制：sudo systemctl stop boxwise
+# Docker：docker compose down
+
+# 2. 还原 data/ 目录
+# Linux 二进制：cp -r backup-20260603/data/* /opt/boxwise/data/
+# Docker：cp -r backup-20260603/data/* ./data/
+
+# 3. 启动服务
+# Linux 二进制：sudo systemctl start boxwise
+# Docker：docker compose up -d
+```
+
+### 查看日志
+
+```bash
 # 查看日志（二进制 / systemd）
 journalctl -u boxwise -f
 
@@ -409,6 +561,50 @@ journalctl -u boxwise -f
 docker compose logs -f
 ```
 
+## 常见问题
+
+### 5000 端口被占用怎么办？
+
+修改启动端口。开发环境在 `Properties/launchSettings.json` 中调整 `applicationUrl`；生产环境修改环境变量 `ASPNETCORE_URLS`（如 `http://+:5001`），同时更新反向代理配置中的 `localhost:5000` 为目标端口。
+
+### AI 识别没有响应？
+
+检查以下项目：
+
+1. `Llm:ApiKey` 是否已配置且有效
+2. `Llm:BaseUrl` 是否正确（默认指向 OpenAI，切换其他提供商时需修改）
+3. 服务器是否能连通 API 端点（网络防火墙、代理等）
+4. 15s 超时是否太短（部分模型首次推理较慢）
+
+确认无误后重启应用。API 调用失败时自动降级为手动输入，不阻塞录入。
+
+### PWA 安装按钮不出现？
+
+PWA 安装需要满足以下条件：
+
+- 通过 HTTPS 访问（`localhost` 除外）
+- 浏览器支持 PWA（Chrome、Edge、Safari >= 16.4）
+- `manifest.json` 和 Service Worker 正确加载（检查浏览器开发者工具 → Application）
+
+首次访问可能需要几秒钟注册 Service Worker，刷新页面后安装按钮出现。
+
+### Docker 部署后数据库文件在哪里？
+
+数据库文件位于宿主机的 `./data/boxwise.db`（相对于 `docker-compose.yml` 所在目录）。该目录已通过卷挂载映射到容器内的 `/app/data/`。
+
+### 图片上传失败怎么办？
+
+常见原因及解决办法：
+
+1. **目录权限问题：** 确保 `data/images/` 目录存在且应用进程有写入权限。Docker 场景确保卷挂载正确。
+2. **磁盘空间不足：** 检查服务器磁盘剩余空间。
+3. **文件大小超限：** 默认单文件最大 10MB（在 `Program.cs` 中可通过 `MultipartBodyLengthLimit` 调整）。
+4. **图片格式不支持：** 支持 JPEG、PNG、WebP、BMP、GIF。
+
+### 忘记管理员密码怎么办？
+
+无需重置数据库。重新设置 `Admin__Password` 环境变量（或修改 `appsettings.Production.json` / `.env` 文件），重启应用后密码自动更新。原有账户 ID、数据、关联关系均不受影响。
+
 ## 许可证
 
-GNU General Public License v3.0
+[GNU General Public License v3.0](LICENSE)
