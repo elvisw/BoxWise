@@ -36,6 +36,10 @@
 | 26 | `Manage/EnableAuthenticator.cshtml.cs` | `SetTwoFactorEnabledAsync(user, true)` → 直接赋值 `user.TwoFactorEnabled = true` + `ConfiguredMethods |= TOTP` + 单次 `UpdateAsync`；失败时回滚内存状态后重渲染 | 同上 + Issue #3：失败后 `LoadSharedKeyAndQrCodeUriAsync` 可能触发保存，需防止脏状态泄露 | Epic 11 回顾 | 保留 |
 | 27 | `Manage/ResetAuthenticator.cshtml.cs` | `SetTwoFactorEnabledAsync(user, false)` → 直接赋值 `TwoFactorEnabled=false`；`ConfiguredMethods &= ~TOTP` + `PendingTotpSecretKey=null` 移至 `ResetAuthenticatorKeyAsync` 之前，利用其内部 `UpdateAsync` 一次保存；检查 `ResetAuthenticatorKeyAsync` 返回值 | Issue #3：同步 ConfiguredMethods；Code Review P4：消除两步 UpdateAsync 的部分失败窗口；Code Review P1：检测静默 UpdateAsync 失败 | Epic 11 回顾 + Code Review | 保留 |
 | 28 | `Account/LoginWith2fa.cshtml.cs` | `OnGetAsync` 中添加 `AutoFixDataIntegrityAsync` 调用 + 禁用 2FA 后重定向 Login；新增私有方法 `AutoFixDataIntegrityAsync(bool)` — 检测并自动修复 3 类数据损坏；`catch(Exception)` → `catch(DbUpdateException)` + `catch(InvalidOperationException)` | Issue #5：迁移已退役 TwoFactorEndpoints.ChallengeAsync 的防御性检查；Code Review P1/P2/P5：窄化异常捕获、统一单次 UpdateAsync 模式、修复后重定向防用户陷于失效 2FA 页面 | Epic 11 回顾 + Code Review | 保留 |
+| 29 | `Manage/_ViewStart.cshtml` | **新建** — `Layout = "_Layout"` 指向 Manage 目录下的 `_Layout.cshtml`（含侧边栏） | 脚手架遗漏：所有 Manage 页面通过父级 `_ViewStart.cshtml` 继承无侧边栏的布局，Manage `_Layout.cshtml` 从未被引用 | Bug 修复 (2026-06-03) | 保留 |
+| 30 | `Manage/_ManageNav.cshtml` | 移除 `@inject SignInManager` 指令、`hasExternalLogins` 变量计算和 `@if (hasExternalLogins)` 死链接区块 | ExternalLogins 页面在脚手架排除列表中，侧边栏恢复可见后该链接会产生 404 | Deferred code review (2026-06-03) | 保留 |
+| 31 | `Manage/ManageNavPages.cs` | 移除已排除页面的孤立常量和 NavClass 方法（DownloadPersonalData/DeletePersonalData/PersonalData/ExternalLogins） | 消除维护债务——这些页面在脚手架排除列表中，对应常量和方法已失效 | Deferred code review (2026-06-03) | 保留 |
+| 32 | `Manage/Index.cshtml`, `Manage/Email.cshtml`, `Manage/ChangePassword.cshtml`, `Manage/EnableAuthenticator.cshtml` | `col-md-6` → `col-md-8` | 侧边栏 `col-md-3` 布局嵌套使表单渲染在 `col-md-9` 内容区而非全宽容器，表单有效宽度缩小；加宽列恢复预期视觉宽度 | Deferred Code Review (2026-06-03) | 保留 |
 
 ## 脚手架排除的文件
 
@@ -48,9 +52,9 @@
 - `Account.Manage.ShowRecoveryCodes` — 由 `GenerateRecoveryCodes` 覆盖
 - `Account.Manage.DeletePersonalData` / `Account.Manage.PersonalData` / `Account.Manage.ExternalLogins` / `Account.Manage.DownloadPersonalData` — v1 不需要
 
-## 已知残留死链接（Epic 11 处理）
+## 已知残留死链接
 
-- `_ManageNav.cshtml` 中的 `ExternalLogins` / `PersonalData` 导航链接
+- 无 — `ExternalLogins` / `PersonalData` 导航链接已于 2026-06-03 移除（见修改 #30/#31）
 
 ## Deferred to Epic 11
 

@@ -128,3 +128,13 @@
 - [x] **AddToRoleAsync 返回值未检查** — 管理员种子中 `AddToRoleAsync` 失败被静默忽略，管理员可能无 Admin 角色。 → [#21](https://github.com/elvisw/BoxWise/issues/21) **已修复：检查 `IdentityResult.Succeeded`，失败时记录 `Errors` 详情。**
 - [x] **SameSite=None + HTTP 开发环境 → 浏览器静默拒绝 Cookie** — 通过 HTTP 访问时 Cookie 被浏览器拒绝，应用完全不可用且无控制台错误。当前开发环境使用 HTTPS 不受影响。 → [#22](https://github.com/elvisw/BoxWise/issues/22) **已修复：添加启动时 HTTP + SameSite=None 组合检测和警告日志。**
 - [x] **DataProtection 密钥路径相对于 CWD** — `builder.Configuration["DataDirectory"] ?? "data"` 未解析为绝对路径，工作目录变化时密钥丢失导致 TOTP/Cookie 全部失效。 → [#23](https://github.com/elvisw/BoxWise/issues/23) **已修复：`Path.GetFullPath()` 解析为绝对路径。**
+
+## Deferred from: code review of identity-manage-no-sidebar (2026-06-03)
+
+> 以下为 pre-existing issues，非本次 `_ViewStart.cshtml` 修复引入。侧边栏自脚手架生成以来从未渲染，修复使其可见后暴露了以下预存问题。
+
+- [x] **ExternalLogins 死链接因侧边栏激活变可访问** — `_ManageNav.cshtml:9-11` 条件渲染 ExternalLogins 导航链接，但 `ExternalLogins.cshtml` 页面在脚手架排除列表中。已移除 `_ManageNav.cshtml` 中 ExternalLogins 代码块及 `@inject SignInManager` 依赖。
+- [x] **子页面 Bootstrap 列宽因双层嵌套变窄** — Manage `_Layout.cshtml` 侧边栏占 `col-md-3`，内容区 `col-md-9`。已调整 Index/Email/ChangePassword/EnableAuthenticator 表单 `col-md-6` → `col-md-8` 恢复视觉宽度。
+- [x] **ManageNavPages.cs 残留已排除页面的方法** — 已移除 `DownloadPersonalData`/`DeletePersonalData`/`PersonalData`/`ExternalLogins` 及其 `*NavClass` 方法。仅保留 4 个活跃页面常量（Index/Email/ChangePassword/TwoFactorAuthentication）。
+- [x] **Manage/_Layout ParentLayout 扩展点未使用** — `_Layout.cshtml:2-8` 的 `ViewData["ParentLayout"]` 检查为标准 Identity 脚手架模板。当前功能正确，已记录。
+- [x] **Bootstrap CSS 隐式依赖外层布局** — Manage `_Layout.cshtml` 使用 Bootstrap 网格类但 CSS 由父级布局加载。标准布局链模式，已记录。
