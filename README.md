@@ -30,7 +30,8 @@
 
 | 层 | 技术 | 版本 |
 |----|------|------|
-| 前端 | Blazor WASM (PWA) + MudBlazor | .NET 10 / 9.x |
+| 前端 | Blazor WASM (PWA) | .NET 10 |
+| UI 组件 | MudBlazor | 9.x |
 | 后端 | ASP.NET Core Minimal API | .NET 10 |
 | 数据库 | SQLite + EF Core | 10.0 |
 | 认证 | ASP.NET Core Identity + Cookie | 10.0 |
@@ -90,7 +91,8 @@ cd src/BoxWise.Client && dotnet run
 | `Admin:Username` | `Admin__Username` | `admin` | 管理员用户名 |
 | `Admin:Email` | `Admin__Email` | `admin@boxwise.local` | 管理员邮箱 |
 | `Admin:Password` | `Admin__Password` | （空） | 管理员密码（必填） |
-| `ConnectionStrings:DefaultConnection` | `ConnectionStrings__DefaultConnection` | `Data Source=data/boxwise.db` | SQLite 数据库路径 |
+| `ConnectionStrings:DefaultConnection` | `ConnectionStrings__DefaultConnection` | `Data Source=../../data/boxwise.db` | SQLite 数据库路径（开发默认值，生产通过环境变量覆盖） |
+| `DataDirectory` | `DataDirectory` | `data/` | 数据目录 — 包含 keys/（密钥环）、images/（图片）、smtp-config.json |
 
 行为说明：
 
@@ -197,7 +199,7 @@ sudo useradd -r -s /bin/false boxwise
 sudo chown -R boxwise:boxwise /opt/boxwise
 
 # 4. 创建环境变量文件
-sudo cat > /opt/boxwise/.env << 'EOF'
+cat << 'EOF' | sudo tee /opt/boxwise/.env > /dev/null
 Admin__Username=admin
 Admin__Email=admin@你的域名
 Admin__Password=你的强密码
@@ -232,7 +234,7 @@ sudo apt-get update && sudo apt-get install -y aspnetcore-runtime-10.0
 sudo dnf install aspnetcore-runtime-10.0
 
 # 6. 创建 AI 识别配置（可选，详见"配置 → AI 识别"章节）
-sudo cat > /opt/boxwise/appsettings.Production.json << 'EOF'
+cat << 'EOF' | sudo tee /opt/boxwise/appsettings.Production.json > /dev/null
 {
   "Llm": {
     "BaseUrl": "https://api.openai.com/v1",
@@ -245,7 +247,7 @@ sudo chown boxwise:boxwise /opt/boxwise/appsettings.Production.json
 sudo chmod 600 /opt/boxwise/appsettings.Production.json
 
 # 7. 安装 systemd 服务
-sudo cat > /etc/systemd/system/boxwise.service << 'EOF'
+cat << 'EOF' | sudo tee /etc/systemd/system/boxwise.service > /dev/null
 [Unit]
 Description=BoxWise Server
 After=network.target
@@ -278,6 +280,8 @@ sudo systemctl enable --now boxwise
 **配置反向代理（Caddy）：**
 
 ```bash
+# 安装 Caddy（Ubuntu 24.04+ 已内置；其他版本需先添加官方源）
+# 详见：https://caddyserver.com/docs/install#debian-ubuntu-raspbian
 sudo apt install caddy
 
 # 允许 Caddy 通过 Unix socket 访问应用
@@ -331,6 +335,7 @@ $env:ASPNETCORE_URLS = "http://+:5000"
 $env:Admin__Username = "admin"
 $env:Admin__Email = "admin@你的域名"
 $env:Admin__Password = "你的强密码"
+$env:ConnectionStrings__DefaultConnection = "Data Source=C:\BoxWise\data\boxwise.db"
 $env:DataDirectory = "C:\BoxWise\data"
 dotnet C:\BoxWise\BoxWise.Server.dll
 ```
@@ -352,7 +357,8 @@ where.exe dotnet
 # 通常位于 C:\Program Files\dotnet\dotnet.exe
 
 # 注意：sc.exe 要求等号后有空格（binPath= 而非 binPath=）
-sc.exe create "BoxWise" binPath= "C:\Program Files\dotnet\dotnet.exe C:\BoxWise\BoxWise.Server.dll" start= auto
+# binPath 内部引号不可省略 — 可执行文件路径含空格时需额外引号包裹
+sc.exe create "BoxWise" binPath= '"C:\Program Files\dotnet\dotnet.exe" "C:\BoxWise\BoxWise.Server.dll"' start= auto
 sc.exe description "BoxWise" "箱知 · BoxWise 家庭物品管理服务"
 sc.exe start "BoxWise"
 ```
