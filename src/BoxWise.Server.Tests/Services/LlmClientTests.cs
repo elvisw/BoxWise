@@ -165,10 +165,10 @@ public class LlmClientTests
             Model = "test-model",
             TimeoutSeconds = 1
         };
-        var (client, tempDir, _) = CreateClient(opts, customHandler: handler);
+        var (client, tempDir, imagePath) = CreateClient(opts, customHandler: handler);
         try
         {
-            var result = await client.RecognizeAsync(imagePath: Path.Combine(tempDir, "test.jpg"));
+            var result = await client.RecognizeAsync(imagePath);
             Assert.Null(result);
         }
         finally { Cleanup(tempDir); }
