@@ -33,14 +33,15 @@ public class LlmClientTests
     ) CreateClient(
         LlmOptions? opts = null,
         HttpStatusCode status = HttpStatusCode.OK,
-        string responseContent = "")
+        string responseContent = "",
+        Mock<HttpMessageHandler>? customHandler = null)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"boxwise-llm-{Guid.NewGuid()}");
         Directory.CreateDirectory(tempDir);
         var imagePath = Path.Combine(tempDir, "test.jpg");
         File.WriteAllText(imagePath, "dummy-image-content");
 
-        var handler = CreateHandler(status, responseContent);
+        var handler = customHandler ?? CreateHandler(status, responseContent);
         var httpClient = new HttpClient(handler.Object);
         var options = Options.Create(opts ?? new LlmOptions
         {
@@ -149,7 +150,6 @@ public class LlmClientTests
                 ItExpr.IsAny<CancellationToken>())
             .Returns(async () =>
             {
-                // 模拟超过 TimeoutSeconds 的响应延迟
                 await Task.Delay(TimeSpan.FromSeconds(3));
                 return new HttpResponseMessage(HttpStatusCode.OK)
                 {
@@ -158,25 +158,17 @@ public class LlmClientTests
                 };
             });
 
-        var tempDir = Path.Combine(Path.GetTempPath(), $"boxwise-llm-{Guid.NewGuid()}");
-        Directory.CreateDirectory(tempDir);
-        var imagePath = Path.Combine(tempDir, "test.jpg");
-        File.WriteAllText(imagePath, "dummy-image-content");
-
-        var opts = Options.Create(new LlmOptions
+        var opts = new LlmOptions
         {
             BaseUrl = "https://api.test.com/v1",
             ApiKey = "sk-test-key",
             Model = "test-model",
-            TimeoutSeconds = 1 // 1 秒超时，handler 延迟 3 秒
-        });
-        var logger = Mock.Of<ILogger<LlmClient>>();
-        var httpClient = new HttpClient(handler.Object);
-        var client = new LlmClient(httpClient, opts, logger);
-
+            TimeoutSeconds = 1
+        };
+        var (client, tempDir, _) = CreateClient(opts, customHandler: handler);
         try
         {
-            var result = await client.RecognizeAsync(imagePath);
+            var result = await client.RecognizeAsync(imagePath: Path.Combine(tempDir, "test.jpg"));
             Assert.Null(result);
         }
         finally { Cleanup(tempDir); }

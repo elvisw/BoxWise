@@ -150,6 +150,7 @@ builder.Services.AddScoped<ItemRepository>();
 // LLM
 builder.Services.AddOptions<LlmOptions>()
     .Bind(builder.Configuration.GetSection(LlmOptions.SectionName))
+    .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddHttpClient<LlmClient>();
 builder.Services.AddSingleton<ImageStorageService>();

@@ -12,7 +12,7 @@ public class AiService
     {
         _http = http;
         // 客户端超时需大于服务端 LlmOptions.TimeoutSeconds（默认 60s）+ 网络往返
-        _timeoutSeconds = configuration.GetValue("AiSettings:TimeoutSeconds", 90);
+        _timeoutSeconds = Math.Clamp(configuration.GetValue("AiSettings:TimeoutSeconds", 90), 1, 600);
     }
 
     public async Task<RecognitionResultDto?> RecognizeAsync(

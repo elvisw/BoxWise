@@ -11,7 +11,7 @@ public class LlmOptions
     public string ApiKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// AI 识别请求超时时间（秒）。默认 60 秒。
+    /// AI 识别请求超时时间（秒），有效范围 1–600。默认 60 秒。
     /// 生产 VPS 带宽有限 + 视觉模型推理较慢，15 秒极易超时。
     /// 可根据实际 API 响应速度调整。
     /// </summary>
