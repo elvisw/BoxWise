@@ -310,6 +310,54 @@ sudo systemctl restart caddy
 
 > **Caddy 路由说明：** 使用 `handle` 块明确分离路由，避免 `try_files` + `file_server` 在 `reverse_proxy` 之前拦截 API 请求。二进制部署中 Caddy 直接提供 `wwwroot/` 下的静态文件，仅将 `/api/*` 和 `/admin/*` 请求转发到 Kestrel。
 
+#### 更新服务端程序
+
+CI 自动构建发布包，从 GitHub Releases 下载最新版本即可。更新流程：
+
+```bash
+# 1. 备份数据（重要！）
+sudo cp -r /opt/boxwise/data /opt/boxwise/backup-$(date +%Y%m%d)/
+
+# 2. 下载最新版本
+curl -L https://github.com/elvisw/BoxWise/releases/latest/download/boxwise-linux-x64.tar.gz -o boxwise-linux-x64.tar.gz
+
+# 3. 停止服务
+sudo systemctl stop boxwise
+
+# 4. 解压覆盖（保留 .env 和 data/ 目录）
+sudo tar -xzf boxwise-linux-x64.tar.gz -C /opt/boxwise
+
+# 5. 确保权限正确
+sudo chown -R boxwise:boxwise /opt/boxwise
+
+# 6. 启动服务
+sudo systemctl start boxwise
+
+# 7. 验证
+journalctl -u boxwise -f   # 查看日志，确认正常启动
+curl -s https://你的域名/ | grep blazor.webassembly.js   # 确认 script 引用正确
+```
+
+> **重要提示：**
+> - **必须完整替换所有文件**，不能只更新 `index.html` 或 `wwwroot/` 目录。Server 程序集（`BoxWise.Server.dll`）中的 `MapStaticAssets()` 清单在构建时生成，与静态文件版本一一对应，部分替换会导致路由不匹配。
+> - **`.env` 和 `data/` 不会被覆盖**（解压时不存在于 tar 包中），管理员密码和数据均保持原样。
+> - **回滚方法：** 如更新后异常，停止服务 → 还原旧版本 tar 包 → 恢复备份的 `data/` → 启动服务。CI 历史版本见 [GitHub Releases](https://github.com/elvisw/BoxWise/releases)。
+
+**从源码构建更新（不通过 CI）：**
+
+如果修改了源码需要自行构建，在本地执行后上传：
+
+```bash
+# 本地构建（Windows/Mac/Linux）
+dotnet publish src/BoxWise.Server -c Release -o publish
+
+# 上传到服务器
+scp -r publish/* elvisw@你的服务器:/opt/boxwise/
+
+# SSH 到服务器重启
+ssh elvisw@你的服务器 "sudo systemctl restart boxwise"
+```
+
 ### 二进制部署（Windows Server）
 
 适合 Windows Server 环境，通过 IIS 反向代理运行。**CI 已自动构建，直接从 GitHub 下载即可。**
