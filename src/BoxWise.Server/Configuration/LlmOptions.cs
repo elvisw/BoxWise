@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace BoxWise.Server.Configuration;
 
 public class LlmOptions
@@ -13,5 +15,6 @@ public class LlmOptions
     /// 生产 VPS 带宽有限 + 视觉模型推理较慢，15 秒极易超时。
     /// 可根据实际 API 响应速度调整。
     /// </summary>
+    [Range(1, 600)]
     public int TimeoutSeconds { get; set; } = 60;
 }

@@ -524,3 +524,6 @@ docs/superpowers/
 # opencode 相关
 .agents/
 .opencode/
+
+# Playwright CLI 运行时快照
+.playwright-cli/

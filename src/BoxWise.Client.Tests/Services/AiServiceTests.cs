@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using BoxWise.Client.Services;
 using BoxWise.Shared.Dtos;
+using Microsoft.Extensions.Configuration;
 using Moq;
 using Moq.Protected;
 
@@ -24,10 +25,16 @@ public class AiServiceTests
         return handler;
     }
 
-    private static AiService CreateService(Mock<HttpMessageHandler> handler)
+    private static AiService CreateService(Mock<HttpMessageHandler> handler, int timeoutSeconds = 90)
     {
         var http = new HttpClient(handler.Object) { BaseAddress = new Uri("https://localhost:5000/") };
-        return new AiService(http);
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AiSettings:TimeoutSeconds"] = timeoutSeconds.ToString()
+            })
+            .Build();
+        return new AiService(http, config);
     }
 
     [Fact]
