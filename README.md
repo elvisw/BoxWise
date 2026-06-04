@@ -293,7 +293,13 @@ sudo usermod -aG boxwise caddy
     handle /api/* {
         reverse_proxy unix//opt/boxwise/boxwise.sock
     }
+    handle /admin {
+        reverse_proxy unix//opt/boxwise/boxwise.sock
+    }
     handle /admin/* {
+        reverse_proxy unix//opt/boxwise/boxwise.sock
+    }
+    handle /Identity/* {
         reverse_proxy unix//opt/boxwise/boxwise.sock
     }
     handle {
@@ -308,7 +314,7 @@ sudo usermod -aG boxwise caddy
 sudo systemctl restart caddy
 ```
 
-> **Caddy 路由说明：** 使用 `handle` 块明确分离路由，避免 `try_files` + `file_server` 在 `reverse_proxy` 之前拦截 API 请求。二进制部署中 Caddy 直接提供 `wwwroot/` 下的静态文件，仅将 `/api/*` 和 `/admin/*` 请求转发到 Kestrel。
+> **Caddy 路由说明：** 使用 `handle` 块明确分离路由，避免 `try_files` + `file_server` 在 `reverse_proxy` 之前拦截 API 请求。二进制部署中 Caddy 直接提供 `wwwroot/` 下的静态文件，仅将 `/api/*`、`/admin`、`/admin/*` 和 `/Identity/*` 请求转发到 Kestrel。`/admin` 精确匹配（无尾斜杠）和 `/Identity/*` 是 v0.3.1 新增的规则——缺少它们将导致管理后台和登录页面返回 Blazor WASM 的 404 页面。
 
 #### 更新服务端程序
 
