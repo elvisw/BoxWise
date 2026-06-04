@@ -129,6 +129,15 @@
 - [x] **SameSite=None + HTTP 开发环境 → 浏览器静默拒绝 Cookie** — 通过 HTTP 访问时 Cookie 被浏览器拒绝，应用完全不可用且无控制台错误。当前开发环境使用 HTTPS 不受影响。 → [#22](https://github.com/elvisw/BoxWise/issues/22) **已修复：添加启动时 HTTP + SameSite=None 组合检测和警告日志。**
 - [x] **DataProtection 密钥路径相对于 CWD** — `builder.Configuration["DataDirectory"] ?? "data"` 未解析为绝对路径，工作目录变化时密钥丢失导致 TOTP/Cookie 全部失效。 → [#23](https://github.com/elvisw/BoxWise/issues/23) **已修复：`Path.GetFullPath()` 解析为绝对路径。**
 
+## Deferred from: code review of spec-fix-wasm-fingerprint-placeholder (2026-06-04)
+
+> 以下为 pre-existing issues，非本次 fingerprint 占位符修复引入。
+
+- [ ] **SW 缓存键不匹配，离线时 `blazor.webassembly.js` 无法命中** — 非指纹化 URL 与 Service Worker 预缓存的指纹化 URL 不匹配，离线状态下 `MapStaticAssets()` 无法被 Service Worker 拦截
+- [ ] **README 备份说明依赖 CI 约定** — `tar -xzf` 命令无 `--skip-old-files` 防护，若 CI 误包含 `.env`/`data/` 则静默覆盖
+- [ ] **`scp publish/*` 边缘情况** — shell glob 不匹配点文件、空目录时展开失败、大文件比 `rsync` 慢
+- [ ] **grep 验证模式可更精确** — 建议使用 `grep -o 'src="[^"]*blazor\.webassembly\.js"'` 替代当前无限制字符串匹配
+
 ## Deferred from: code review of identity-manage-no-sidebar (2026-06-03)
 
 > 以下为 pre-existing issues，非本次 `_ViewStart.cshtml` 修复引入。侧边栏自脚手架生成以来从未渲染，修复使其可见后暴露了以下预存问题。
