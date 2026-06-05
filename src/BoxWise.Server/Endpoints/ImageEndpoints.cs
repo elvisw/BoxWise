@@ -33,8 +33,8 @@ public static class ImageEndpoints
     }
 
     private static async Task<Results<Accepted<UploadResultDto>, ProblemHttpResult>>
-        UploadAsync(HttpRequest request, ImageStorageService storage, ThumbnailService thumbnail,
-            IServiceScopeFactory scopeFactory, AppDbContext db)
+        UploadAsync(HttpRequest request, ImageStorageService storage,
+            ThumbnailBackgroundService thumbnailBg, AppDbContext db)
     {
         if (!request.HasFormContentType)
             return TypedResults.Problem("请求必须是 multipart/form-data", statusCode: 400);
@@ -60,7 +60,7 @@ public static class ImageEndpoints
         await using var stream = file.OpenReadStream();
         await storage.SaveOriginalAsync(itemId, stream);
 
-        thumbnail.GenerateInBackground(itemId, scopeFactory);
+        thumbnailBg.TryEnqueue(itemId);
 
         var dto = new UploadResultDto(itemId, $"/api/images/{itemId}?type=original");
         return TypedResults.Accepted($"/api/images/{itemId}", dto);

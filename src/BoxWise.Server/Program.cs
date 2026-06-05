@@ -155,6 +155,8 @@ builder.Services.AddOptions<LlmOptions>()
 builder.Services.AddHttpClient<LlmClient>();
 builder.Services.AddSingleton<ImageStorageService>();
 builder.Services.AddSingleton<ThumbnailService>();
+builder.Services.AddSingleton<ThumbnailBackgroundService>();
+builder.Services.AddHostedService<ThumbnailBackgroundService>(sp => sp.GetRequiredService<ThumbnailBackgroundService>());
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<ISmtpConfigurationService, SmtpConfigurationService>();
 builder.Services.AddScoped<TwoFactorService>();

@@ -2,6 +2,17 @@
 
 > BoxWise — 部署架构与持续集成
 
+## 系统依赖
+
+BoxWise 使用 `SkiaSharp.NativeAssets.Linux.NoDependencies` 进行图片处理，该版本不依赖 `libfontconfig` 等系统库。
+
+| 部署方式 | 系统依赖 |
+|---------|---------|
+| Docker | 零额外依赖（镜像已内置所有必需运行时组件） |
+| 二进制部署（Linux） | 仅需 .NET Runtime 10.0（`aspnetcore-runtime-10.0`），无需额外系统库 |
+
+**Windows Server** 部署仅需 [.NET Runtime 10.0](https://dotnet.microsoft.com/download/dotnet/10.0)（或 ASP.NET Core Hosting Bundle），无其他系统依赖。
+
 ## 部署模式
 
 ### 1. 二进制部署
