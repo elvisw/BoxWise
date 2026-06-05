@@ -240,6 +240,9 @@ builder.Services.AddRateLimiter(options =>
 
 });
 
+builder.Services.Configure<HostOptions>(options =>
+    options.ShutdownTimeout = TimeSpan.FromSeconds(30));
+
 builder.Services.AddScoped<CsrfValidationFilter>();
 
 // Forwarded Headers — 生产环境 Caddy 反向代理需要正确的 Request.IsHttps

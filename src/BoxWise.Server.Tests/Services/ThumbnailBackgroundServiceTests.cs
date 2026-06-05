@@ -239,34 +239,25 @@ public class ThumbnailBackgroundServiceTests : IDisposable
         await SeedItemAsync(dbName, itemId: 1, createOriginalImage: true, tempDir);
 
         // Pre-hold the per-item lock for item 1
-        var locks = ThumbnailService.Locks;
-        var heldSemaphore = locks.GetOrAdd(1, _ => new SemaphoreSlim(1, 1));
-        await heldSemaphore.WaitAsync();
+        var semaphore = ThumbnailService.Locks.GetOrAdd(1, _ => new SemaphoreSlim(1, 1));
+        await semaphore.WaitAsync();
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
         // Start scan on a background task (it will try to process item 1 and block on the lock)
         var scanTask = service.ScanForMissingThumbnailsAsync(cts.Token);
 
-        // Poll until the scan acquires the per-item lock (max 2 seconds)
-        var lockAcquired = false;
-        for (int attempt = 0; attempt < 20; attempt++)
-        {
-            await Task.Delay(100);
-            if (heldSemaphore.CurrentCount == 0)
-            {
-                lockAcquired = true;
-                break;
-            }
-        }
-        Assert.True(lockAcquired, "Scan should have acquired the per-item lock and blocked");
+        // Wait briefly for the scan to reach the lock — it should be stuck
+        await Task.Delay(200);
+        Assert.False(scanTask.IsCompleted,
+            "Scan should be blocked waiting for per-item lock");
 
         // Item should NOT have thumbnails yet (lock held — scan is blocked)
         Assert.False(File.Exists(Path.Combine(tempDir, "1", "thumb.jpg")),
             "Item 1 should not have thumbnails while per-item lock is held");
 
         // Release the held lock so the scan can proceed
-        heldSemaphore.Release();
+        semaphore.Release();
 
         // Wait for scan to complete
         await scanTask;
@@ -274,5 +265,8 @@ public class ThumbnailBackgroundServiceTests : IDisposable
         // Now item 1 should have thumbnails
         Assert.True(File.Exists(Path.Combine(tempDir, "1", "thumb.jpg")),
             "Item 1 should have thumbnails after per-item lock released");
+
+        // Clean up — remove the semaphore to prevent cross-test contamination
+        ThumbnailService.Locks.TryRemove(1, out _);
     }
 }

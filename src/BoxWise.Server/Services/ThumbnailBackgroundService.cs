@@ -65,7 +65,20 @@ public class ThumbnailBackgroundService : BackgroundService
             }
         }
 
-        await base.StopAsync(cancellationToken);
+        try
+        {
+            await base.StopAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            var pendingCount = _channel.Reader.Count;
+            if (pendingCount > 0)
+            {
+                _logger.LogWarning(
+                    "Thumbnail generation did not complete within shutdown grace period ({PendingCount} items pending, will be recovered)",
+                    pendingCount);
+            }
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
