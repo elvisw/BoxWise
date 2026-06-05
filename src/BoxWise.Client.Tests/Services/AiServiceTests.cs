@@ -120,7 +120,7 @@ public class AiServiceTests
     public async Task RecognizeAsync_HttpError_ReturnsNull()
     {
         var handler = CreateHandler(HttpStatusCode.InternalServerError, "");
-        var httpClient = new HttpClient(handler.Object);
+        var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
         var config = new ConfigurationBuilder()
@@ -146,7 +146,7 @@ public class AiServiceTests
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<CancellationToken>())
             .ThrowsAsync(new OperationCanceledException());
-        var httpClient = new HttpClient(handler.Object);
+        var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
         var config = new ConfigurationBuilder()
@@ -172,7 +172,7 @@ public class AiServiceTests
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<CancellationToken>())
             .ThrowsAsync(new HttpRequestException());
-        var httpClient = new HttpClient(handler.Object);
+        var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
         var config = new ConfigurationBuilder()
@@ -239,7 +239,7 @@ public class AiServiceTests
     public async Task RecognizeAsync_MissingConfig_ReturnsNull()
     {
         var handler = new Mock<HttpMessageHandler>();
-        var httpClient = new HttpClient(handler.Object);
+        var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
         var config = new ConfigurationBuilder()
@@ -261,7 +261,7 @@ public class AiServiceTests
     {
         var json = MakeOpenAiResponse("");
         var handler = CreateHandler(HttpStatusCode.OK, json);
-        var httpClient = new HttpClient(handler.Object);
+        var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
         var config = new ConfigurationBuilder()
@@ -283,7 +283,7 @@ public class AiServiceTests
     {
         var json = MakeOpenAiResponse("完全无法解析的纯文本响应");
         var handler = CreateHandler(HttpStatusCode.OK, json);
-        var httpClient = new HttpClient(handler.Object);
+        var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
         var config = new ConfigurationBuilder()

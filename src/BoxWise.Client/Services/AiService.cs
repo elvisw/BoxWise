@@ -11,7 +11,6 @@ public class AiService
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly HttpClient _http;
-    private readonly string? _baseUrl;
     private readonly string? _apiKey;
     private readonly string _model;
     private readonly int _timeoutSeconds;
@@ -19,7 +18,6 @@ public class AiService
     public AiService(IHttpClientFactory httpFactory, IConfiguration configuration)
     {
         _http = httpFactory.CreateClient("VolcEngine");
-        _baseUrl = configuration["VolcEngine:BaseUrl"];
         _apiKey = configuration["VolcEngine:ApiKey"];
         _model = configuration["VolcEngine:Model"] ?? "doubao-seed-2-0-pro-260215";
         _timeoutSeconds = Math.Clamp(configuration.GetValue("VolcEngine:TimeoutSeconds", 30), 5, 120);
@@ -31,7 +29,7 @@ public class AiService
     public async Task<RecognitionResultDto?> RecognizeAsync(
         byte[] imageBytes, string contentType, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(_baseUrl))
+        if (imageBytes is null || imageBytes.Length == 0)
             return null;
 
         if (string.IsNullOrWhiteSpace(_apiKey))
@@ -65,7 +63,7 @@ public class AiService
                 max_tokens = 200
             };
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "/api/v3/chat/completions")
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v3/chat/completions")
             {
                 Content = JsonContent.Create(requestBody)
             };
@@ -85,7 +83,11 @@ public class AiService
         {
             return null;
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
         {
             return null;
         }
