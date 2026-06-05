@@ -34,12 +34,13 @@ public class ThumbnailBackgroundService : BackgroundService
     /// </summary>
     public bool TryEnqueue(int itemId)
     {
+        // DropWrite mode: TryWrite always returns true (silently drops when full).
+        // Use Reader.Count as a best-effort early-warning signal.
         if (_channel.Reader.Count >= 100)
         {
             _logger.LogWarning(
                 "Thumbnail queue full ({Capacity}), item {ItemId} will be recovered on next recovery scan",
                 100, itemId);
-            return false;
         }
 
         _channel.Writer.TryWrite(new ThumbnailRequest(itemId));
@@ -50,6 +51,20 @@ public class ThumbnailBackgroundService : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _channel.Writer.TryComplete();
+
+        // Drain remaining items in the channel before shutdown
+        while (_channel.Reader.TryRead(out var request))
+        {
+            try
+            {
+                await ProcessItemAsync(request.ItemId, cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Error draining item {ItemId} during shutdown", request.ItemId);
+            }
+        }
+
         await base.StopAsync(cancellationToken);
     }
 

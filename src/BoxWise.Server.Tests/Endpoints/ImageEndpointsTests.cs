@@ -46,6 +46,7 @@ public class ImageEndpointsTests : IDisposable
 {
     private readonly WebApplicationFactory<Program> _factory;
     private readonly string _tempDir;
+    private readonly List<(LogLevel Level, string Message)> _capturedLogs = [];
 
     public ImageEndpointsTests()
     {
@@ -61,7 +62,6 @@ public class ImageEndpointsTests : IDisposable
 
             builder.ConfigureTestServices(services =>
             {
-                // Bypass authentication for tests — allow all requests
                 services.PostConfigure<AuthorizationOptions>(options =>
                 {
                     options.FallbackPolicy = new AuthorizationPolicyBuilder()
@@ -69,10 +69,11 @@ public class ImageEndpointsTests : IDisposable
                         .Build();
                 });
 
-                // Register the test auth handler as a valid scheme (needed by endpoint DI)
                 services.AddAuthentication(TestAuthHandler.SchemeName)
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                         TestAuthHandler.SchemeName, options => { });
+
+                services.AddLogging(b => b.AddProvider(new CaptureLoggerProvider(_capturedLogs)));
             });
         });
     }
@@ -211,20 +212,19 @@ public class ImageEndpointsTests : IDisposable
         var itemId = await SeedTestItemAsync();
         var imageBytes = CreateTestImageBytes();
 
-        // Fill the channel to capacity with items that don't exist on disk
-        // (consumer drains quickly for non-existent items; fill aggressively)
+        // Fill the channel to capacity — DropWrite silently drops overflow
         var bgService = _factory.Services.GetRequiredService<ThumbnailBackgroundService>();
         for (int i = 0; i < 200; i++)
-        {
             bgService.TryEnqueue(10000 + i);
-        }
 
-        // Act: the endpoint always returns 202 regardless of queue state
+        // Act: endpoint always returns 202 regardless of queue state
         var uploadContent = BuildUploadRequest(itemId, imageBytes);
         var response = await client.PostAsync("/api/images/upload", uploadContent);
 
-        // Assert: endpoint always returns 202 (DropWrite + TryEnqueue return value not checked)
+        // Assert: endpoint returns 202; Warning log captured (Reader.Count-based best-effort)
         Assert.Equal(202, (int)response.StatusCode);
+        Assert.Contains(_capturedLogs, l =>
+            l.Level == LogLevel.Warning && l.Message.Contains("Thumbnail queue full"));
     }
 
     [Fact]
@@ -265,5 +265,27 @@ public class ImageEndpointsTests : IDisposable
 
         // Assert
         Assert.Equal(404, (int)response.StatusCode);
+    }
+}
+
+internal sealed class CaptureLoggerProvider(List<(LogLevel Level, string Message)> capturedLogs) : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => new CaptureLogger(capturedLogs);
+
+    public void Dispose() { }
+
+    private sealed class CaptureLogger(List<(LogLevel, string)> capturedLogs) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (capturedLogs)
+            {
+                capturedLogs.Add((logLevel, formatter(state, exception)));
+            }
+        }
     }
 }

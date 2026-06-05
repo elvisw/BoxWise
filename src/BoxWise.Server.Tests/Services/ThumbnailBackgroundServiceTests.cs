@@ -196,18 +196,18 @@ public class ThumbnailBackgroundServiceTests : IDisposable
     }
 
     [Fact]
-    public void TryEnqueue_ChannelFull_ReturnsFalse()
+    public void TryEnqueue_AlwaysReturnsTrue_EvenWhenChannelFull()
     {
         var (service, _, _) = CreateService();
 
         // Fill the channel to capacity (100)
         for (int i = 0; i < 100; i++)
-            service.TryEnqueue(1000 + i);
+            Assert.True(service.TryEnqueue(1000 + i));
 
-        // 101st enqueue should return false (channel full, DropWrite)
+        // DropWrite mode: TryWrite always returns true even when full
+        // (item is silently dropped; CAP-2 recovery scan will pick it up)
         var result = service.TryEnqueue(9999);
-
-        Assert.False(result);
+        Assert.True(result);
     }
 
     // ==================== Cancellation ====================

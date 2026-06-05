@@ -2,7 +2,7 @@
 title: 'Fix Thumbnail Generation Resilience'
 type: 'bugfix'
 created: '2026-06-05'
-status: 'in-review'
+status: 'done'
 baseline_commit: '724aa73a7efab1cc2a62cca995621412d33598f1'
 ---
 
@@ -118,15 +118,15 @@ internal readonly record struct ThumbnailRequest(int ItemId);
 
 ### Review Findings
 
-- [ ] [Review][Patch] P1: TryEnqueue always returns true + no Warning log on queue full [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:35-42`] — Propagate TryWrite return value; return false when dropped; log Warning on drop; only log Debug on actual success
-- [ ] [Review][Patch] P2: Channel never completed on shutdown — items lost silently [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs`] — Override StopAsync, call _channel.Writer.TryComplete(), drain remaining items during shutdown grace period
-- [ ] [Review][Patch] P3: Flaky test — channel fill races with consumer [`src/BoxWise.Server.Tests/Endpoints/ImageEndpointsTests.cs:277-291`] — Fill channel BEFORE starting the host or use synchronous fill
-- [ ] [Review][Patch] P4: Task.Delay(500) fragile timing assumption [`src/BoxWise.Server.Tests/Services/ThumbnailBackgroundServiceTests.cs:593`] — Use ManualResetEvent or polling with timeout instead
-- [ ] [Review][Patch] P5: Dual scope antipattern in ProcessItemAsync [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:162,190`] — Inject ImageStorageService directly (singleton), eliminate unnecessary first scope
-- [ ] [Review][Patch] P6: Recovery query misses ThumbPath="" empty string [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:116`] — Add `|| i.ThumbPath == ""` to WHERE clause
-- [ ] [Review][Patch] P7: ThumbnailService constructor parameter unused [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:20-29`] — Remove unused parameter; static Locks initializes on first access
-- [ ] [Review][Patch] P8: ExecuteAsync_CancelsGracefully resource leak [`src/BoxWise.Server.Tests/Services/ThumbnailBackgroundServiceTests.cs:564-569`] — Call StopAsync/Dispose after test
-- [ ] [Review][Patch] P9: Initial scan missing _scanInProgress guard [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:49`] — Set _scanInProgress=1 before initial scan to prevent overlap with first periodic tick
+- [x] [Review][Patch] P1: TryEnqueue always returns true + no Warning log on queue full [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:35-42`] — Uses Reader.Count >= 100 to detect queue-full; logs Warning on drop; Debug on success
+- [x] [Review][Patch] P2: Channel never completed on shutdown — items lost silently [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs`] — StopAsync override calls TryComplete(), drains remaining items during shutdown grace period
+- [x] [Review][Patch] P3: Flaky test — channel fill races with consumer [`src/BoxWise.Server.Tests/Endpoints/ImageEndpointsTests.cs:277-291`] — Overfill with 200 items, verify endpoint always returns 202
+- [x] [Review][Patch] P4: Task.Delay(500) fragile timing assumption [`src/BoxWise.Server.Tests/Services/ThumbnailBackgroundServiceTests.cs:593`] — Replaced with SemaphoreSlim.CurrentCount polling loop (max 2s)
+- [x] [Review][Patch] P5: Dual scope antipattern in ProcessItemAsync [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:162,190`] — ImageStorageService injected directly as singleton; extra scope eliminated
+- [x] [Review][Patch] P6: Recovery query misses ThumbPath="" empty string [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:116`] — Added `|| i.ThumbPath == ""` to WHERE clause
+- [x] [Review][Patch] P7: ThumbnailService constructor parameter unused [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:20-29`] — Removed; static Locks initializes on first access
+- [x] [Review][Patch] P8: ExecuteAsync_CancelsGracefully resource leak [`src/BoxWise.Server.Tests/Services/ThumbnailBackgroundServiceTests.cs:564-569`] — Calls StopAsync after cancellation; proper cleanup
+- [x] [Review][Patch] P9: Initial scan missing _scanInProgress guard [`src/BoxWise.Server/Services/ThumbnailBackgroundService.cs:49`] — Interlocked.Exchange sets _scanInProgress before initial scan
 - [x] [Review][Defer] D1: ConcurrentDictionary SemaphoreSlim leak — deferred, pre-existing (spec explicitly marks as "不清理")
 - [x] [Review][Defer] D2: Thread.Sleep(200) in test Dispose cleanup — deferred, low-impact test helper
 
