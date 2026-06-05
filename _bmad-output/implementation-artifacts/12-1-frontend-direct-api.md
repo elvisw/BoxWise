@@ -1,8 +1,8 @@
 # Story 12.1: 前端 AiService 直调火山 API
 
-Status: ready-for-dev
+Status: review
 
-baseline_commit: 367744c3007c2284cd0ea7f891204b6f1dbc6502
+baseline_commit: 474611c
 
 ## Story
 

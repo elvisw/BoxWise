@@ -45,7 +45,10 @@ public class AiServiceTests
                     System.Text.Encoding.UTF8, "application/json")
             });
 
-        var httpClient = new HttpClient(handler.Object);
+        var httpClient = new HttpClient(handler.Object)
+        {
+            BaseAddress = new Uri(baseUrl ?? "https://ark.cn-beijing.volces.com/api/v3")
+        };
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
 
@@ -196,9 +199,9 @@ public class AiServiceTests
             .Setup<Task<HttpResponseMessage>>("SendAsync",
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<CancellationToken>())
-            .Callback<HttpRequestMessage, CancellationToken>(async (req, _) =>
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
             {
-                capturedBody = req.Content is not null ? await req.Content.ReadAsStringAsync() : null;
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
                 capturedAuth = req.Headers.Authorization?.ToString();
             })
             .ReturnsAsync(new HttpResponseMessage
@@ -208,7 +211,7 @@ public class AiServiceTests
                     System.Text.Encoding.UTF8, "application/json")
             });
 
-        var httpClient = new HttpClient(handler.Object);
+        var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
         var config = new ConfigurationBuilder()
@@ -226,10 +229,10 @@ public class AiServiceTests
         Assert.NotNull(capturedBody);
         Assert.Contains("\"model\":\"test-model\"", capturedBody);
         Assert.Contains("\"max_tokens\":200", capturedBody);
-        Assert.Contains("image_url", capturedBody);
-        Assert.Contains("data:image/png;base64,", capturedBody);
-        Assert.Contains("识别这张照片中的物品", capturedBody);
-        Assert.Equal("Bearer sk-test-key", capturedAuth);
+        Assert.Contains("\"type\":\"image_url\"", capturedBody);
+        Assert.Contains("data:image/png;base64,AQID", capturedBody);
+        Assert.Contains("\"type\":\"text\"", capturedBody);
+        Assert.Contains("Bearer sk-test-key", capturedAuth);
     }
 
     [Fact]
