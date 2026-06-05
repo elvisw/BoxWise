@@ -211,20 +211,19 @@ public class ImageEndpointsTests : IDisposable
         var itemId = await SeedTestItemAsync();
         var imageBytes = CreateTestImageBytes();
 
-        // Get the BackgroundService from the factory's service provider
+        // Fill the channel to capacity with items that don't exist on disk
+        // (consumer drains quickly for non-existent items; fill aggressively)
         var bgService = _factory.Services.GetRequiredService<ThumbnailBackgroundService>();
-
-        // Fill the channel to capacity (100 items)
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 200; i++)
         {
-            bgService.TryEnqueue(1000 + i);
+            bgService.TryEnqueue(10000 + i);
         }
 
-        // Act: 101st upload should still return 202 (DropWrite silently drops overflow)
+        // Act: the endpoint always returns 202 regardless of queue state
         var uploadContent = BuildUploadRequest(itemId, imageBytes);
         var response = await client.PostAsync("/api/images/upload", uploadContent);
 
-        // Assert: endpoint still accepts the upload and returns 202
+        // Assert: endpoint always returns 202 (DropWrite + TryEnqueue return value not checked)
         Assert.Equal(202, (int)response.StatusCode);
     }
 

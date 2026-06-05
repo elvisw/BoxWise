@@ -14,18 +14,18 @@ public class ThumbnailBackgroundService : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ThumbnailBackgroundService> _logger;
+    private readonly ImageStorageService _storage;
 
     private int _scanInProgress;
 
     public ThumbnailBackgroundService(
         IServiceScopeFactory scopeFactory,
         ILogger<ThumbnailBackgroundService> logger,
-        ThumbnailService thumbnailService)
+        ImageStorageService storage)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        // ThumbnailService injected to ensure singleton registration;
-        // the shared Locks dictionary is accessed via ThumbnailService.Locks
+        _storage = storage;
     }
 
     /// <summary>
@@ -34,11 +34,23 @@ public class ThumbnailBackgroundService : BackgroundService
     /// </summary>
     public bool TryEnqueue(int itemId)
     {
-        // BoundedChannelFullMode.DropWrite silently drops items when full.
-        // TryWrite always returns true in DropWrite mode.
+        if (_channel.Reader.Count >= 100)
+        {
+            _logger.LogWarning(
+                "Thumbnail queue full ({Capacity}), item {ItemId} will be recovered on next recovery scan",
+                100, itemId);
+            return false;
+        }
+
         _channel.Writer.TryWrite(new ThumbnailRequest(itemId));
         _logger.LogDebug("Enqueued thumbnail generation for item {ItemId}", itemId);
         return true;
+    }
+
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        _channel.Writer.TryComplete();
+        await base.StopAsync(cancellationToken);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -46,7 +58,15 @@ public class ThumbnailBackgroundService : BackgroundService
         _logger.LogInformation("ThumbnailBackgroundService started");
 
         // 1. Startup scan: recover items with missing thumbnails
-        await ScanForMissingThumbnailsAsync(stoppingToken);
+        Interlocked.Exchange(ref _scanInProgress, 1);
+        try
+        {
+            await ScanForMissingThumbnailsAsync(stoppingToken);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _scanInProgress, 0);
+        }
 
         // 2. Run channel consumer and periodic timer concurrently
         var consumerTask = ConsumeChannelAsync(stoppingToken);
@@ -110,10 +130,9 @@ public class ThumbnailBackgroundService : BackgroundService
         {
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var storage = scope.ServiceProvider.GetRequiredService<ImageStorageService>();
 
             var itemIds = await db.Items
-                .Where(i => i.ThumbPath == null)
+                .Where(i => i.ThumbPath == null || i.ThumbPath == "")
                 .Select(i => i.Id)
                 .ToListAsync(ct);
 
@@ -124,7 +143,7 @@ public class ThumbnailBackgroundService : BackgroundService
                     break;
 
                 // Silently skip items that never had an image uploaded
-                if (!File.Exists(storage.GetOriginalPath(itemId)))
+                if (!File.Exists(_storage.GetOriginalPath(itemId)))
                     continue;
 
                 try
@@ -159,18 +178,14 @@ public class ThumbnailBackgroundService : BackgroundService
 
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var storage = scope.ServiceProvider.GetRequiredService<ImageStorageService>();
-
-            var originalPath = storage.GetOriginalPath(itemId);
+            var originalPath = _storage.GetOriginalPath(itemId);
             if (!File.Exists(originalPath))
             {
-                // Original image was deleted between enqueue and processing
                 return;
             }
 
-            ThumbnailService.GenerateThumb(originalPath, storage.GetThumbPath(itemId), 300);
-            ThumbnailService.GenerateThumb(originalPath, storage.GetMediumPath(itemId), 1200);
+            ThumbnailService.GenerateThumb(originalPath, _storage.GetThumbPath(itemId), 300);
+            ThumbnailService.GenerateThumb(originalPath, _storage.GetMediumPath(itemId), 1200);
 
             await UpdateItemPathsAsync(itemId, ct);
         }

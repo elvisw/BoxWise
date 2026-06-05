@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using System.Threading.Channels;
 using BoxWise.Server.Data;
 using BoxWise.Server.Models;
 using BoxWise.Server.Services;
@@ -59,15 +57,14 @@ public class ThumbnailBackgroundServiceTests : IDisposable
                 })!.Build();
             return new ImageStorageService(config);
         });
-        services.AddSingleton<ThumbnailService>();
         services.AddLogging();
 
         var serviceProvider = services.BuildServiceProvider();
         var scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         var logger = Mock.Of<ILogger<ThumbnailBackgroundService>>();
-        var thumbnailService = serviceProvider.GetRequiredService<ThumbnailService>();
+        var storage = serviceProvider.GetRequiredService<ImageStorageService>();
 
-        var bgService = new ThumbnailBackgroundService(scopeFactory, logger, thumbnailService);
+        var bgService = new ThumbnailBackgroundService(scopeFactory, logger, storage);
         return (bgService, tempDir, dbName);
     }
 
@@ -189,27 +186,28 @@ public class ThumbnailBackgroundServiceTests : IDisposable
     // ==================== TryEnqueue ====================
 
     [Fact]
-    public void TryEnqueue_ReturnsTrue()
+    public void TryEnqueue_UnderCapacity_ReturnsTrue()
     {
         var (service, _, _) = CreateService();
 
-        // With DropWrite mode, TryWrite always returns true
         var result = service.TryEnqueue(42);
 
         Assert.True(result);
     }
 
     [Fact]
-    public void TryEnqueue_MultipleItems_DoesNotThrow()
+    public void TryEnqueue_ChannelFull_ReturnsFalse()
     {
         var (service, _, _) = CreateService();
 
-        // DropWrite mode silently drops when full; verifies no exception
-        for (int i = 0; i < 150; i++)
-        {
-            var result = service.TryEnqueue(i);
-            Assert.True(result);
-        }
+        // Fill the channel to capacity (100)
+        for (int i = 0; i < 100; i++)
+            service.TryEnqueue(1000 + i);
+
+        // 101st enqueue should return false (channel full, DropWrite)
+        var result = service.TryEnqueue(9999);
+
+        Assert.False(result);
     }
 
     // ==================== Cancellation ====================
@@ -219,16 +217,16 @@ public class ThumbnailBackgroundServiceTests : IDisposable
     {
         var (service, tempDir, dbName) = CreateService();
 
-        // Seed an item so startup scan has work
         await SeedItemAsync(dbName, itemId: 1, createOriginalImage: true, tempDir);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(3000));
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
 
-        // Act - should complete without throwing
-        var exception = await Record.ExceptionAsync(() =>
-            service.StartAsync(cts.Token));
-
-        Assert.Null(exception);
+        // Start the service, then cancel and verify no exception
+        var executeTask = service.StartAsync(cts.Token);
+        await Task.Delay(100);
+        await cts.CancelAsync();
+        await executeTask;
+        await service.StopAsync(CancellationToken.None);
     }
 
     // ==================== Per-item Lock Safety ====================
@@ -247,11 +245,21 @@ public class ThumbnailBackgroundServiceTests : IDisposable
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
-        // Start scan on a background task (it will try to process item 1 and block)
+        // Start scan on a background task (it will try to process item 1 and block on the lock)
         var scanTask = service.ScanForMissingThumbnailsAsync(cts.Token);
 
-        // Give the scan a moment to encounter item 1 and block on the lock
-        await Task.Delay(500);
+        // Poll until the scan acquires the per-item lock (max 2 seconds)
+        var lockAcquired = false;
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            await Task.Delay(100);
+            if (heldSemaphore.CurrentCount == 0)
+            {
+                lockAcquired = true;
+                break;
+            }
+        }
+        Assert.True(lockAcquired, "Scan should have acquired the per-item lock and blocked");
 
         // Item should NOT have thumbnails yet (lock held — scan is blocked)
         Assert.False(File.Exists(Path.Combine(tempDir, "1", "thumb.jpg")),
