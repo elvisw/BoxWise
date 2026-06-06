@@ -360,10 +360,10 @@ UI 清晰标识当前处于"连续收纳"状态及继承的位置。
 - [ASSUMPTION: Service Worker 缓存策略为 Stale-While-Revalidate——缓存优先保证离线速度，后台更新保证数据新鲜]
 
 ### 8.4 AI Reliability
-- AI API 调用超时时间 15 秒
+- AI API 调用超时时间 30 秒（浏览器端）
 - API 不可用时 UI 平滑降级为手动输入，不阻塞录入流程
 - API 调用失败不在 UI 层报错，仅静默切换模式
-- v1 固定使用单一模型，不做多模型 fallback——用户通过配置文件指定一个 OpenAI 兼容提供商
+- v1 仅支持火山引擎 ARK API（doubao-seed-2-0-pro-260215），API 密钥通过客户端 wwwroot/appsettings.Production.json 配置（gitignored）。
 
 ### 8.5 Data
 - 数据库单文件 SQLite，存储于服务端

@@ -41,7 +41,7 @@
 │  │  /api/auth  /api/auth/webauthn      │ │
 │  │  /api/locations                     │ │
 │  │  /api/items  /api/images            │ │
-│  │  /api/tags   /api/ai                │ │
+│  │  /api/tags                           │ │
 │  │  /api/admin/users/{userId}/two-factor               │ │
 │  └──────────┬───────────────────────────┘ │
 │             │                              │

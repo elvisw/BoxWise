@@ -1,6 +1,6 @@
 # Story 12.3: 更新测试 + 文档
 
-Status: review
+Status: done
 
 baseline_commit: 58342e8
 

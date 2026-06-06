@@ -36,7 +36,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - **Security:** ASP.NET Core Identity, full endpoint authentication, HTTPS via Caddy/Nginx, HttpOnly/Secure cookies
 - **Performance:** 1C1G Linux VPS, ≤5 users, <2s first screen (100 items), <500ms search, lazy-loaded thumbnails
 - **PWA / Offline:** Service Worker with Stale-While-Revalidate, offline read-only mode
-- **AI Reliability:** 15s timeout, single OpenAI-compatible model, silent fallback to manual entry
+- **AI Reliability:** 30s timeout (browser-side), single OpenAI-compatible model, silent fallback to manual entry
 - **Data:** SQLite single file, file-system image storage, no hard size limits, persistent volume
 
 ### Scale & Complexity
@@ -304,7 +304,7 @@ Pages/Admin/
 | Auth state | Blazor WASM | Server API | Cookie + `/api/auth/me` |
 | Image upload | Blazor WASM | Server API | `multipart/form-data` POST |
 | Location tree | Server | SQLite | EF Core + Materialized Path |
-| AI recognition | Server | External LLM API | `HttpClient` + configurable base URL |
+| AI recognition | Browser (Client) | 火山 ARK API (北京) | fetch + CORS |
 | Thumbnail gen | Server (background) | File system | ImageSharp resize |
 | Static files | Browser | Caddy | File server + reverse proxy |
 
@@ -830,7 +830,7 @@ docker compose up -d
 | Security (§8.2) | ✅ | ASP.NET Core Identity, Cookie HttpOnly/Secure, HTTPS, [Authorize] on all endpoints |
 | Performance (§8.1) | ✅ | 1C1G target, thumbnails, lazy loading, materialized path B-tree queries |
 | PWA/Offline (§8.3) | ✅ | Service Worker with resource-type-differentiated cache strategies |
-| AI Reliability (§8.4) | ✅ | 15s timeout, silent fallback to manual entry, configurable single model |
+| AI Reliability (§8.4) | ✅ | 30s timeout (browser-side), silent fallback to manual entry |
 | Data (§8.5) | ✅ | SQLite single file, file-system images, persistent Docker volume |
 
 ### Gap Analysis

@@ -114,10 +114,7 @@ TwoFactorMethod ([Flags] 枚举: None=0, TOTP=1, Email=2, WebAuthn=4)
 
 ## AI 集成
 
-
-- OpenAI 兼容 API
-- 15s 超时静默降级为手动输入
-- Magic-byte 图片验证（JPEG/PNG/WebP）
+AI 识别已迁移至客户端浏览器直调火山 ARK API（Story 12.1）。服务端不再参与 AI 调用。
 
 ## 图片处理
 
