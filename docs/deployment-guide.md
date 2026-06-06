@@ -48,9 +48,6 @@ Caddy (443→80)
 | `Admin__Password` | 管理员创建密码 |
 | `Admin__Username` | 管理员用户名（默认 admin） |
 | `Admin__Email` | 管理员邮箱 |
-| `Llm__ApiKey` | AI API Key |
-| `Llm__BaseUrl` | AI API 地址 |
-| `Llm__Model` | AI 模型名称 |
 | `WebAuthn__Origin` | WebAuthn 允许的 origin（生产环境必需，如 `https://boxwise.example.com`） |
 | `WebAuthn__ServerDomain` | WebAuthn 服务器域名（默认从 Origin 解析） |
 
@@ -108,18 +105,18 @@ services:
 
 ### 3. 生产配置
 
-```json
-// appsettings.Production.json
-{
-  "Llm": {
-    "BaseUrl": "https://api.openai.com/v1",
-    "ApiKey": "sk-xxx",
-    "Model": "gpt-4o-mini"
-  }
-}
-```
+AI 识别功能通过服务端数据库管理，API 密钥在启动时从环境变量自动种子入库，后续可通过 Admin 后台（`/admin/llm-config`）在线更新。
 
-AI 未配置时静默降级为手动输入。
+**LLM API 配置（环境变量）：**
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `LlmApi__BaseUrl` | LLM API 地址 | —（必填） |
+| `LlmApi__ApiKey` | API 密钥 | —（必填） |
+| `LlmApi__Model` | 模型名称 | `doubao-seed-2-0-pro-260215` |
+| `LlmApi__TimeoutSeconds` | 超时秒数 | `30` |
+
+`LlmApi__BaseUrl` 和 `LlmApi__ApiKey` 均非空时，种子数据在启动时自动创建配置记录。后续可通过 Admin 后台（登录后访问 `/admin/llm-config`）在线更新，无需重启服务。
 
 **Data Protection 密钥环持久化：**
 

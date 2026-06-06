@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of 13-1-llm-config-backend (2026-06-06)
+
+- Missing CancellationToken parameter in GetLlmConfigAsync — pre-existing pattern across all endpoint handlers
+- ApiKey MaxLength(200) may truncate keys >200 chars — increase to 500 if needed
+- Default model name "doubao-seed-2-0-pro-260215" hardcoded in 4 places — consolidate in future refactor
+- TimeoutSeconds zero/negative not validated server-side — client AiService Clamp(5,120) handles; add server guard in Admin UI
+
 > **清偿日期：** 2026-05-31
 > **状态：** 全部 19 条已清偿（14 条修复 + 3 条验证已修复 + 2 条文档说明）
 
@@ -147,3 +154,8 @@
 - [x] **ManageNavPages.cs 残留已排除页面的方法** — 已移除 `DownloadPersonalData`/`DeletePersonalData`/`PersonalData`/`ExternalLogins` 及其 `*NavClass` 方法。仅保留 4 个活跃页面常量（Index/Email/ChangePassword/TwoFactorAuthentication）。
 - [x] **Manage/_Layout ParentLayout 扩展点未使用** — `_Layout.cshtml:2-8` 的 `ViewData["ParentLayout"]` 检查为标准 Identity 脚手架模板。当前功能正确，已记录。
 - [x] **Bootstrap CSS 隐式依赖外层布局** — Manage `_Layout.cshtml` 使用 Bootstrap 网格类但 CSS 由父级布局加载。标准布局链模式，已记录。
+
+## Deferred from: code review of 12-2-decommission-server-ai (2026-06-06)
+
+- [x] **D1: `stream.Position = 0` 无 CanSeek 守卫** — `ImageEndpoints.cs:72`。ASP.NET Core BufferedReadStream 始终可 Seek，但 IFormFile 接口本身不保证 seekability。Spec 已明确记录此设计决策并拒绝了 MemoryStream 回退方案（避免 10MB LOH 分配）。
+- [x] **D2: appsettings 中残留 `"Llm"` 配置节** — `AddOptions<LlmOptions>()` 移除后，开发环境 `appsettings.Development.json` 中的 `"Llm"` 节将静默忽略。不造成功能问题，后续清理即可。

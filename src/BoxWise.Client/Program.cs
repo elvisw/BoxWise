@@ -50,11 +50,7 @@ builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<ItemEntryService>();
 builder.Services.AddScoped<ItemService>();
-builder.Services.AddHttpClient("VolcEngine", c =>
-{
-    c.BaseAddress = new Uri(builder.Configuration["VolcEngine:BaseUrl"]
-        ?? "https://ark.cn-beijing.volces.com/api/v3");
-});
+builder.Services.AddHttpClient(); // 注册 IHttpClientFactory（AiService 依赖）
 builder.Services.AddScoped<AiService>();
 builder.Services.AddMudServices();
 

@@ -15,6 +15,7 @@ public class AppDbContext : IdentityDbContext<AppUser>
     public DbSet<Item> Items => Set<Item>();
     public DbSet<RecoveryCode> RecoveryCodes => Set<RecoveryCode>();
     public DbSet<WebAuthnCredential> WebAuthnCredentials => Set<WebAuthnCredential>();
+    public DbSet<LlmConfig> LlmConfigs => Set<LlmConfig>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

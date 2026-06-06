@@ -61,7 +61,7 @@ BoxWise.Shared 是零依赖的 .NET 类库，定义 Client 和 Server 之间共�
 
 | DTO | 类型 | 方向 |
 |-----|------|------|
-| `RecognitionResultDto` | `record (string Name, string Note)` | Server → Client |
+| `RecognitionResultDto` | `record (string Name, string Note)` | Client 端内部使用 |
 
 ### 双因素认证 (2FA)
 

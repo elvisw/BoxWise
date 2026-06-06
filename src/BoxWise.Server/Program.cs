@@ -13,7 +13,6 @@ using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
 using BoxWise.Server.Endpoints;
 using BoxWise.Server.Models;
-using BoxWise.Server.Configuration;
 using BoxWise.Server.Repositories;
 using BoxWise.Server.Services;
 using Fido2NetLib;
@@ -146,13 +145,6 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<LocationRepository>();
 builder.Services.AddScoped<TagRepository>();
 builder.Services.AddScoped<ItemRepository>();
-
-// LLM
-builder.Services.AddOptions<LlmOptions>()
-    .Bind(builder.Configuration.GetSection(LlmOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-builder.Services.AddHttpClient<LlmClient>();
 builder.Services.AddSingleton<ImageStorageService>();
 builder.Services.AddSingleton<ThumbnailService>();
 builder.Services.AddSingleton<ThumbnailBackgroundService>();
@@ -278,9 +270,47 @@ else
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
 
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+
+    // LlmConfig 种子数据
+    try
+    {
+        if (await db.LlmConfigs.FindAsync(1) is null)
+        {
+            var baseUrl = config["LlmApi:BaseUrl"];
+            var apiKey = config["LlmApi:ApiKey"];
+            var model = config["LlmApi:Model"];
+            var timeoutStr = config["LlmApi:TimeoutSeconds"];
+
+            if (!string.IsNullOrWhiteSpace(baseUrl) && !string.IsNullOrWhiteSpace(apiKey))
+            {
+                int.TryParse(timeoutStr, out var timeoutSeconds);
+                if (timeoutSeconds <= 0) timeoutSeconds = 30;
+
+                db.LlmConfigs.Add(new LlmConfig
+                {
+                    Id = 1,
+                    BaseUrl = baseUrl,
+                    ApiKey = apiKey,
+                    Model = !string.IsNullOrWhiteSpace(model) ? model : "doubao-seed-2-0-pro-260215",
+                    TimeoutSeconds = timeoutSeconds
+                });
+                await db.SaveChangesAsync();
+                app.Logger.LogInformation("LlmConfig seeded");
+            }
+            else
+            {
+                app.Logger.LogWarning("LlmConfig not seeded — LlmApi:BaseUrl or LlmApi:ApiKey not configured");
+            }
+        }
+    }
+    catch (DbUpdateException ex)
+    {
+        app.Logger.LogWarning(ex, "Failed to seed LlmConfig — continuing");
+    }
+
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
     // 确保 Admin 角色存在
     if (!await roleManager.RoleExistsAsync("Admin"))
@@ -411,9 +441,9 @@ app.MapLocationEndpoints();
 app.MapImageEndpoints();
 app.MapItemEndpoints();
 app.MapTagEndpoints();
-app.MapAiEndpoints();
 app.MapWebAuthnEndpoints();
 app.MapAdminTwoFactorEndpoints();
+app.MapLlmConfigEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截
 
 app.MapFallbackToFile("index.html").AllowAnonymous();

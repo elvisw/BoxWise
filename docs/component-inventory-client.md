@@ -144,7 +144,7 @@ Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门
 | `ItemEntryService` | Scoped | 物品创建 |
 | `LocationService` | Scoped | 位置 CRUD |
 | `TagService` | Scoped | 标签 CRUD |
-| `AiService` | Scoped | AI 识别（20s 超时，静默降级） |
+| `AiService` | Scoped | AI 识别（客户端直调火山 ARK API，30s 超时，静默降级） |
 
 ---
 

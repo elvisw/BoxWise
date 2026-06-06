@@ -1,0 +1,47 @@
+@page "/admin/llm-config"
+@model BoxWise.Server.Pages.Admin.LlmConfigModel
+@{
+    ViewData["Title"] = "LLM 配置";
+}
+
+<h2>LLM API 配置</h2>
+
+@if (Model.StatusMessage is not null)
+{
+    <div class="status-message">@Model.StatusMessage</div>
+}
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="error-message">@Model.ErrorMessage</div>
+}
+
+<div class="actions">
+    <a href="/admin" class="btn btn-outline">← 返回账户列表</a>
+</div>
+
+<form method="post">
+    <div class="form-group">
+        <label for="BaseUrl">BaseUrl</label>
+        <input asp-for="BaseUrl" placeholder="https://ark.cn-beijing.volces.com/api/v3" />
+        <span asp-validation-for="BaseUrl" class="error-message" style="display:block;padding:0.25rem 0;background:none;border:none;"></span>
+    </div>
+
+    <div class="form-group">
+        <label for="ApiKey">ApiKey</label>
+        <input asp-for="ApiKey" type="password" autocomplete="off"
+               placeholder="@(Model.HasApiKey ? "已配置 (●●●●●)" : "")" />
+    </div>
+
+    <div class="form-group">
+        <label for="Model">Model</label>
+        <input asp-for="Model" placeholder="doubao-seed-2-0-pro-260215" />
+    </div>
+
+    <div class="form-group">
+        <label for="TimeoutSeconds">TimeoutSeconds (5-120)</label>
+        <input asp-for="TimeoutSeconds" type="number" min="5" max="120" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">保存</button>
+</form>

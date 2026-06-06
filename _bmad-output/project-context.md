@@ -224,7 +224,7 @@ dotnet ef database update
 
 **Docker 部署:**
 - 持久化: `./data:/app/data` (SQLite + 图片)
-- 环境变量：`Admin__Password` 创建管理员 | `Llm__ApiKey` 配置 AI
+- 环境变量：`Admin__Password` 创建管理员 | Client 端 `wwwroot/appsettings.Production.json` 配置 AI (LlmApi)
 
 ### 关键避坑规则
 
@@ -256,7 +256,7 @@ dotnet ef database update
 - 并发：`DbUpdateException` 捕获兜底，返回 409 Conflict
 
 **AI 降级:**
-- `LlmClient` 15s 超时，失败时返回 null——不抛异常
+- AI 识别由客户端直调火山 ARK API，30s 超时静默降级——不抛异常
 - 前端检测 AI 返回 null 时静默降级为手动输入，不阻断录入流程
 
 ---

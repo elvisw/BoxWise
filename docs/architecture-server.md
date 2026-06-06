@@ -4,7 +4,7 @@
 
 ## 执行摘要
 
-BoxWise.Server 是基于 ASP.NET Core Minimal API 的后端服务，采用分层架构（Endpoint → Repository → EF Core → SQLite），集成 ASP.NET Core Identity 认证、SkiaSharp 图片处理、AI 识别客户端。
+BoxWise.Server 是基于 ASP.NET Core Minimal API 的后端服务，采用分层架构（Endpoint → Repository → EF Core → SQLite），集成 ASP.NET Core Identity 认证、SkiaSharp 图片处理。
 
 ## 技术栈
 
@@ -36,7 +36,7 @@ SQLite (data/boxwise.db)
   Identity + Cookie Auth
   ImageStorageService (Singleton)
   ThumbnailService (Singleton, SkiaSharp)
-  LlmClient (HttpClient, AI 识别)
+
   TwoFactorService (Scoped)
   WebAuthnService (Scoped, Fido2NetLib)
   RecoveryCodeService (Scoped)
@@ -57,7 +57,7 @@ SQLite (data/boxwise.db)
 | Item | `/api/items` | 5 | `ItemEndpoints.cs` |
 | Image | `/api/images` | 2 | `ImageEndpoints.cs` |
 | Tag | `/api/tags` | 4 | `TagEndpoints.cs` |
-| AI | `/api/ai` | 1 | `AiEndpoints.cs` |
+
 | WebAuthn | `/api/auth/webauthn` | 7 | `WebAuthnEndpoints.cs` |
 | Admin 2FA | `/api/admin/users/{userId}/two-factor` | 2 | `AdminTwoFactorEndpoints.cs` |
 
@@ -114,10 +114,7 @@ TwoFactorMethod ([Flags] 枚举: None=0, TOTP=1, Email=2, WebAuthn=4)
 
 ## AI 集成
 
-- `LlmClient` 通过 `AddHttpClient<T>()` 注册
-- OpenAI 兼容 API
-- 15s 超时静默降级为手动输入
-- Magic-byte 图片验证（JPEG/PNG/WebP）
+AI 识别已迁移至客户端浏览器直调火山 ARK API（Story 12.1）。服务端不再参与 AI 调用。
 
 ## 图片处理
 

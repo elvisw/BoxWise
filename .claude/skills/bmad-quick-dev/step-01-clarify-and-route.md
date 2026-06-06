@@ -1,6 +1,6 @@
 ---
 deferred_work_file: '{implementation_artifacts}/deferred-work.md'
-spec_file: '_bmad-output/implementation-artifacts/spec-admin-create-user-email.md' # set at runtime for both routes before leaving this step
+spec_file: '' # set at runtime for both routes before leaving this step
 story_key: '' # set at runtime to the current story's full sprint-status key (e.g. 3-2-digest-delivery) when the intent is an epic story and sprint-status resolution succeeds
 ---
 
