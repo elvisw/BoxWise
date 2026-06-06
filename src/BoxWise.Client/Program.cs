@@ -10,6 +10,9 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
+// 本地密钥文件（gitignored）— 存放 ApiKey 等敏感配置，覆盖 appsettings.json 默认值
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true);
+
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "";
 var hostBase = builder.HostEnvironment.BaseAddress;
 
