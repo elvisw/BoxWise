@@ -50,6 +50,7 @@ builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<ItemEntryService>();
 builder.Services.AddScoped<ItemService>();
+builder.Services.AddHttpClient(); // 注册 IHttpClientFactory（AiService 依赖）
 builder.Services.AddScoped<AiService>();
 builder.Services.AddMudServices();
 
