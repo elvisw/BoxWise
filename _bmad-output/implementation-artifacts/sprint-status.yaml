@@ -116,7 +116,7 @@ development_status:
   12-2-decommission-server-ai: done
   12-3-update-tests-docs: done
   epic-12-retrospective: done
-  epic-13: in-progress
+  epic-13: done
   13-1-llm-config-backend: done
   13-2-ai-service-refactor: done
   13-3-tests-admin-docs: done
