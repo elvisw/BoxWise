@@ -493,6 +493,7 @@ _bmad/
 # BoxWise 项目特定
 appsettings.Production.json
 appsettings.*.local.json
+appsettings.Local.json
 /data/
 /src/data/
 *.db

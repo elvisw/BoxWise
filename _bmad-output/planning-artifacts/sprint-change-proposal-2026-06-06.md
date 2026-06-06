@@ -1,9 +1,10 @@
 ---
 title: Sprint Change Proposal — LLM 配置安全迁移至服务端数据库
 date: 2026-06-06
-status: draft
+status: approved
 trigger: Epic 12 完成后安全审查 — wwwroot appsettings.Local.json ApiKey 存在未认证 HTTP 访问风险
 scope: Moderate — 新增 Epic 13，前后端代码变更 + DB 迁移
+reviewed: 2026-06-06 (subagent review — PASS, 3 minor implementor notes recorded)
 ---
 
 # Sprint Change Proposal: LLM 配置安全迁移
@@ -201,3 +202,17 @@ public class LlmConfig
 - [ ] ApiKey 未配置时 AI 静默降级为手动输入
 - [ ] 所有现有测试通过 + 新增测试覆盖
 - [ ] `dotnet build` 零错误零警告
+
+### Review Findings (2026-06-06)
+
+**Review outcome:** APPROVED — all assumptions verified, minor implementor notes recorded.
+
+**Implementor Notes (handle during Story 13.2):**
+
+1. `LlmConfigDto` 需在 `BoxWise.Shared.Dtos` 中新建 positional record
+2. AiService 的 `Authorization: Bearer` header 需从构造函数移至 `RecognizeAsync` 懒加载（因为 ApiKey 不再在构造函数中可用）
+3. `LlmApi` HttpClient 的 `BaseAddress` 需在获取服务端配置后动态设置，或改用绝对 URL
+4. 配置缓存需线程安全初始化（`SemaphoreSlim` 或 `Lazy<Task<T>>` 模式）
+5. `appsettings.Development.json:3-7` 中的 `LlmApi` 配置块需同步移除
+6. `Program.cs:14-23` 中 `AddJsonStream("appsettings.Local.json")` 代码块需移除
+7. ApiKey 以明文存储在 SQLite 中（防御性决策：本地文件，与 SMTP 加密模式不同）
