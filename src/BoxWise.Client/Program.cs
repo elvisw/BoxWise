@@ -10,18 +10,6 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// 加载 gitignored 本地配置文件（通过 HTTP fetch — Blazor WASM 无文件系统）
-using var localHttp = new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) };
-try
-{
-    using var stream = await localHttp.GetStreamAsync("appsettings.Local.json");
-    builder.Configuration.AddJsonStream(stream);
-}
-catch (HttpRequestException)
-{
-    // 文件不存在 — 仅本地开发需要，正常情况
-}
-
 var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "";
 var hostBase = builder.HostEnvironment.BaseAddress;
 
@@ -62,12 +50,6 @@ builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<ItemEntryService>();
 builder.Services.AddScoped<ItemService>();
-builder.Services.AddHttpClient("LlmApi", c =>
-{
-    c.BaseAddress = new Uri(builder.Configuration["LlmApi:BaseUrl"]
-        ?? "https://ark.cn-beijing.volces.com/api/v3");
-    c.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("LlmApi:TimeoutSeconds", 30));
-});
 builder.Services.AddScoped<AiService>();
 builder.Services.AddMudServices();
 

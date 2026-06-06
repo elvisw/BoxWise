@@ -10,20 +10,30 @@ public class AiService
     private const int MaxImageBytes = 10 * 1024 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    private readonly HttpClient _http;
-    private readonly string? _apiKey;
-    private readonly string _model;
-    private readonly int _timeoutSeconds;
+    private readonly IHttpClientFactory _httpFactory;
+    private readonly HttpClient _serverHttp;
+    private readonly Lazy<Task<LlmConfigDto?>> _configCache;
 
-    public AiService(IHttpClientFactory httpFactory, IConfiguration configuration)
+    public AiService(IHttpClientFactory httpFactory, HttpClient serverHttp)
     {
-        _http = httpFactory.CreateClient("LlmApi");
-        _apiKey = configuration["LlmApi:ApiKey"];
-        _model = configuration["LlmApi:Model"] ?? "doubao-seed-2-0-pro-260215";
-        _timeoutSeconds = Math.Clamp(configuration.GetValue("LlmApi:TimeoutSeconds", 30), 5, 120);
+        _httpFactory = httpFactory;
+        _serverHttp = serverHttp;
+        _configCache = new Lazy<Task<LlmConfigDto?>>(FetchConfigAsync);
+    }
 
-        if (!string.IsNullOrWhiteSpace(_apiKey))
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+    private async Task<LlmConfigDto?> FetchConfigAsync()
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var response = await _serverHttp.GetAsync("/api/llm/config", cts.Token);
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadFromJsonAsync<LlmConfigDto>(cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (HttpRequestException) { }
+        catch (JsonException) { }
+        return null;
     }
 
     public async Task<RecognitionResultDto?> RecognizeAsync(
@@ -32,25 +42,29 @@ public class AiService
         if (imageBytes is null || imageBytes.Length == 0)
             return null;
 
-        if (string.IsNullOrWhiteSpace(_apiKey))
-            return null;
-
-        if (string.IsNullOrWhiteSpace(_model))
-            return null;
-
         if (imageBytes.Length > MaxImageBytes)
             return null;
+
+        var config = await _configCache.Value;
+        if (config is null || string.IsNullOrWhiteSpace(config.ApiKey) || string.IsNullOrWhiteSpace(config.BaseUrl))
+            return null;
+
+        if (!Uri.TryCreate(config.BaseUrl, UriKind.Absolute, out var baseUri))
+            return null;
+
+        var model = string.IsNullOrWhiteSpace(config.Model) ? "doubao-seed-2-0-pro-260215" : config.Model.Trim();
+        var timeoutSeconds = Math.Clamp(config.TimeoutSeconds, 5, 120);
 
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(_timeoutSeconds));
+            cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
             var base64 = Convert.ToBase64String(imageBytes);
             var mime = GetMimeType(contentType);
             var requestBody = new
             {
-                model = _model,
+                model,
                 messages = new[]
                 {
                     new
@@ -66,11 +80,15 @@ public class AiService
                 max_tokens = 200
             };
 
+            using var httpClient = _httpFactory.CreateClient();
+            httpClient.BaseAddress = baseUri;
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
+
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v3/chat/completions")
             {
                 Content = JsonContent.Create(requestBody)
             };
-            var response = await _http.SendAsync(request, cts.Token);
+            var response = await httpClient.SendAsync(request, cts.Token);
 
             if (!response.IsSuccessStatusCode)
                 return null;

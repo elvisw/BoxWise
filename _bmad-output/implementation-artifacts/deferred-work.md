@@ -1,5 +1,12 @@
 # Deferred Work
 
+## Deferred from: code review of 13-1-llm-config-backend (2026-06-06)
+
+- Missing CancellationToken parameter in GetLlmConfigAsync — pre-existing pattern across all endpoint handlers
+- ApiKey MaxLength(200) may truncate keys >200 chars — increase to 500 if needed
+- Default model name "doubao-seed-2-0-pro-260215" hardcoded in 4 places — consolidate in future refactor
+- TimeoutSeconds zero/negative not validated server-side — client AiService Clamp(5,120) handles; add server guard in Admin UI
+
 > **清偿日期：** 2026-05-31
 > **状态：** 全部 19 条已清偿（14 条修复 + 3 条验证已修复 + 2 条文档说明）
 
