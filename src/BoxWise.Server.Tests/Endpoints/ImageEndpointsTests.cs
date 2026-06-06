@@ -205,6 +205,31 @@ public class ImageEndpointsTests : IDisposable
     }
 
     [Fact]
+    public async Task UploadAsync_InvalidMagic_Returns400()
+    {
+        // Arrange: bytes that don't match JPEG/PNG/WebP magic, but valid Content-Type
+        var client = CreateClient();
+        var itemId = await SeedTestItemAsync();
+        var nonImageBytes = new byte[100];
+        Array.Fill(nonImageBytes, (byte)0xAB);
+
+        var content = new MultipartFormDataContent();
+        content.Add(new StringContent(itemId.ToString()), "itemId");
+        var fileContent = new ByteArrayContent(nonImageBytes);
+        fileContent.Headers.ContentType =
+            new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+        content.Add(fileContent, "file", "fake.jpg");
+
+        // Act
+        var response = await client.PostAsync("/api/images/upload", content);
+
+        // Assert
+        Assert.Equal(400, (int)response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("文件格式不支持", body);
+    }
+
+    [Fact]
     public async Task UploadAsync_WhenChannelFull_StillReturns202()
     {
         // Arrange

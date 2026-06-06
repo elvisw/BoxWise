@@ -13,7 +13,6 @@ using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
 using BoxWise.Server.Endpoints;
 using BoxWise.Server.Models;
-using BoxWise.Server.Configuration;
 using BoxWise.Server.Repositories;
 using BoxWise.Server.Services;
 using Fido2NetLib;
@@ -146,13 +145,6 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<LocationRepository>();
 builder.Services.AddScoped<TagRepository>();
 builder.Services.AddScoped<ItemRepository>();
-
-// LLM
-builder.Services.AddOptions<LlmOptions>()
-    .Bind(builder.Configuration.GetSection(LlmOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-builder.Services.AddHttpClient<LlmClient>();
 builder.Services.AddSingleton<ImageStorageService>();
 builder.Services.AddSingleton<ThumbnailService>();
 builder.Services.AddSingleton<ThumbnailBackgroundService>();
@@ -411,7 +403,6 @@ app.MapLocationEndpoints();
 app.MapImageEndpoints();
 app.MapItemEndpoints();
 app.MapTagEndpoints();
-app.MapAiEndpoints();
 app.MapWebAuthnEndpoints();
 app.MapAdminTwoFactorEndpoints();
 app.MapRazorPages(); // 必须在 MapFallbackToFile 之前，否则 /admin 被 SPA 拦截

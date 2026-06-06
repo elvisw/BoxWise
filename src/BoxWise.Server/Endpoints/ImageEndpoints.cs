@@ -9,7 +9,12 @@ namespace BoxWise.Server.Endpoints;
 public static class ImageEndpoints
 {
     private const int MaxFileSize = 10 * 1024 * 1024; // 10MB
-    private static readonly string[] AllowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    private static readonly string[] AllowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+    private static readonly byte[] JpegMagic = [0xFF, 0xD8, 0xFF];
+    private static readonly byte[] PngMagic = [0x89, 0x50, 0x4E, 0x47];
+    private static readonly byte[] RiffMagic = [0x52, 0x49, 0x46, 0x46];
+    private static readonly byte[] WebpMagic = [0x57, 0x45, 0x42, 0x50];
 
     public static RouteGroupBuilder MapImageEndpoints(this IEndpointRouteBuilder app)
     {
@@ -44,7 +49,7 @@ public static class ImageEndpoints
         if (file is null || file.Length == 0)
             return TypedResults.Problem("未找到上传文件", statusCode: 400);
 
-        if (!AllowedTypes.Contains(file.ContentType))
+        if (!AllowedTypes.Contains(file.ContentType, StringComparer.OrdinalIgnoreCase))
             return TypedResults.Problem("仅支持 JPG、PNG、WebP 格式", statusCode: 400);
 
         if (file.Length > MaxFileSize)
@@ -58,6 +63,14 @@ public static class ImageEndpoints
             return TypedResults.Problem("物品不存在", statusCode: 400);
 
         await using var stream = file.OpenReadStream();
+
+        // 文件魔数验证（JPEG FFD8FF / PNG 89504E47 / WebP RIFF....WEBP）
+        var header = new byte[12];
+        var headerLen = await stream.ReadAsync(header.AsMemory(0, 12), CancellationToken.None);
+        if (!IsValidMagic(header, headerLen))
+            return TypedResults.Problem("文件格式不支持，请上传有效的图片", statusCode: 400);
+        stream.Position = 0;  // 回退流位置，确保 SaveOriginalAsync 写入完整文件
+
         await storage.SaveOriginalAsync(itemId, stream);
 
         thumbnailBg.TryEnqueue(itemId);
@@ -80,5 +93,26 @@ public static class ImageEndpoints
             return TypedResults.NotFound();
 
         return TypedResults.PhysicalFile(filePath, "image/jpeg");
+    }
+
+    private static bool IsValidMagic(byte[] header, int length)
+    {
+        if (length < 3) return false;
+
+        // JPEG: FF D8 FF
+        if (length >= 3 && header.AsSpan(0, 3).SequenceEqual(JpegMagic))
+            return true;
+
+        // PNG: 89 50 4E 47
+        if (length >= 4 && header.AsSpan(0, 4).SequenceEqual(PngMagic))
+            return true;
+
+        // WebP: RIFF....WEBP
+        if (length >= 12
+            && header.AsSpan(0, 4).SequenceEqual(RiffMagic)
+            && header.AsSpan(8, 4).SequenceEqual(WebpMagic))
+            return true;
+
+        return false;
     }
 }
