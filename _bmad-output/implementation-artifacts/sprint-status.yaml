@@ -114,4 +114,4 @@ development_status:
   epic-12: in-progress
   12-1-frontend-direct-api: done
   12-2-decommission-server-ai: done
-  12-3-update-tests-docs: backlog
+  12-3-update-tests-docs: ready-for-dev
