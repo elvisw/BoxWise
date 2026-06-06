@@ -19,7 +19,7 @@ scope: Moderate — 新增 Epic 13，前后端代码变更 + DB 迁移
 - Epic 12 已全部完成（3/3 Stories 交付，12 次提交）
 - 用户本地测试 AI 识别功能时发现配置加载机制问题
 - 进一步审查确认 `appsettings.Local.json` 可通过匿名 HTTP 直接访问
-- Sprint Change Proposal 中已知 "5 人家庭场景，Key 泄露风险低" 但用户不接受此风险承受
+- Sprint Change Proposal 中默认"5 人家庭场景，Key 泄露风险低并可通过消费上限告警缓解"，但**服务部署在公网上，无法避免匿名访问的攻击面**——攻击者扫描 `wwwroot/` 静态文件即可获取 ApiKey
 
 ### 证据
 
