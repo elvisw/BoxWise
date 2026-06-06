@@ -94,7 +94,7 @@
         try
         {
             var result = await AiService.RecognizeAsync(
-                photo.OpenReadStream(), photo.FileName, photo.ContentType, token);
+                photo.Bytes, photo.ContentType, token);
 
             if (_isDisposed || token.IsCancellationRequested) return;
 

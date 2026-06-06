@@ -1,5 +1,5 @@
 # generated: 2026-05-23
-# last_updated: 2026-06-02
+# last_updated: 2026-06-05
 # project: BoxWise
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-23
-last_updated: 2026-06-02
+last_updated: 2026-06-05
 project: BoxWise
 project_key: NOKEY
 tracking_system: file-system
@@ -111,3 +111,7 @@ development_status:
   11-3-decommission-legacy-code: done
   11-4-samesite-docs-update: done
   epic-11-retrospective: done
+  epic-12: in-progress
+  12-1-frontend-direct-api: review
+  12-2-decommission-server-ai: backlog
+  12-3-update-tests-docs: backlog
