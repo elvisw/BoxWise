@@ -111,7 +111,8 @@ development_status:
   11-3-decommission-legacy-code: done
   11-4-samesite-docs-update: done
   epic-11-retrospective: done
-  epic-12: in-progress
+  epic-12: done
   12-1-frontend-direct-api: done
   12-2-decommission-server-ai: done
   12-3-update-tests-docs: done
+  epic-12-retrospective: done
