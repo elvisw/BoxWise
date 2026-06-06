@@ -60,16 +60,6 @@ dotnet publish src/BoxWise.Server -c Release -o publish
 ### Docker 部署
 
 ```bash
-cat > src/BoxWise.Client/wwwroot/appsettings.Production.json << 'EOF'
-{
-  "LlmApi": {
-    "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
-    "ApiKey": "ark-xxx",
-    "Model": "doubao-seed-2-0-pro-260215",
-    "TimeoutSeconds": 30
-  }
-}
-EOF
 docker compose up -d
 ```
 
@@ -77,7 +67,7 @@ docker compose up -d
 **持久化:** `./data:/app/data`（SQLite + 图片），`./data/caddy:/data`（Caddy 证书）<br>
 **环境变量注入:** `ASPNETCORE_URLS`、`DataDirectory`、`ConnectionStrings__DefaultConnection`<br>
 **首次启动:** 通过 `Admin__Password` 环境变量创建管理员，登录后访问 `/admin` 创建家庭成员账户<br>
-**AI 配置:** API 密钥通过 Client 端 `wwwroot/appsettings.Local.json`（开发，gitignored）或 `appsettings.Production.json`（生产，gitignored）配置。未配置时 AI 静默降级为手动输入。配置块键名 `LlmApi`（BaseUrl/ApiKey/Model/TimeoutSeconds），支持任意 OpenAI 兼容 API。<br>
+**AI 配置:** API 密钥通过 Server 端 `LlmApi__*` 环境变量注入（种子数据自动入库），Admin 后台 `/admin/llm-config` 可在线管理。未配置时 AI 静默降级为手动输入。<br>
 **Admin UI:** Server 端独立 Razor Pages（`Pages/Admin/`），`AdminOnly` 策略保护，不走 Blazor WASM。<br>
 **AppUser:** Identity 实体扩展，`IsInRoleAsync(user, "Admin")` 判断管理员
 

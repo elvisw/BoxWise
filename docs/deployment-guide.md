@@ -105,24 +105,18 @@ services:
 
 ### 3. 生产配置
 
-AI 识别功能已迁移至客户端直调火山 ARK API（Story 12.1）。
+AI 识别功能通过服务端数据库管理，API 密钥在启动时从环境变量自动种子入库，后续可通过 Admin 后台（`/admin/llm-config`）在线更新。
 
-**客户端 LlmApi 配置（生产环境）：**
+**LLM API 配置（环境变量）：**
 
-在 `src/BoxWise.Client/wwwroot/` 创建 `appsettings.Production.json`（gitignored，不纳入版本控制）：
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `LlmApi__BaseUrl` | LLM API 地址 | —（必填） |
+| `LlmApi__ApiKey` | API 密钥 | —（必填） |
+| `LlmApi__Model` | 模型名称 | `doubao-seed-2-0-pro-260215` |
+| `LlmApi__TimeoutSeconds` | 超时秒数 | `30` |
 
-```json
-{
-  "LlmApi": {
-    "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
-    "ApiKey": "ark-xxx",
-    "Model": "doubao-seed-2-0-pro-260215",
-    "TimeoutSeconds": 30
-  }
-}
-```
-
-ApiKey 建议在火山 ARK 控制台设置最低权限（仅限指定模型）和消费上限告警。Docker 部署时 `dotnet publish` 会将 Client 端 `wwwroot/` 目录内的 `appsettings.Production.json` 一并输出。
+`LlmApi__BaseUrl` 和 `LlmApi__ApiKey` 均非空时，种子数据在启动时自动创建配置记录。后续可通过 Admin 后台（登录后访问 `/admin/llm-config`）在线更新，无需重启服务。
 
 **Data Protection 密钥环持久化：**
 

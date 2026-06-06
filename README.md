@@ -114,20 +114,14 @@ cd src/BoxWise.Client && dotnet run
 
 AI 识别为可选功能。未配置时拍照后自动切换为手动输入，不阻塞录入。v1 通过客户端浏览器直调火山引擎 ARK API（doubao-seed-2-0-pro-260215）。
 
-配置方式：
+**配置方式：** 通过 Server 端环境变量 `LlmApi__*` 注入（种子数据自动入库），或部署后通过 Admin 后台 `/admin/llm-config` 在线管理。
 
-1. 在 `src/BoxWise.Client/wwwroot/appsettings.Development.json` 中添加 LlmApi 配置：
-
-```json
-{
-  "LlmApi": {
-    "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
-    "ApiKey": "ark-xxx",
-    "Model": "doubao-seed-2-0-pro-260215",
-    "TimeoutSeconds": 30
-  }
-}
-```
+| 环境变量 | 说明 | 必填 |
+|----------|------|:--:|
+| `LlmApi__BaseUrl` | LLM API 地址 | 是 |
+| `LlmApi__ApiKey` | API 密钥 | 是 |
+| `LlmApi__Model` | 模型名称（默认 `doubao-seed-2-0-pro-260215`） | 否 |
+| `LlmApi__TimeoutSeconds` | 超时秒数（默认 30） | 否 |
 
 API 调用超时 30s，失败时静默降级为手动输入。
 
@@ -227,19 +221,13 @@ sudo apt-get update && sudo apt-get install -y aspnetcore-runtime-10.0
 # Fedora 42+：
 sudo dnf install aspnetcore-runtime-10.0
 
-# 6. 创建 AI 识别配置（可选，详见"配置 → AI 识别"章节）
-cat << 'EOF' | sudo tee /opt/boxwise/wwwroot/appsettings.Production.json > /dev/null
-{
-  "LlmApi": {
-    "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
-    "ApiKey": "ark-xxx",
-    "Model": "doubao-seed-2-0-pro-260215",
-    "TimeoutSeconds": 30
-  }
-}
+# 6. 配置 AI 识别（可选，详见上方 "AI 识别" 章节）：通过 Server 端环境变量注入
+cat << 'EOF' | sudo tee -a /opt/boxwise/.env > /dev/null
+LlmApi__BaseUrl=https://ark.cn-beijing.volces.com/api/v3
+LlmApi__ApiKey=ark-xxx
+LlmApi__Model=doubao-seed-2-0-pro-260215
+LlmApi__TimeoutSeconds=30
 EOF
-sudo chown boxwise:boxwise /opt/boxwise/wwwroot/appsettings.Production.json
-sudo chmod 600 /opt/boxwise/wwwroot/appsettings.Production.json
 
 # 7. 安装 systemd 服务
 cat << 'EOF' | sudo tee /etc/systemd/system/boxwise.service > /dev/null
@@ -642,8 +630,8 @@ docker compose logs -f
 
 检查以下项目：
 
-1. `wwwroot/appsettings.Production.json` 中 `LlmApi:ApiKey` 是否已配置且有效
-2. `LlmApi:BaseUrl` 是否正确（默认指向火山 ARK）
+1. Server 端 `LlmApi__ApiKey` 环境变量是否已配置（种子数据自动入库）
+2. Admin 后台 `/admin/llm-config` 查看配置是否正确
 3. 客户端浏览器是否能连通 API 端点（网络防火墙、代理等）
 4. 30s 超时是否太短（部分模型首次推理较慢）
 
