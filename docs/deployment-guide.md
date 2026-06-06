@@ -105,7 +105,24 @@ services:
 
 ### 3. 生产配置
 
-AI 识别功能已迁移至客户端直调火山 ARK API，无需服务端 AI 配置。详见 Story 12.1。
+AI 识别功能已迁移至客户端直调火山 ARK API（Story 12.1）。
+
+**客户端 VolcEngine 配置（生产环境）：**
+
+在 `src/BoxWise.Client/wwwroot/` 创建 `appsettings.Production.json`（gitignored，不纳入版本控制）：
+
+```json
+{
+  "VolcEngine": {
+    "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+    "ApiKey": "ark-xxx",
+    "Model": "doubao-seed-2-0-pro-260215",
+    "TimeoutSeconds": 30
+  }
+}
+```
+
+ApiKey 建议在火山 ARK 控制台设置最低权限（仅限指定模型）和消费上限告警。Docker 部署时 `dotnet publish` 会将 Client 端 `wwwroot/` 目录内的 `appsettings.Production.json` 一并输出。
 
 **Data Protection 密钥环持久化：**
 

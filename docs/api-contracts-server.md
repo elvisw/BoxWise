@@ -9,7 +9,7 @@
 - **授权:** 全局 `FallbackPolicy = RequireAuthenticatedUser`，匿名端点显式标记 `.AllowAnonymous()`
 - **错误返回:** `TypedResults.Problem()` + `ProblemDetails`
 - **所有端点:** 均需要 `.ProducesProblem(401)` 注解
-- **端点注册顺序（Program.cs）:** Auth → Locations → Images → Items → Tags → AI → WebAuthn → Admin2FA
+- **端点注册顺序（Program.cs）:** Auth → Locations → Images → Items → Tags → WebAuthn → Admin2FA
 
 ---
 
@@ -361,6 +361,5 @@ POST /api/admin/users/{userId}/two-factor/reset    → 200 Ok | 401 | 403 | 404 
 | `TagService.CreateAsync` | POST `api/tags` | CreateTagRequest |
 | `TagService.RenameAsync` | PUT `api/tags/{id}` | RenameTagRequest |
 | `TagService.DeleteAsync` | DELETE `api/tags/{id}` | - |
-| `AiService.RecognizeAsync` | POST `api/ai/recognize` | MultipartFormData |
 | Image Upload (ItemEntry) | POST `api/images/upload` | MultipartFormData |
 | Image Serve (ItemCard/ItemDetail) | GET `api/images/{id}?type=thumb\|medium` | - |
