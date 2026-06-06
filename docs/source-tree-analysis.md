@@ -54,7 +54,7 @@ BoxWise/                              # 解决方案根目录
 │   │   │   ├── ItemEntryService.cs   # 物品创建
 │   │   │   ├── LocationService.cs    # 位置 CRUD
 │   │   │   ├── TagService.cs         # 标签 CRUD
-│   │   │   └── AiService.cs          # AI 识别 (20s 超时, 静默降级)
+│   │   │   └── AiService.cs          # AI 识别 (30s 超时, 客户端直调火山 ARK)
 │   │   ├── Models/                   # 客户端模型
 │   │   │   └── PhotoCapture.cs       # 照片数据载体 record
 │   │   └── wwwroot/                  # 静态资源
@@ -84,7 +84,7 @@ BoxWise/                              # 解决方案根目录
 │   │   │   ├── ItemEndpoints.cs          # /api/items (CRUD + search)
 │   │   │   ├── ImageEndpoints.cs         # /api/images (upload + serve)
 │   │   │   ├── TagEndpoints.cs           # /api/tags (CRUD)
-│   │   │   └── AiEndpoints.cs            # /api/ai (recognize)
+
 │   │   ├── Data/                     # EF Core 数据层
 │   │   │   ├── AppDbContext.cs       # IdentityDbContext<AppUser>
 │   │   │   └── Configurations/       # Fluent API 实体配置
@@ -104,7 +104,7 @@ BoxWise/                              # 解决方案根目录
 │   │   ├── Services/                 # 业务服务 (11 个 .cs)
 │   │   │   ├── ImageStorageService.cs       # Singleton - 图片文件管理
 │   │   │   ├── ThumbnailService.cs          # Singleton - SkiaSharp 缩略图生成
-│   │   │   ├── LlmClient.cs                 # HttpClient - AI 集成
+
 │   │   │   ├── CsrfValidationFilter.cs      # CSRF 验证过滤器
 │   │   │   ├── TwoFactorService.cs          # 双因素认证核心服务
 │   │   │   ├── EmailTwoFactorService.cs     # 邮箱 2FA 验证码服务
@@ -114,7 +114,7 @@ BoxWise/                              # 解决方案根目录
 │   │   │   ├── ISmtpConfigurationService.cs # SMTP 配置服务接口
 │   │   │   └── IdentityEmailSender.cs       # Identity 邮箱发送（MailKit）
 │   │   ├── Configuration/            # 选项配置
-│   │   │   └── LlmOptions.cs         # AI 客户端选项
+
 │   │   ├── Dtos/                     # Server 端 DTO (空，共用 Shared)
 │   │   ├── Pages/Admin/              # Admin Razor Pages (Server 端)
 │   │   │   ├── Index.cshtml          # 管理后台首页
@@ -171,7 +171,7 @@ BoxWise/                              # 解决方案根目录
 │       │   ├── ItemRepositoryTests.cs
 │       │   └── TagRepositoryTests.cs
 │       ├── Services/                       # 服务层单元测试
-│       │   ├── LlmClientTests.cs
+
 │       │   ├── ImageStorageServiceTests.cs
 │       │   ├── ThumbnailServiceTests.cs
 │       │   ├── CsrfValidationFilterTests.cs

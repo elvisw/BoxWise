@@ -50,7 +50,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 - C# full-stack (Blazor WASM + ASP.NET Core) — non-negotiable per tech stack decision
 - SQLite + EF Core — single-file, zero-config database
 - ASP.NET Core Identity — chosen authentication framework
-- OpenAI-compatible LLM API — configurable via base URL + model name + custom fields
+- 火山引擎 ARK API（OpenAI 兼容）— 浏览器端直接调用，CORS 已通过 Playwright 实测确认
 - Linux VPS deployment — single machine, Caddy/Nginx reverse proxy
 - PWA — no native app, browser-based with install capability
 
@@ -475,7 +475,6 @@ BoxWise.Server/
 ├── Services/
 │   ├── ItemService.cs
 │   ├── LocationRepository.cs
-│   ├── LlmClient.cs
 │   ├── ImageProcessor.cs
 │   └── IdentityEmailSender.cs    ← IEmailSender 适配器
 ├── Utilities/
@@ -570,7 +569,7 @@ public async Task DeleteItem(int id) {
 // Server Program.cs — lifetime rules:
 builder.Services.AddScoped<ItemService>();          // Per-request business logic
 builder.Services.AddScoped<LocationRepository>();    // Per-request data access
-builder.Services.AddSingleton<LlmClient>();          // Shared HttpClient, stateless
+
 builder.Services.AddScoped<ImageProcessor>();        // May need IServiceScopeFactory for background work
 
 // Client Program.cs — all scoped:
@@ -674,7 +673,6 @@ BoxWise/
 │   │   ├── Services/
 │   │   │   ├── ItemService.cs
 │   │   │   ├── LocationRepository.cs
-│   │   │   ├── LlmClient.cs
 │   │   │   └── ImageProcessor.cs
 │   │   └── Pages/
 │   │       └── Admin/
@@ -736,7 +734,7 @@ BoxWise/
 
 | FR Group | Primary Files |
 |----------|--------------|
-| FR-1~6 Item Entry + AI | `ItemEntry.razor` → `ItemEndpoints.cs` → `ItemService.cs` → `LlmClient.cs` → `ImageProcessor.cs` |
+| FR-1~6 Item Entry + AI | `ItemEntry.razor` → `ItemEndpoints.cs` → `ItemService.cs` → `ImageProcessor.cs` |
 | FR-7~8 Continuous Storage | `AppState.cs` (client-state) + `ItemEndpoints.cs` |
 | FR-9~10 Search | `SearchBar.razor` → `ItemEndpoints.cs` → `ItemService.cs` → EF Core `LIKE` query |
 | FR-11~13 Browse + Filter | `Browse.razor` + `ItemCard.razor` + `LocationTree.razor` + `TagFilter.razor` → `ItemEndpoints.cs` |
@@ -757,7 +755,7 @@ BoxWise/
 **Component Boundaries:**
 - Client ↔ Server: HTTP REST, Cookie-based auth, same-origin via Caddy reverse proxy
 - Server ↔ SQLite: EF Core via `AppDbContext`, synchronous calls
-- Server ↔ LLM API: `LlmClient` via `HttpClient`, 15s timeout, graceful fallback
+- Browser ↔ 火山 ARK API: 客户端直调，30s 超时（CORS），静默降级
 - Server ↔ File System: `ImageProcessor` reads/writes `{DataDirectory}/images/`
 - Client ↔ Browser Cache: Service Worker with resource-type-differentiated strategies
 
@@ -817,7 +815,7 @@ docker compose up -d
 
 | FR Group | Coverage | Primary Implementation Path |
 |----------|----------|---------------------------|
-| FR-1~6 Item Entry + AI | ✅ | `ItemEntry.razor` → `ItemEndpoints.cs` → `ItemService` → `LlmClient` → `ImageProcessor` |
+| FR-1~6 Item Entry + AI | ✅ | `ItemEntry.razor` → `ItemEndpoints.cs` → `ItemService` → `ImageProcessor` |
 | FR-7~8 Continuous Storage | ✅ | `AppState.ContinuousStorageLocation` + `ItemEndpoints.cs` |
 | FR-9~10 Search | ✅ | `SearchBar.razor` → `ItemEndpoints.cs` → EF Core `LIKE` query |
 | FR-11~13 Browse + Filter | ✅ | `Browse.razor` + `ItemCard` + `LocationTree` + `TagFilter` → Materialized Path |

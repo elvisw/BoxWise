@@ -64,7 +64,8 @@
 │  │  Identity + Cookie Auth              │ │
 │  │  ImageStorageService (文件系统)       │ │
 │  │  ThumbnailService (SkiaSharp 后台)    │ │
-│  │  LlmClient (OpenAI 兼容 API)          │ │
+
+ │
 │  │  TwoFactorService / EmailTwoFactor    │ │
 │  │  WebAuthnService / RecoveryCodeService│ │
 │  │  SmtpConfigurationService            │ │
@@ -101,7 +102,7 @@
 ### 2. 物品录入流程
 ```
 1. ItemEntry.razor: 拍照/选图
-2. [可选] AiService.RecognizeAsync() → POST /api/ai/recognize (multipart)
+2. [可选] AiService.RecognizeAsync() → POST 火山 ARK API /chat/completions (JSON, CORS)
 3. 用户确认名称/位置/标签
 4. ItemEntryService.CreateItemAsync() → POST /api/items (JSON) → 201 itemId
 5. HttpClient.PostAsync() → POST /api/images/upload (multipart) → 202

@@ -10,7 +10,7 @@
 
 ## 功能一览
 
-- **拍照录入 + AI 识别** — 拍照后自动识别物品名称，支持 OpenAI 兼容 API（15s 超时静默降级为手动输入）
+- **拍照录入 + AI 识别** — 拍照后自动识别物品名称，客户端直调火山 ARK API（30s 超时静默降级为手动输入）
 - **层级位置管理** — 用户自定义任意深度位置树，物化路径（通过存储完整路径字符串实现任意深度层级）
 - **标签系统** — 多对多标签，跨位置组合筛选
 - **连续收纳** — 录入时自动继承上次使用的位置
@@ -112,30 +112,24 @@ cd src/BoxWise.Client && dotnet run
 
 ### AI 识别（可选）
 
-AI 识别为可选功能。未配置时拍照后自动切换为手动输入，不阻塞录入。支持任意 OpenAI 兼容提供商（OpenAI、火山方舟、Kimi、Qwen 等）。
+AI 识别为可选功能。未配置时拍照后自动切换为手动输入，不阻塞录入。v1 通过客户端浏览器直调火山引擎 ARK API（doubao-seed-2-0-pro-260215）。
 
-配置键名：
+配置方式：
 
-| 配置键（JSON） | 环境变量 | 默认值 | 说明 |
-|---------------|---------|--------|------|
-| `Llm:BaseUrl` | `Llm__BaseUrl` | `https://api.openai.com/v1` | API 端点 |
-| `Llm:ApiKey` | `Llm__ApiKey` | （空） | API 密钥，未填则不启用 AI |
-| `Llm:Model` | `Llm__Model` | `gpt-4o` | 模型名称 |
+1. 在 `src/BoxWise.Client/wwwroot/appsettings.Development.json` 中添加 VolcEngine 配置：
 
-```bash
-# 本地开发：User Secrets（推荐，不会误提交到 git）
-cd src/BoxWise.Server
-dotnet user-secrets set "Llm:ApiKey" "sk-xxx"
-dotnet user-secrets set "Llm:Model" "gpt-4o-mini"
-# 注：默认 model 为 gpt-4o，示例使用 gpt-4o-mini 以获得更快的识别速度和更低的成本
-# 可选：切换提供商
-dotnet user-secrets set "Llm:BaseUrl" "https://api.openai.com/v1"
-
-# 本地开发备选：直接编辑 appsettings.Development.json
-# 本地开发备选：launchSettings.json 环境变量 Llm__ApiKey
+```json
+{
+  "VolcEngine": {
+    "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+    "ApiKey": "ark-xxx",
+    "Model": "doubao-seed-2-0-pro-260215",
+    "TimeoutSeconds": 30
+  }
+}
 ```
 
-API 调用超时 15s，失败时静默降级为手动输入。
+API 调用超时 30s，失败时静默降级为手动输入。
 
 ### SMTP 邮件配置（可选）
 
@@ -234,17 +228,18 @@ sudo apt-get update && sudo apt-get install -y aspnetcore-runtime-10.0
 sudo dnf install aspnetcore-runtime-10.0
 
 # 6. 创建 AI 识别配置（可选，详见"配置 → AI 识别"章节）
-cat << 'EOF' | sudo tee /opt/boxwise/appsettings.Production.json > /dev/null
+cat << 'EOF' | sudo tee /opt/boxwise/wwwroot/appsettings.Production.json > /dev/null
 {
-  "Llm": {
-    "BaseUrl": "https://api.openai.com/v1",
-    "ApiKey": "sk-xxx",
-    "Model": "gpt-4o-mini"
+  "VolcEngine": {
+    "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+    "ApiKey": "ark-xxx",
+    "Model": "doubao-seed-2-0-pro-260215",
+    "TimeoutSeconds": 30
   }
 }
 EOF
-sudo chown boxwise:boxwise /opt/boxwise/appsettings.Production.json
-sudo chmod 600 /opt/boxwise/appsettings.Production.json
+sudo chown boxwise:boxwise /opt/boxwise/wwwroot/appsettings.Production.json
+sudo chmod 600 /opt/boxwise/wwwroot/appsettings.Production.json
 
 # 7. 安装 systemd 服务
 cat << 'EOF' | sudo tee /etc/systemd/system/boxwise.service > /dev/null
@@ -498,7 +493,6 @@ BoxWise/
 │   │   ├── Services/                # 业务逻辑 + AI + 图片处理
 │   │   │   ├── TwoFactorService.cs
 │   │   │   ├── RecoveryCodeService.cs
-│   │   │   ├── LlmClient.cs
 │   │   │   ├── ImageStorageService.cs
 │   │   │   ├── ThumbnailService.cs
 │   │   │   └── IdentityEmailSender.cs
@@ -648,12 +642,12 @@ docker compose logs -f
 
 检查以下项目：
 
-1. `Llm:ApiKey` 是否已配置且有效
-2. `Llm:BaseUrl` 是否正确（默认指向 OpenAI，切换其他提供商时需修改）
-3. 服务器是否能连通 API 端点（网络防火墙、代理等）
-4. 15s 超时是否太短（部分模型首次推理较慢）
+1. `wwwroot/appsettings.Production.json` 中 `VolcEngine:ApiKey` 是否已配置且有效
+2. `VolcEngine:BaseUrl` 是否正确（默认指向火山 ARK）
+3. 客户端浏览器是否能连通 API 端点（网络防火墙、代理等）
+4. 30s 超时是否太短（部分模型首次推理较慢）
 
-确认无误后重启应用。API 调用失败时自动降级为手动输入，不阻塞录入。
+确认无误后重新部署。API 调用失败时自动降级为手动输入，不阻塞录入。
 
 ### PWA 安装按钮不出现？
 

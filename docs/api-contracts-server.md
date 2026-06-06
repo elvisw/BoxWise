@@ -225,29 +225,9 @@ DELETE /api/tags/{id}  → 204 NoContent | 404
 
 ---
 
-## 7. AI 识别 — `/api/ai`
+## 7. AI 识别 — 已退役
 
-```
-POST /api/ai/recognize → 200 Ok<RecognitionResultDto> | 400 | 422
-```
-
-### POST `/api/ai/recognize` [认证]
-
-**请求:** `multipart/form-data` (图片文件)
-
-**验证:** Magic-byte 检测
-- JPEG: `FF D8 FF`
-- PNG: `89 50 4E 47`
-- WebP: RIFF + WEBP
-
-**限制:** 10MB
-
-**响应 (200):**
-```json
-{ "name": "string", "note": "string" }
-```
-
-**错误:** 422 (AI 服务不可用/超时，静默降级)
+> AI 识别已迁移至客户端浏览器直调火山 ARK API。详见 Story 12.1。
 
 ---
 

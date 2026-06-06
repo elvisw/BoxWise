@@ -1,6 +1,8 @@
 # Story 12.3: 更新测试 + 文档
 
-Status: ready-for-dev
+Status: review
+
+baseline_commit: 58342e8
 
 ## Story
 
@@ -24,65 +26,65 @@ so that 文档准确反映新架构，无残留死代码/死文档引用。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 更新 PRD 文档 (AC: #5)
-  - [ ] §3 Glossary "AI 识别" — 更新调用方式描述为"客户端浏览器直接调用火山引擎豆包识图 API"，移除多提供商支持描述
-  - [ ] §8.4 NFR-4 — 更新超时：15s→30s（浏览器端），API 密钥通过客户端 `wwwroot/appsettings.Production.json` 管理
-  - [ ] §11 Assumptions Index — 3 条旧假设替换：服务端调用→浏览器直调，多提供商→仅火山 ARK，15s→30s
+- [x] Task 1: 更新 PRD 文档 (AC: #5)
+  - [x] §3 Glossary "AI 识别" — 更新调用方式描述为"客户端浏览器直接调用火山引擎豆包识图 API"，移除多提供商支持描述
+  - [x] §8.4 NFR-4 — 更新超时：15s→30s（浏览器端），API 密钥通过客户端 `wwwroot/appsettings.Production.json` 管理
+  - [x] §11 Assumptions Index — 3 条旧假设替换：服务端调用→浏览器直调，多提供商→仅火山 ARK，15s→30s
 
-- [ ] Task 2: 更新 Architecture 文档 (AC: #6)
-  - [ ] §1 Technical Constraints — "OpenAI-compatible LLM API" → "火山引擎 ARK API（OpenAI 兼容），浏览器端直调，CORS 已确认"
-  - [ ] §3 Cross-Component Dependencies 表 — AI recognition 行：`Server→External` → `Browser (Client)→火山 ARK`
+- [x] Task 2: 更新 Architecture 文档 (AC: #6)
+  - [x] §1 Technical Constraints — "OpenAI-compatible LLM API" → "火山引擎 ARK API（OpenAI 兼容），浏览器端直调，CORS 已确认"
+  - [x] §3 Cross-Component Dependencies 表 — AI recognition 行：`Server→External` → `Browser (Client)→火山 ARK`
 
-- [ ] Task 3: 更新 `docs/architecture-server.md` (AC: #2)
-  - [ ] 移除 LlmClient 服务描述行
-  - [ ] 移除 AiEndpoints / `/api/ai` 端点行
-  - [ ] 更新 AI 集成小节为"AI 识别已迁移至客户端直调火山 ARK API"
+- [x] Task 3: 更新 `docs/architecture-server.md` (AC: #2)
+  - [x] 移除 LlmClient 服务描述行
+  - [x] 移除 AiEndpoints / `/api/ai` 端点行
+  - [x] 更新 AI 集成小节为"AI 识别已迁移至客户端直调火山 ARK API"
 
-- [ ] Task 4: 更新 `docs/api-contracts-server.md` (AC: #3)
-  - [ ] 移除 §7 AI 识别 API 文档（`POST /api/ai/recognize` 及其请求/响应说明）
+- [x] Task 4: 更新 `docs/api-contracts-server.md` (AC: #3)
+  - [x] 移除 §7 AI 识别 API 文档（`POST /api/ai/recognize` 及其请求/响应说明）
 
-- [ ] Task 5: 更新 `docs/architecture-client.md` (AC: #1)
-  - [ ] 移除旧 AiService 代理描述，更新为直调火山 ARK API + `IHttpClientFactory` 模式
+- [x] Task 5: 更新 `docs/architecture-client.md` (AC: #1)
+  - [x] 移除旧 AiService 代理描述，更新为直调火山 ARK API + `IHttpClientFactory` 模式
 
-- [ ] Task 6: 更新 `docs/architecture-shared.md` (AC: #1)
-  - [ ] `RecognitionResultDto` 方向 `Server→Client` → Client 端内部使用
+- [x] Task 6: 更新 `docs/architecture-shared.md` (AC: #1)
+  - [x] `RecognitionResultDto` 方向 `Server→Client` → Client 端内部使用
 
-- [ ] Task 7: 更新 `docs/source-tree-analysis.md` (AC: #1)
-  - [ ] 移除 `AiEndpoints.cs`、`LlmClient.cs`、`LlmOptions.cs`、`LlmClientTests.cs` 文件引用
-  - [ ] 更新 AiService 描述为新的直调模式
+- [x] Task 7: 更新 `docs/source-tree-analysis.md` (AC: #1)
+  - [x] 移除 `AiEndpoints.cs`、`LlmClient.cs`、`LlmOptions.cs`、`LlmClientTests.cs` 文件引用
+  - [x] 更新 AiService 描述为新的直调模式
 
-- [ ] Task 8: 更新 `docs/deployment-guide.md` (AC: #4)
-  - [ ] 移除 `Llm__*` 环境变量说明
-  - [ ] 移除 Server 端 Llm 配置块示例（`LlmClient:BaseUrl` 等）
-  - [ ] 新增 Client 端 `VolcEngine` 配置说明：`wwwroot/appsettings.Production.json` 格式 + gitignore 策略
+- [x] Task 8: 更新 `docs/deployment-guide.md` (AC: #4)
+  - [x] 移除 `Llm__*` 环境变量说明
+  - [x] 移除 Server 端 Llm 配置块示例（`LlmClient:BaseUrl` 等）
+  - [x] 新增 Client 端 `VolcEngine` 配置说明：`wwwroot/appsettings.Production.json` 格式 + gitignore 策略
 
-- [ ] Task 9: 更新 `docs/integration-architecture.md` (AC: #1)
-  - [ ] 移除 `LlmClient` 组件引用
-  - [ ] 更新 `AiService.RecognizeAsync()` 调用链为浏览器→火山 ARK
+- [x] Task 9: 更新 `docs/integration-architecture.md` (AC: #1)
+  - [x] 移除 `LlmClient` 组件引用
+  - [x] 更新 `AiService.RecognizeAsync()` 调用链为浏览器→火山 ARK
 
-- [ ] Task 10: 更新 `docs/component-inventory-client.md` (AC: #1)
-  - [ ] 更新 AiService 超时描述：90s → 30s（Clamp 5-120s）
+- [x] Task 10: 更新 `docs/component-inventory-client.md` (AC: #1)
+  - [x] 更新 AiService 超时描述：90s → 30s（Clamp 5-120s）
 
-- [ ] Task 11: 更新 CLAUDE.md (AC: #7)
-  - [ ] LLM 集成描述 — "OpenAI 兼容" → "火山 ARK 客户端直调"
-  - [ ] Docker 部署 — 移除 Server 端 `appsettings.Production.json` 中 `LlmClient` 配置块生成示例，新增 Client 端 `VolcEngine` 配置生成
-  - [ ] 服务/组件列表 — 移除 `LlmClient`、`LlmOptions`、`AiEndpoints`，更新 `AiService` 描述
-  - [ ] AI 集成说明 — "通过 `AddHttpClient<T>()` 注册" → "客户端通过 `IHttpClientFactory` 直调"
+- [x] Task 11: 更新 CLAUDE.md (AC: #7)
+  - [x] LLM 集成描述 — "OpenAI 兼容" → "火山 ARK 客户端直调"
+  - [x] Docker 部署 — 移除 Server 端 `appsettings.Production.json` 中 `LlmClient` 配置块生成示例，新增 Client 端 `VolcEngine` 配置生成
+  - [x] 服务/组件列表 — 移除 `LlmClient`、`LlmOptions`、`AiEndpoints`，更新 `AiService` 描述
+  - [x] AI 集成说明 — "通过 `AddHttpClient<T>()` 注册" → "客户端通过 `IHttpClientFactory` 直调"
 
-- [ ] Task 12: 更新 README.md (AC: #8)
-  - [ ] 配置表 — 移除 `Llm__BaseUrl`、`Llm__ApiKey`、`Llm__Model` 环境变量行
-  - [ ] user-secrets 初始化命令 — 移除 `dotnet user-secrets set "Llm:..."` 示例
-  - [ ] Docker 部署 — 移除 Server 端 Llm 配置块生成，新增 Client 端 `VolcEngine` 配置
-  - [ ] 文件树 — 移除 `LlmClient.cs`、`LlmOptions.cs`、`AiEndpoints.cs` 文件引用
-  - [ ] 排错指南 — 移除 AI 超时/配置相关排查条目
+- [x] Task 12: 更新 README.md (AC: #8)
+  - [x] 配置表 — 移除 `Llm__BaseUrl`、`Llm__ApiKey`、`Llm__Model` 环境变量行
+  - [x] user-secrets 初始化命令 — 移除 `dotnet user-secrets set "Llm:..."` 示例
+  - [x] Docker 部署 — 移除 Server 端 Llm 配置块生成，新增 Client 端 `VolcEngine` 配置
+  - [x] 文件树 — 移除 `LlmClient.cs`、`LlmOptions.cs`、`AiEndpoints.cs` 文件引用
+  - [x] 排错指南 — 移除 AI 超时/配置相关排查条目
 
-- [ ] Task 13: 更新 `_bmad-output/project-context.md` (AC: #9)
-  - [ ] 清理 LlmClient 引用，更新 AI 集成描述
+- [x] Task 13: 更新 `_bmad-output/project-context.md` (AC: #9)
+  - [x] 清理 LlmClient 引用，更新 AI 集成描述
 
-- [ ] Task 14: 验证 (AC: #10, #11)
-  - [ ] `dotnet build` 零错误零警告
-  - [ ] `dotnet test` 全部通过
-  - [ ] `grep -rn "LlmClient\|LlmOptions\|MapAiEndpoints\|/api/ai/" docs/ CLAUDE.md README.md _bmad-output/project-context.md` 零匹配（不含本文档自身）
+- [x] Task 14: 验证 (AC: #10, #11)
+  - [x] `dotnet build` 零错误零警告
+  - [x] `dotnet test` 全部通过
+  - [x] `rg -n "LlmClient|LlmOptions|MapAiEndpoints|/api/ai/" -g "*.md" docs/ CLAUDE.md README.md _bmad-output/project-context.md` 零匹配
 
 ## Dev Notes
 

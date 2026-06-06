@@ -48,9 +48,6 @@ Caddy (443→80)
 | `Admin__Password` | 管理员创建密码 |
 | `Admin__Username` | 管理员用户名（默认 admin） |
 | `Admin__Email` | 管理员邮箱 |
-| `Llm__ApiKey` | AI API Key |
-| `Llm__BaseUrl` | AI API 地址 |
-| `Llm__Model` | AI 模型名称 |
 | `WebAuthn__Origin` | WebAuthn 允许的 origin（生产环境必需，如 `https://boxwise.example.com`） |
 | `WebAuthn__ServerDomain` | WebAuthn 服务器域名（默认从 Origin 解析） |
 
@@ -108,18 +105,7 @@ services:
 
 ### 3. 生产配置
 
-```json
-// appsettings.Production.json
-{
-  "Llm": {
-    "BaseUrl": "https://api.openai.com/v1",
-    "ApiKey": "sk-xxx",
-    "Model": "gpt-4o-mini"
-  }
-}
-```
-
-AI 未配置时静默降级为手动输入。
+AI 识别功能已迁移至客户端直调火山 ARK API，无需服务端 AI 配置。详见 Story 12.1。
 
 **Data Protection 密钥环持久化：**
 

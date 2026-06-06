@@ -60,8 +60,15 @@ dotnet publish src/BoxWise.Server -c Release -o publish
 ### Docker 部署
 
 ```bash
-cat > src/BoxWise.Server/appsettings.Production.json << 'EOF'
-{ "LlmClient": { "BaseUrl": "https://api.openai.com/v1", "ApiKey": "sk-xxx", "Model": "gpt-4o-mini" } }
+cat > src/BoxWise.Client/wwwroot/appsettings.Production.json << 'EOF'
+{
+  "VolcEngine": {
+    "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+    "ApiKey": "ark-xxx",
+    "Model": "doubao-seed-2-0-pro-260215",
+    "TimeoutSeconds": 30
+  }
+}
 EOF
 docker compose up -d
 ```
@@ -70,7 +77,7 @@ docker compose up -d
 **持久化:** `./data:/app/data`（SQLite + 图片），`./data/caddy:/data`（Caddy 证书）<br>
 **环境变量注入:** `ASPNETCORE_URLS`、`DataDirectory`、`ConnectionStrings__DefaultConnection`<br>
 **首次启动:** 通过 `Admin__Password` 环境变量创建管理员，登录后访问 `/admin` 创建家庭成员账户<br>
-**AI 配置:** 通过 `appsettings.Production.json` 或环境变量注入 `Llm__ApiKey` 等。未配置时 AI 静默降级为手动输入。<br>
+**AI 配置:** 通过 Client 端 `wwwroot/appsettings.Production.json` 配置 `VolcEngine` 信息。未配置时 AI 静默降级为手动输入。<br>
 **Admin UI:** Server 端独立 Razor Pages（`Pages/Admin/`），`AdminOnly` 策略保护，不走 Blazor WASM。<br>
 **AppUser:** Identity 实体扩展，`IsInRoleAsync(user, "Admin")` 判断管理员
 
@@ -95,7 +102,7 @@ BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 │   │   ├── Data/                   # AppDbContext + EF Configurations
 │   │   ├── Models/                 # Identity 实体（AppUser）+ Location, Tag, Item
 │   │   ├── Repositories/           # LocationRepository, TagRepository, ItemRepository
-│   │   ├── Services/               # IdentityEmailSender, ImageStorageService, ThumbnailService (SkiaSharp), LlmClient
+│   │   ├── Services/               # IdentityEmailSender, ImageStorageService, ThumbnailService (SkiaSharp)
 │   │   ├── Utilities/              # AuthConstants
 │   │   └── Migrations/             # EF Core 迁移
 │   └── BoxWise.Shared/             # 共享 DTO（record 类型）
@@ -120,7 +127,7 @@ BoxWise.slnx                        # .NET 10 新格式 (.slnx = XML)
 - **数据库：** SQLite + EF Core，使用 CPM 管理包版本
 - **Admin UI：** 独立的 Server 端 Razor Pages 区域（`Pages/Admin/`），不走 Blazor WASM
 - **图片处理：** SkiaSharp 3.119.4（MIT 许可证），300px + 1200px 两级缩略图，后台异步生成
-- **AI 集成：** OpenAI 兼容 API，`LlmClient` 通过 `AddHttpClient<T>()` 注册，15s 超时静默降级
+- **AI 集成：** 客户端浏览器直调火山 ARK API（OpenAI 兼容），通过 `IHttpClientFactory` 创建独立 HttpClient，30s 超时静默降级
 
 ## 认证流程
 
