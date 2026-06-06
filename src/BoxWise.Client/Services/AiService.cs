@@ -17,10 +17,10 @@ public class AiService
 
     public AiService(IHttpClientFactory httpFactory, IConfiguration configuration)
     {
-        _http = httpFactory.CreateClient("VolcEngine");
-        _apiKey = configuration["VolcEngine:ApiKey"];
-        _model = configuration["VolcEngine:Model"] ?? "doubao-seed-2-0-pro-260215";
-        _timeoutSeconds = Math.Clamp(configuration.GetValue("VolcEngine:TimeoutSeconds", 30), 5, 120);
+        _http = httpFactory.CreateClient("LlmApi");
+        _apiKey = configuration["LlmApi:ApiKey"];
+        _model = configuration["LlmApi:Model"] ?? "doubao-seed-2-0-pro-260215";
+        _timeoutSeconds = Math.Clamp(configuration.GetValue("LlmApi:TimeoutSeconds", 30), 5, 120);
 
         if (!string.IsNullOrWhiteSpace(_apiKey))
             _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);

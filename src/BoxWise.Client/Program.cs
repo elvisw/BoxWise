@@ -53,11 +53,11 @@ builder.Services.AddScoped<LocationService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<ItemEntryService>();
 builder.Services.AddScoped<ItemService>();
-builder.Services.AddHttpClient("VolcEngine", c =>
+builder.Services.AddHttpClient("LlmApi", c =>
 {
-    c.BaseAddress = new Uri(builder.Configuration["VolcEngine:BaseUrl"]
+    c.BaseAddress = new Uri(builder.Configuration["LlmApi:BaseUrl"]
         ?? "https://ark.cn-beijing.volces.com/api/v3");
-    c.Timeout = TimeSpan.FromSeconds(30);
+    c.Timeout = TimeSpan.FromSeconds(builder.Configuration.GetValue("LlmApi:TimeoutSeconds", 30));
 });
 builder.Services.AddScoped<AiService>();
 builder.Services.AddMudServices();

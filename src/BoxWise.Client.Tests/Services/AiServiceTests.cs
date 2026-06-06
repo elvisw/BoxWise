@@ -50,14 +50,14 @@ public class AiServiceTests
             BaseAddress = new Uri(baseUrl ?? "https://ark.cn-beijing.volces.com/api/v3")
         };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
 
         var configValues = new Dictionary<string, string?>
         {
-            ["VolcEngine:BaseUrl"] = baseUrl ?? "https://ark.cn-beijing.volces.com/api/v3",
-            ["VolcEngine:ApiKey"] = apiKey ?? "sk-test-key",
-            ["VolcEngine:Model"] = model ?? "test-model",
-            ["VolcEngine:TimeoutSeconds"] = timeoutSeconds.ToString()
+            ["LlmApi:BaseUrl"] = baseUrl ?? "https://ark.cn-beijing.volces.com/api/v3",
+            ["LlmApi:ApiKey"] = apiKey ?? "sk-test-key",
+            ["LlmApi:Model"] = model ?? "test-model",
+            ["LlmApi:TimeoutSeconds"] = timeoutSeconds.ToString()
         };
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(configValues)
@@ -97,13 +97,13 @@ public class AiServiceTests
 
         var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["VolcEngine:BaseUrl"] = "https://api.test.com/v1",
-                ["VolcEngine:ApiKey"] = "sk-test-key",
-                ["VolcEngine:Model"] = "test-model"
+                ["LlmApi:BaseUrl"] = "https://api.test.com/v1",
+                ["LlmApi:ApiKey"] = "sk-test-key",
+                ["LlmApi:Model"] = "test-model"
             })
             .Build();
         var service = new AiService(factory.Object, config);
@@ -122,12 +122,12 @@ public class AiServiceTests
         var handler = CreateHandler(HttpStatusCode.InternalServerError, "");
         var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["VolcEngine:BaseUrl"] = "https://api.test.com/v1",
-                ["VolcEngine:ApiKey"] = "sk-test-key"
+                ["LlmApi:BaseUrl"] = "https://api.test.com/v1",
+                ["LlmApi:ApiKey"] = "sk-test-key"
             })
             .Build();
         var service = new AiService(factory.Object, config);
@@ -148,12 +148,12 @@ public class AiServiceTests
             .ThrowsAsync(new OperationCanceledException());
         var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["VolcEngine:BaseUrl"] = "https://api.test.com/v1",
-                ["VolcEngine:ApiKey"] = "sk-test-key"
+                ["LlmApi:BaseUrl"] = "https://api.test.com/v1",
+                ["LlmApi:ApiKey"] = "sk-test-key"
             })
             .Build();
         var service = new AiService(factory.Object, config);
@@ -174,12 +174,12 @@ public class AiServiceTests
             .ThrowsAsync(new HttpRequestException());
         var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["VolcEngine:BaseUrl"] = "https://api.test.com/v1",
-                ["VolcEngine:ApiKey"] = "sk-test-key"
+                ["LlmApi:BaseUrl"] = "https://api.test.com/v1",
+                ["LlmApi:ApiKey"] = "sk-test-key"
             })
             .Build();
         var service = new AiService(factory.Object, config);
@@ -213,13 +213,13 @@ public class AiServiceTests
 
         var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["VolcEngine:BaseUrl"] = "https://api.test.com/v1",
-                ["VolcEngine:ApiKey"] = "sk-test-key",
-                ["VolcEngine:Model"] = "test-model"
+                ["LlmApi:BaseUrl"] = "https://api.test.com/v1",
+                ["LlmApi:ApiKey"] = "sk-test-key",
+                ["LlmApi:Model"] = "test-model"
             })
             .Build();
         var service = new AiService(factory.Object, config);
@@ -241,12 +241,12 @@ public class AiServiceTests
         var handler = new Mock<HttpMessageHandler>();
         var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["VolcEngine:BaseUrl"] = "https://api.test.com/v1",
-                ["VolcEngine:ApiKey"] = null
+                ["LlmApi:BaseUrl"] = "https://api.test.com/v1",
+                ["LlmApi:ApiKey"] = null
             })
             .Build();
         var service = new AiService(factory.Object, config);
@@ -263,12 +263,12 @@ public class AiServiceTests
         var handler = CreateHandler(HttpStatusCode.OK, json);
         var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["VolcEngine:BaseUrl"] = "https://api.test.com/v1",
-                ["VolcEngine:ApiKey"] = "sk-test-key"
+                ["LlmApi:BaseUrl"] = "https://api.test.com/v1",
+                ["LlmApi:ApiKey"] = "sk-test-key"
             })
             .Build();
         var service = new AiService(factory.Object, config);
@@ -285,12 +285,12 @@ public class AiServiceTests
         var handler = CreateHandler(HttpStatusCode.OK, json);
         var httpClient = new HttpClient(handler.Object) { BaseAddress = new Uri("https://api.test.com/v1") };
         var factory = new Mock<IHttpClientFactory>();
-        factory.Setup(f => f.CreateClient("VolcEngine")).Returns(httpClient);
+        factory.Setup(f => f.CreateClient("LlmApi")).Returns(httpClient);
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["VolcEngine:BaseUrl"] = "https://api.test.com/v1",
-                ["VolcEngine:ApiKey"] = "sk-test-key"
+                ["LlmApi:BaseUrl"] = "https://api.test.com/v1",
+                ["LlmApi:ApiKey"] = "sk-test-key"
             })
             .Build();
         var service = new AiService(factory.Object, config);

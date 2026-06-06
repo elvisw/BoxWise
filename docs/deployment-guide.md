@@ -107,13 +107,13 @@ services:
 
 AI 识别功能已迁移至客户端直调火山 ARK API（Story 12.1）。
 
-**客户端 VolcEngine 配置（生产环境）：**
+**客户端 LlmApi 配置（生产环境）：**
 
 在 `src/BoxWise.Client/wwwroot/` 创建 `appsettings.Production.json`（gitignored，不纳入版本控制）：
 
 ```json
 {
-  "VolcEngine": {
+  "LlmApi": {
     "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
     "ApiKey": "ark-xxx",
     "Model": "doubao-seed-2-0-pro-260215",

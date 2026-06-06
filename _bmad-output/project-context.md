@@ -224,7 +224,7 @@ dotnet ef database update
 
 **Docker 部署:**
 - 持久化: `./data:/app/data` (SQLite + 图片)
-- 环境变量：`Admin__Password` 创建管理员 | Client 端 `wwwroot/appsettings.Production.json` 配置 AI (VolcEngine)
+- 环境变量：`Admin__Password` 创建管理员 | Client 端 `wwwroot/appsettings.Production.json` 配置 AI (LlmApi)
 
 ### 关键避坑规则
 

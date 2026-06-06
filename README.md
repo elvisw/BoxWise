@@ -116,11 +116,11 @@ AI 识别为可选功能。未配置时拍照后自动切换为手动输入，�
 
 配置方式：
 
-1. 在 `src/BoxWise.Client/wwwroot/appsettings.Development.json` 中添加 VolcEngine 配置：
+1. 在 `src/BoxWise.Client/wwwroot/appsettings.Development.json` 中添加 LlmApi 配置：
 
 ```json
 {
-  "VolcEngine": {
+  "LlmApi": {
     "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
     "ApiKey": "ark-xxx",
     "Model": "doubao-seed-2-0-pro-260215",
@@ -230,7 +230,7 @@ sudo dnf install aspnetcore-runtime-10.0
 # 6. 创建 AI 识别配置（可选，详见"配置 → AI 识别"章节）
 cat << 'EOF' | sudo tee /opt/boxwise/wwwroot/appsettings.Production.json > /dev/null
 {
-  "VolcEngine": {
+  "LlmApi": {
     "BaseUrl": "https://ark.cn-beijing.volces.com/api/v3",
     "ApiKey": "ark-xxx",
     "Model": "doubao-seed-2-0-pro-260215",
@@ -642,8 +642,8 @@ docker compose logs -f
 
 检查以下项目：
 
-1. `wwwroot/appsettings.Production.json` 中 `VolcEngine:ApiKey` 是否已配置且有效
-2. `VolcEngine:BaseUrl` 是否正确（默认指向火山 ARK）
+1. `wwwroot/appsettings.Production.json` 中 `LlmApi:ApiKey` 是否已配置且有效
+2. `LlmApi:BaseUrl` 是否正确（默认指向火山 ARK）
 3. 客户端浏览器是否能连通 API 端点（网络防火墙、代理等）
 4. 30s 超时是否太短（部分模型首次推理较慢）
 
