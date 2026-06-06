@@ -77,7 +77,7 @@ docker compose up -d
 **持久化:** `./data:/app/data`（SQLite + 图片），`./data/caddy:/data`（Caddy 证书）<br>
 **环境变量注入:** `ASPNETCORE_URLS`、`DataDirectory`、`ConnectionStrings__DefaultConnection`<br>
 **首次启动:** 通过 `Admin__Password` 环境变量创建管理员，登录后访问 `/admin` 创建家庭成员账户<br>
-**AI 配置:** 通过 Client 端 `wwwroot/appsettings.Production.json` 配置 `LlmApi` 信息。未配置时 AI 静默降级为手动输入。<br>
+**AI 配置:** API 密钥通过 Client 端 `wwwroot/appsettings.Local.json`（开发，gitignored）或 `appsettings.Production.json`（生产，gitignored）配置。未配置时 AI 静默降级为手动输入。配置块键名 `LlmApi`（BaseUrl/ApiKey/Model/TimeoutSeconds），支持任意 OpenAI 兼容 API。<br>
 **Admin UI:** Server 端独立 Razor Pages（`Pages/Admin/`），`AdminOnly` 策略保护，不走 Blazor WASM。<br>
 **AppUser:** Identity 实体扩展，`IsInRoleAsync(user, "Admin")` 判断管理员
 
