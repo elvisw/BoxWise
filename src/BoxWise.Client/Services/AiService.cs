@@ -35,6 +35,9 @@ public class AiService
         if (string.IsNullOrWhiteSpace(_apiKey))
             return null;
 
+        if (string.IsNullOrWhiteSpace(_model))
+            return null;
+
         if (imageBytes.Length > MaxImageBytes)
             return null;
 
@@ -102,7 +105,7 @@ public class AiService
                 return dto;
             return null;
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             var nameMatch = System.Text.RegularExpressions.Regex.Match(content, "\"name\"\\s*:\\s*\"([^\"]+)\"");
             var noteMatch = System.Text.RegularExpressions.Regex.Match(content, "\"note\"\\s*:\\s*\"([^\"]+)\"");

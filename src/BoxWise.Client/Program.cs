@@ -54,6 +54,7 @@ builder.Services.AddHttpClient("VolcEngine", c =>
 {
     c.BaseAddress = new Uri(builder.Configuration["VolcEngine:BaseUrl"]
         ?? "https://ark.cn-beijing.volces.com/api/v3");
+    c.Timeout = TimeSpan.FromSeconds(30);
 });
 builder.Services.AddScoped<AiService>();
 builder.Services.AddMudServices();
