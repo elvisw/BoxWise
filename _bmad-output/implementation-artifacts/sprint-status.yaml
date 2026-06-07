@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-23
-last_updated: 2026-06-06
+last_updated: 2026-06-07
 project: BoxWise
 project_key: NOKEY
 tracking_system: file-system
@@ -120,3 +120,11 @@ development_status:
   13-1-llm-config-backend: done
   13-2-ai-service-refactor: done
   13-3-tests-admin-docs: done
+  epic-13-retrospective: done
+  epic-14: done
+  14-1-admin-2fa-self-protect: done
+  14-2-hasflag-exact-match: done
+  14-3-sw-cache-close: done
+  14-4-ci-tar-validate: done
+  14-5-grep-regex-universal: done
+  14-6-i18n-close: done

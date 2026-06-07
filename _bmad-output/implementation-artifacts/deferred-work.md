@@ -140,8 +140,8 @@
 
 > 以下为 pre-existing issues，非本次 fingerprint 占位符修复引入。
 
-- [ ] **SW 缓存键不匹配，离线时 `blazor.webassembly.js` 无法命中** — 非指纹化 URL 与 Service Worker 预缓存的指纹化 URL 不匹配，离线状态下 `MapStaticAssets()` 无法被 Service Worker 拦截。→ `service-worker.published.js` 已添加注释说明 .NET 10 已知限制；修复需框架级方案。→ [#27](https://github.com/elvisw/BoxWise/issues/27)
-- [ ] **README 备份说明依赖 CI 约定** — `tar -xzf` 命令。若 CI 误包含 `.env`/`data/` 则静默覆盖。README 已注明 tar 包中不含这些文件，风险仅存于 CI 配置失误。→ [#28](https://github.com/elvisw/BoxWise/issues/28)
+- [x] **SW 缓存键不匹配，离线时 `blazor.webassembly.js` 无法命中** — 非指纹化 URL 与 Service Worker 预缓存的指纹化 URL 不匹配，离线状态下 `MapStaticAssets()` 无法被 Service Worker 拦截。→ `service-worker.published.js` 已添加注释说明 .NET 10 已知限制；修复需框架级方案。→ [#27](https://github.com/elvisw/BoxWise/issues/27) → 已关闭 (2026-06-07)
+- [x] **README 备份说明依赖 CI 约定** — `tar -xzf` 命令。若 CI 误包含 `.env`/`data/` 则静默覆盖。README 已注明 tar 包中不含这些文件，风险仅存于 CI 配置失误。→ [#28](https://github.com/elvisw/BoxWise/issues/28) → 已于 Epic 14 修复 (2026-06-07)
 - [x] **`scp publish/*` 边缘情况** — shell glob 不匹配点文件、空目录时展开失败、大文件比 `rsync` 慢。→ 已于 tech-debt-cleanup-2 替换为 rsync (2026-06-07)
 - [x] **grep 验证模式可更精确** — 建议使用 `grep -o 'src="[^"]*blazor\.webassembly\.js"'` 替代当前无限制字符串匹配。→ 已于 tech-debt-cleanup-2 修复 (2026-06-07)
 
@@ -168,7 +168,7 @@
 
 ## Deferred from: code review of tech-debt-cleanup-2 (2026-06-07)
 
-- [ ] **ResetTwoFactor 无自保护检查** — `ResetTwoFactor.cshtml.cs:44-91`。`OnPostAsync` 缺少 `id == currentUserId` 防护（对比 `OnPostDeleteAsync:44` 和 `OnPostToggleRoleAsync:80`），管理员可误重置自身 2FA 导致登出。预存漏洞，`Index.cshtml:75` 放宽按钮条件略微增加暴露面。→ [#29](https://github.com/elvisw/BoxWise/issues/29)
-- [ ] **`"未知"` 常量无 i18n 支持** — `Index.cshtml.cs:17`。硬编码中文字符串 `"未知"`，将来国际化时需迁移至资源文件。当前代码库为中文惯例，记录待后续统一处理。→ [#32](https://github.com/elvisw/BoxWise/issues/32)
-- [ ] **grep 正则仅匹配双引号属性** — `README.md:327`。验证命令 `grep -o 'src="[^"]*...'` 在 HTML5 单引号属性场景下返回空。Blazor 构建输出使用双引号惯例，风险极低。→ [#31](https://github.com/elvisw/BoxWise/issues/31)
-- [ ] **HasFlag 模式静默丢弃未知标志位** — `Index.cshtml.cs:117-127`。switch 使用 `HasFlag` 匹配，若未来扩展新 `TwoFactorMethod` 标志位，现有分支可能部分匹配并丢失信息。预存模式，非本次引入。→ [#30](https://github.com/elvisw/BoxWise/issues/30)
+- [x] **ResetTwoFactor 无自保护检查** — `ResetTwoFactor.cshtml.cs:44-91`。`OnPostAsync` 缺少 `id == currentUserId` 防护（对比 `OnPostDeleteAsync:44` 和 `OnPostToggleRoleAsync:80`），管理员可误重置自身 2FA 导致登出。预存漏洞，`Index.cshtml:75` 放宽按钮条件略微增加暴露面。→ [#29](https://github.com/elvisw/BoxWise/issues/29) → 已于 Epic 14 修复 (2026-06-07)
+- [x] **`"未知"` 常量无 i18n 支持** — `Index.cshtml.cs:17`。硬编码中文字符串 `"未知"`，将来国际化时需迁移至资源文件。当前代码库为中文惯例，记录待后续统一处理。→ [#32](https://github.com/elvisw/BoxWise/issues/32) → 已关闭 (2026-06-07)
+- [x] **grep 正则仅匹配双引号属性** — `README.md:327`。验证命令 `grep -o 'src="[^"]*...'` 在 HTML5 单引号属性场景下返回空。Blazor 构建输出使用双引号惯例，风险极低。→ [#31](https://github.com/elvisw/BoxWise/issues/31) → 已于 Epic 14 修复 (2026-06-07)
+- [x] **HasFlag 模式静默丢弃未知标志位** — `Index.cshtml.cs:117-127`。switch 使用 `HasFlag` 匹配，若未来扩展新 `TwoFactorMethod` 标志位，现有分支可能部分匹配并丢失信息。预存模式，非本次引入。→ [#30](https://github.com/elvisw/BoxWise/issues/30) → 已于 Epic 14 修复 (2026-06-07)

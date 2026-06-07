@@ -58,6 +58,9 @@ jobs:
           test -f boxwise-linux-x64.tar.gz || { echo "Archive not found"; exit 1; }
           tar -tzf boxwise-linux-x64.tar.gz | grep -q "BoxWise.Server.dll" || { echo "Missing: BoxWise.Server.dll"; exit 1; }
           tar -tzf boxwise-linux-x64.tar.gz | grep -q "wwwroot/index.html" || { echo "Missing: wwwroot/index.html"; exit 1; }
+          # 安全检查：tar 包不得包含 .env 或 data/（防御 CI 误配置）
+          tar -tzf boxwise-linux-x64.tar.gz | grep -qE '(^|/)\.env$' && { echo "ERROR: .env found in archive"; exit 1; } || true
+          tar -tzf boxwise-linux-x64.tar.gz | grep -qE '(^|/)data(/|$)' && { echo "ERROR: data/ found in archive"; exit 1; } || true
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -95,6 +98,9 @@ jobs:
           $names = $entries | % { $_.FullName }
           if (-not ($names -match "BoxWise.Server.dll")) { Write-Error "Missing: BoxWise.Server.dll"; exit 1 }
           if (-not ($names -match "wwwroot/index.html")) { Write-Error "Missing: wwwroot/index.html"; exit 1 }
+          # 安全检查：ZIP 包不得包含 .env 或 data/（防御 CI 误配置）
+          if ($names -match "(^|/)\.env$") { Write-Error "ERROR: .env found in archive"; exit 1 }
+          if ($names -match "(^|/)data(/|$)") { Write-Error "ERROR: data/ found in archive"; exit 1 }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7

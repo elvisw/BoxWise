@@ -25,8 +25,10 @@ public class ResetTwoFactorModel : PageModel
         _logger = logger;
     }
 
+    [TempData]
+    public string? StatusMessage { get; set; }
+
     public string TargetUsername { get; set; } = "";
-    public string? ErrorMessage { get; set; }
 
     public async Task<IActionResult> OnGetAsync(string id)
     {
@@ -45,6 +47,13 @@ public class ResetTwoFactorModel : PageModel
     {
         if (string.IsNullOrWhiteSpace(id))
             return NotFound();
+
+        var currentUserId = _userManager.GetUserId(User);
+        if (id == currentUserId)
+        {
+            StatusMessage = "不能重置自己的双因素认证。请让其他管理员操作。";
+            return RedirectToPage("/Admin/Index");
+        }
 
         var targetUser = await _userManager.FindByIdAsync(id);
         if (targetUser is null)
@@ -77,8 +86,8 @@ public class ResetTwoFactorModel : PageModel
         {
             _logger.LogWarning("Failed to update user {UserId} during 2FA reset: {Errors}",
                 id, string.Join("; ", updateResult.Errors.Select(e => e.Description)));
-            ErrorMessage = "2FA 重置失败，请稍后重试";
-            return Page();
+            StatusMessage = "2FA 重置失败，请稍后重试";
+            return RedirectToPage("/Admin/Index");
         }
         await _userManager.UpdateSecurityStampAsync(targetUser);
 
@@ -87,7 +96,7 @@ public class ResetTwoFactorModel : PageModel
             User.Identity?.Name, User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
             targetUser.UserName, targetUser.Id, DateTime.UtcNow);
 
-        TempData["StatusMessage"] = $"已重置 '{targetUser.UserName}' 的双因素认证";
+        StatusMessage = $"已重置 '{targetUser.UserName}' 的双因素认证";
         return RedirectToPage("/Admin/Index");
     }
 }

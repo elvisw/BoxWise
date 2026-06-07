@@ -324,7 +324,7 @@ sudo systemctl start boxwise
 
 # 7. 验证
 journalctl -u boxwise -f   # 查看日志，确认正常启动
-curl -s https://你的域名/ | grep -o 'src="[^"]*blazor\.webassembly\.js[^"]*"'   # 确认 script 引用正确
+curl -s https://你的域名/ | grep -oE "src=['\"][^'\"]*blazor\.webassembly\.js[^'\"]*['\"]"   # 确认 script 引用正确
 ```
 
 > **重要提示：**

@@ -114,15 +114,19 @@ public class IndexModel : PageModel
         var adminUserNames = new HashSet<string>(adminUsers.Select(u => u.UserName ?? ""));
 
         Users = allUsers.Select(u => {
+            // 精确值匹配 — 与 TwoFactorMethod [Flags] 枚举值一一对应。
+            // None=0, TOTP=1, Email=2, WebAuthn=4.
+            // 7=TOTP|Email|WebAuthn, 6=Email|WebAuthn, 5=TOTP|WebAuthn, 4=WebAuthn, 3=TOTP|Email.
+            // 如枚举值变更，此处需同步更新。
             var methodDisplay = u.ConfiguredMethods switch
             {
-                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) && m.HasFlag(TwoFactorMethod.Email) && m.HasFlag(TwoFactorMethod.WebAuthn) => "TOTP + Email + WebAuthn",
-                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) && m.HasFlag(TwoFactorMethod.WebAuthn) => "TOTP + WebAuthn",
-                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.Email) && m.HasFlag(TwoFactorMethod.WebAuthn) => "Email + WebAuthn",
-                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) && m.HasFlag(TwoFactorMethod.Email) => "TOTP + Email",
-                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.WebAuthn) => "WebAuthn",
-                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) => "TOTP",
-                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.Email) => "Email",
+                (TwoFactorMethod)7 => "TOTP + Email + WebAuthn",
+                (TwoFactorMethod)6 => "Email + WebAuthn",
+                (TwoFactorMethod)5 => "TOTP + WebAuthn",
+                (TwoFactorMethod)4 => "WebAuthn",
+                (TwoFactorMethod)3 => "TOTP + Email",
+                TwoFactorMethod.Email => "Email",
+                TwoFactorMethod.TOTP => "TOTP",
                 TwoFactorMethod.None => null,
                 _ => u.ConfiguredMethods.ToString()
             };
