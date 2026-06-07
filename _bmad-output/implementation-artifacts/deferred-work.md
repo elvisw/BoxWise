@@ -140,10 +140,10 @@
 
 > 以下为 pre-existing issues，非本次 fingerprint 占位符修复引入。
 
-- [ ] **SW 缓存键不匹配，离线时 `blazor.webassembly.js` 无法命中** — 非指纹化 URL 与 Service Worker 预缓存的指纹化 URL 不匹配，离线状态下 `MapStaticAssets()` 无法被 Service Worker 拦截
-- [ ] **README 备份说明依赖 CI 约定** — `tar -xzf` 命令无 `--skip-old-files` 防护，若 CI 误包含 `.env`/`data/` 则静默覆盖
-- [ ] **`scp publish/*` 边缘情况** — shell glob 不匹配点文件、空目录时展开失败、大文件比 `rsync` 慢
-- [ ] **grep 验证模式可更精确** — 建议使用 `grep -o 'src="[^"]*blazor\.webassembly\.js"'` 替代当前无限制字符串匹配
+- [ ] **SW 缓存键不匹配，离线时 `blazor.webassembly.js` 无法命中** — 非指纹化 URL 与 Service Worker 预缓存的指纹化 URL 不匹配，离线状态下 `MapStaticAssets()` 无法被 Service Worker 拦截。→ `service-worker.published.js` 已添加注释说明 .NET 10 已知限制；修复需框架级方案。
+- [ ] **README 备份说明依赖 CI 约定** — `tar -xzf` 命令。若 CI 误包含 `.env`/`data/` 则静默覆盖。README 已注明 tar 包中不含这些文件，风险仅存于 CI 配置失误。
+- [x] **`scp publish/*` 边缘情况** — shell glob 不匹配点文件、空目录时展开失败、大文件比 `rsync` 慢。→ 已于 tech-debt-cleanup-2 替换为 rsync (2026-06-07)
+- [x] **grep 验证模式可更精确** — 建议使用 `grep -o 'src="[^"]*blazor\.webassembly\.js"'` 替代当前无限制字符串匹配。→ 已于 tech-debt-cleanup-2 修复 (2026-06-07)
 
 ## Deferred from: code review of identity-manage-no-sidebar (2026-06-03)
 
