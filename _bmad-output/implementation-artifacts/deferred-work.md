@@ -162,6 +162,13 @@
 
 ## Deferred from: code review of admin-2fa-empty-display (2026-06-07)
 
-- [ ] **D1: DTO 中 TwoFactorMethod 与 ConfiguredMethods 字段值重复传递** — `Index.cshtml.cs:129-130`。两个 DTO 字段接收完全相同的表达式，`TwoFactorMethod` 在视图中未被实际使用。预存问题，非本次修复引入。
-- [ ] **D2: `"未知"` 魔术字符串无共享常量** — `Index.cshtml.cs:129-130`。硬编码回退值 `"未知"` 未定义为命名常量。影响极低（仅 Admin 显示），但若未来代码进行编程式比较则不可识别。
-- [ ] **D3: WebAuthn 组合在 switch 表达式中被静默丢弃** — `Index.cshtml.cs:116-123`。`TOTP | WebAuthn`（值5）匹配 `HasFlag(TOTP)` 分支但返回字符串中不含 "WebAuthn"。同样影响 `Email | WebAuthn`（值6）和 `TOTP | Email | WebAuthn`（值7）。预存问题，非本次修复引入。
+- [x] **D1: DTO 中 TwoFactorMethod 与 ConfiguredMethods 字段值重复传递** — `Index.cshtml.cs:129-130`。两个 DTO 字段接收完全相同的表达式，`TwoFactorMethod` 在视图中未被实际使用。预存问题，非本次修复引入。→ 已于 tech-debt-cleanup-2 修复 (2026-06-07)
+- [x] **D2: `"未知"` 魔术字符串无共享常量** — `Index.cshtml.cs:129-130`。硬编码回退值 `"未知"` 未定义为命名常量。影响极低（仅 Admin 显示），但若未来代码进行编程式比较则不可识别。→ 已于 tech-debt-cleanup-2 修复 (2026-06-07)
+- [x] **D3: WebAuthn 组合在 switch 表达式中被静默丢弃** — `Index.cshtml.cs:116-123`。`TOTP | WebAuthn`（值5）匹配 `HasFlag(TOTP)` 分支但返回字符串中不含 "WebAuthn"。同样影响 `Email | WebAuthn`（值6）和 `TOTP | Email | WebAuthn`（值7）。预存问题，非本次修复引入。→ 已于 tech-debt-cleanup-2 修复 (2026-06-07)
+
+## Deferred from: code review of tech-debt-cleanup-2 (2026-06-07)
+
+- [ ] **ResetTwoFactor 无自保护检查** — `ResetTwoFactor.cshtml.cs:44-91`。`OnPostAsync` 缺少 `id == currentUserId` 防护（对比 `OnPostDeleteAsync:44` 和 `OnPostToggleRoleAsync:80`），管理员可误重置自身 2FA 导致登出。预存漏洞，`Index.cshtml:75` 放宽按钮条件略微增加暴露面。
+- [ ] **`"未知"` 常量无 i18n 支持** — `Index.cshtml.cs:17`。硬编码中文字符串 `"未知"`，将来国际化时需迁移至资源文件。当前代码库为中文惯例，记录待后续统一处理。
+- [ ] **grep 正则仅匹配双引号属性** — `README.md:327`。验证命令 `grep -o 'src="[^"]*...'` 在 HTML5 单引号属性场景下返回空。Blazor 构建输出使用双引号惯例，风险极低。
+- [ ] **HasFlag 模式静默丢弃未知标志位** — `Index.cshtml.cs:117-127`。switch 使用 `HasFlag` 匹配，若未来扩展新 `TwoFactorMethod` 标志位，现有分支可能部分匹配并丢失信息。预存模式，非本次引入。
