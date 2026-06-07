@@ -159,3 +159,9 @@
 
 - [x] **D1: `stream.Position = 0` 无 CanSeek 守卫** — `ImageEndpoints.cs:72`。ASP.NET Core BufferedReadStream 始终可 Seek，但 IFormFile 接口本身不保证 seekability。Spec 已明确记录此设计决策并拒绝了 MemoryStream 回退方案（避免 10MB LOH 分配）。
 - [x] **D2: appsettings 中残留 `"Llm"` 配置节** — `AddOptions<LlmOptions>()` 移除后，开发环境 `appsettings.Development.json` 中的 `"Llm"` 节将静默忽略。不造成功能问题，后续清理即可。
+
+## Deferred from: code review of admin-2fa-empty-display (2026-06-07)
+
+- [ ] **D1: DTO 中 TwoFactorMethod 与 ConfiguredMethods 字段值重复传递** — `Index.cshtml.cs:129-130`。两个 DTO 字段接收完全相同的表达式，`TwoFactorMethod` 在视图中未被实际使用。预存问题，非本次修复引入。
+- [ ] **D2: `"未知"` 魔术字符串无共享常量** — `Index.cshtml.cs:129-130`。硬编码回退值 `"未知"` 未定义为命名常量。影响极低（仅 Admin 显示），但若未来代码进行编程式比较则不可识别。
+- [ ] **D3: WebAuthn 组合在 switch 表达式中被静默丢弃** — `Index.cshtml.cs:116-123`。`TOTP | WebAuthn`（值5）匹配 `HasFlag(TOTP)` 分支但返回字符串中不含 "WebAuthn"。同样影响 `Email | WebAuthn`（值6）和 `TOTP | Email | WebAuthn`（值7）。预存问题，非本次修复引入。

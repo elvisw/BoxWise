@@ -324,7 +324,7 @@ sudo systemctl start boxwise
 
 # 7. 验证
 journalctl -u boxwise -f   # 查看日志，确认正常启动
-curl -s https://你的域名/ | grep blazor.webassembly.js   # 确认 script 引用正确
+curl -s https://你的域名/ | grep -o 'src="[^"]*blazor\.webassembly\.js[^"]*"'   # 确认 script 引用正确
 ```
 
 > **重要提示：**
@@ -340,8 +340,8 @@ curl -s https://你的域名/ | grep blazor.webassembly.js   # 确认 script 引
 # 本地构建（Windows/Mac/Linux）
 dotnet publish src/BoxWise.Server -c Release -o publish
 
-# 上传到服务器
-scp -r publish/* elvisw@你的服务器:/opt/boxwise/
+# 上传到服务器（如果服务器未安装 rsync：apt install rsync）
+rsync -avz publish/ elvisw@你的服务器:/opt/boxwise/
 
 # SSH 到服务器重启
 ssh elvisw@你的服务器 "sudo systemctl restart boxwise"

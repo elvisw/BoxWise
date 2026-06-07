@@ -1,6 +1,13 @@
 // Caution! Be sure you understand the caveats before publishing an application with
 // offline support. See https://aka.ms/blazor-offline-considerations
 
+// Caveat: Blazor WASM MapStaticAssets() may append content-hash fingerprints to
+// asset URLs. When a fingerprinted URL differs from the pre-cached URL in
+// assetsManifest, the SW cache-miss falls through to the network. This is a
+// known limitation in .NET 10 Blazor WASM + MapStaticAssets; offline access
+// to blazor.webassembly.js may fail in this scenario. Online operations
+// are unaffected.
+
 self.importScripts('./service-worker-assets.js');
 self.addEventListener('install', event => event.waitUntil(onInstall(event)));
 self.addEventListener('activate', event => event.waitUntil(onActivate(event)));

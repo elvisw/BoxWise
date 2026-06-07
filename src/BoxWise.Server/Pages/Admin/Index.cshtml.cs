@@ -14,6 +14,7 @@ public class IndexModel : PageModel
     private readonly UserManager<AppUser> _userManager;
     private readonly ILogger<IndexModel> _logger;
     private readonly IConfiguration _config;
+    private const string UnknownMethod = "未知";
 
     public IndexModel(UserManager<AppUser> userManager, ILogger<IndexModel> logger, IConfiguration config)
     {
@@ -115,7 +116,11 @@ public class IndexModel : PageModel
         Users = allUsers.Select(u => {
             var methodDisplay = u.ConfiguredMethods switch
             {
+                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) && m.HasFlag(TwoFactorMethod.Email) && m.HasFlag(TwoFactorMethod.WebAuthn) => "TOTP + Email + WebAuthn",
+                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) && m.HasFlag(TwoFactorMethod.WebAuthn) => "TOTP + WebAuthn",
+                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.Email) && m.HasFlag(TwoFactorMethod.WebAuthn) => "Email + WebAuthn",
                 TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) && m.HasFlag(TwoFactorMethod.Email) => "TOTP + Email",
+                TwoFactorMethod m when m.HasFlag(TwoFactorMethod.WebAuthn) => "WebAuthn",
                 TwoFactorMethod m when m.HasFlag(TwoFactorMethod.TOTP) => "TOTP",
                 TwoFactorMethod m when m.HasFlag(TwoFactorMethod.Email) => "Email",
                 TwoFactorMethod.None => null,
@@ -126,8 +131,7 @@ public class IndexModel : PageModel
                 u.UserName ?? "",
                 adminUserNames.Contains(u.UserName ?? ""),
                 u.TwoFactorEnabled,
-                methodDisplay,
-                methodDisplay
+                methodDisplay ?? (u.TwoFactorEnabled ? UnknownMethod : null)
             );
         }).ToList();
     }

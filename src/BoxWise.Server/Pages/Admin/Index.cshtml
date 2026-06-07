@@ -72,7 +72,7 @@ else
                         <form method="post" asp-page-handler="ToggleRole" asp-route-id="@user.Id" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline">@(user.IsAdmin ? "取消管理" : "设为管理")</button>
                         </form>
-                        @if (!string.IsNullOrEmpty(user.ConfiguredMethods))
+                        @if (user.TwoFactorEnabled || !string.IsNullOrEmpty(user.ConfiguredMethods))
                         {
                             <a href="/admin/@user.Id/reset-2fa" class="btn btn-sm btn-outline btn-2fa-reset">重置 2FA</a>
                         }

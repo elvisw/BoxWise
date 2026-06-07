@@ -23,7 +23,7 @@ BoxWise.Shared 是零依赖的 .NET 类库，定义 Client 和 Server 之间共�
 |-----|------|------|
 | `LoginRequest` | `record (string Username, string Password)` | Client → Server |
 | `AuthUserDto` | `record (string UserName, bool IsAdmin, bool PasswordManagedByEnv, bool PasswordRequiresChange, string? Email)` | Server → Client |
-| `UserListItemDto` | `record (string Id, string UserName, bool IsAdmin, bool TwoFactorEnabled, string? TwoFactorMethod, string? ConfiguredMethods)` | Server → Client (Admin) |
+| `UserListItemDto` | `record (string Id, string UserName, bool IsAdmin, bool TwoFactorEnabled, string? ConfiguredMethods)` | Server → Client (Admin) |
 | `CreateAccountRequest` | `class (string Username, string Password, string Email)` | Admin → Server |
 
 ### 位置
