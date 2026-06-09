@@ -90,7 +90,9 @@ boxwise.example.com {
 
 ### 2. WebAuthn 配置
 
-在 `appsettings.Production.json` 中配置：
+**方式一：配置文件（推荐）**
+
+创建 `src/BoxWise.Server/appsettings.Production.json`：
 
 ```json
 {
@@ -101,12 +103,9 @@ boxwise.example.com {
 }
 ```
 
-| 配置项 | 说明 | 示例 |
-|--------|------|------|
-| `WebAuthn:Origin` | 用户访问网站的完整 origin（协议 + 域名 + 端口） | `https://boxwise.example.com` |
-| `WebAuthn:ServerDomain` | RP ID 的域名部分（不含协议和端口） | `boxwise.example.com` |
+> **文件位置：** 必须放在 Server 项目根目录（`src/BoxWise.Server/`），与 `appsettings.json` 同级。构建后自动复制到发布目录。
 
-### 3. Docker 部署
+**方式二：Docker 环境变量**
 
 Docker 环境下通过环境变量注入配置：
 
@@ -117,9 +116,14 @@ environment:
   - WebAuthn__ServerDomain=boxwise.example.com
 ```
 
-或通过 `appsettings.Production.json` 挂载。
+> **注意：** 环境变量用双下划线 `__` 替代 JSON 层级分隔符。`appsettings.Production.json` 挂载也适用于 Docker（通过 `docker-compose.yml` 的 `volumes` 挂载）。
 
-### 4. 反向代理注意事项
+| 配置项 | 说明 | 示例 |
+|--------|------|------|
+| `WebAuthn:Origin` | 用户访问网站的完整 origin（协议 + 域名 + 端口） | `https://boxwise.example.com` |
+| `WebAuthn:ServerDomain` | RP ID 的域名部分（不含协议和端口） | `boxwise.example.com`
+
+### 3. 反向代理注意事项
 
 - **不要修改 Host 头**：确保反向代理将原始请求的 Host 头传递给后端
 - **TLS 终止**：WebAuthn 的 origin 检查依赖浏览器感知的协议。如果使用 Cloudflare 等 CDN 做 TLS 终止，确保 `Origin` 配置与浏览器地址栏一致
@@ -179,7 +183,7 @@ DELETE /api/auth/webauthn/credentials/{id} → 删除指定凭据
 **排查：**
 1. 确认使用 `https://` 访问
 2. 在浏览器控制台执行 `window.webauthn.isAvailable()`，应返回 `true`
-3. 检查 `appsettings.json` 中 `WebAuthn:Origin` 与浏览器地址栏完全匹配
+3. 检查 `appsettings.Production.json` 中 `WebAuthn:Origin` 与浏览器地址栏完全匹配（Docker 则检查 `WebAuthn__Origin` 环境变量）
 
 ### Q: iOS Safari 上点击注册无反映
 

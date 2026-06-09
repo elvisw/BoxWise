@@ -157,11 +157,51 @@ SMTP 邮件服务用于发送账户相关邮件（如邮箱修改确认）。登
 
 ### WebAuthn 通行密钥（可选）
 
-支持使用指纹、面容或硬件密钥（如 YubiKey）作为双因素认证方式。WebAuthn 凭证与注册时的 origin 绑定，测试和生产环境配置有差异。
+支持使用指纹、面容或硬件密钥（如 YubiKey）作为双因素认证方式。WebAuthn 凭证与注册时的 **origin（协议 + 域名 + 端口）** 绑定，配置错误将导致通行密钥无法使用。
+
+#### 开发环境
+
+开箱即用，无需额外配置。默认 origin 为 `https://localhost:5001`，同时允许 `https://localhost:5000`。
+
+#### 生产环境
+
+**必须配置 `WebAuthn:Origin` 和 `WebAuthn:ServerDomain`**，否则 FIDO2 使用默认值 `localhost` 作为 RP ID，浏览器会因域名不匹配拒绝通行密钥操作。
+
+**方式一：配置文件**
+
+创建 `src/BoxWise.Server/appsettings.Production.json`：
+
+```json
+{
+  "WebAuthn": {
+    "Origin": "https://你的域名",
+    "ServerDomain": "你的域名"
+  }
+}
+```
+
+> 例如域名为 `boxwise.example.com`，则 Origin = `https://boxwise.example.com`，ServerDomain = `boxwise.example.com`。
+
+**方式二：Docker 环境变量**
+
+```yaml
+# docker-compose.yml
+environment:
+  - WebAuthn__Origin=https://你的域名
+  - WebAuthn__ServerDomain=你的域名
+```
+
+**方式三：二进制部署环境变量**
+
+```bash
+# .env 文件
+WebAuthn__Origin=https://你的域名
+WebAuthn__ServerDomain=你的域名
+```
+
+> **常见错误：** 生产环境忘记配置 → 报错"浏览器验证失败，请确保设备支持通行密钥功能" → 检查 `WebAuthn:Origin` 和 `WebAuthn:ServerDomain` 是否已配置且与浏览器地址栏一致。
 
 详见：[WebAuthn 通行密钥配置指南](docs/webauthn-setup-guide.md)
-
-> **快速配置：** 开发环境开箱即用（`localhost` HTTPS）。生产环境需配置 `WebAuthn:Origin` 和 `WebAuthn:ServerDomain`。
 
 ## 部署
 
