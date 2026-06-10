@@ -494,6 +494,61 @@ boxwise.example.com {
 
 容器重启后数据完整保留。
 
+#### 使用自有反向代理
+
+如果你已有 Nginx、Caddy、Traefik 等反向代理，可使用独立部署文件，不打包 Caddy 容器：
+
+```bash
+# 1. 修改 docker-compose.standalone.yml 中的管理员密码和域名
+#    - Admin__Password=请替换为强密码
+#    - WebAuthn__Origin=https://你的域名
+#    - WebAuthn__ServerDomain=你的域名
+# 2. 启动（仅 boxwise 容器，监听 127.0.0.1:5000）
+docker compose -f docker-compose.standalone.yml up -d
+# 3. 配置你的反向代理将流量转发到 localhost:5000（示例见下方）
+```
+
+**Nginx 反代示例：**
+
+```nginx
+server {
+    listen 80;
+    server_name boxwise.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name boxwise.example.com;
+
+    ssl_certificate     /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    client_max_body_size 10m;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**Caddy 反代示例（宿主机直接安装）：**
+
+```caddyfile
+boxwise.example.com {
+    reverse_proxy localhost:5000 {
+        header_up X-Forwarded-Proto {scheme}
+    }
+    encode gzip
+    header /api/images/* Cache-Control "public, max-age=86400"
+}
+```
+
+> **注意：** 独立部署模式下不包含 TLS 终止，你需要自行在反向代理层配置 HTTPS 证书。`docker-compose.standalone.yml` 中 boxwise 端口绑定到 `127.0.0.1:5000`，仅本地可访问，确保不直接暴露到公网。
+
 > **Docker 版本号说明：** 因 `.dockerignore` 排除 `.git/` 目录，Docker 构建时 `git describe` 无法获取标签，版本号始终回退到 `v1.0.0`。如需嵌入真实版本，可在宿主机构建后 COPY 发布产物进镜像。
 
 ## 日常使用

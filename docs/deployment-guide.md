@@ -103,6 +103,57 @@ services:
 
 **Dockerfile:** 多阶段构建（SDK → Runtime），最终镜像基于 `mcr.microsoft.com/dotnet/aspnet:10.0`
 
+#### 2.1 使用自有反向代理（独立部署）
+
+如果你已有 Nginx、Caddy、Traefik 等反向代理，可使用 `docker-compose.standalone.yml`，不打包 Caddy 容器：
+
+```bash
+docker compose -f docker-compose.standalone.yml up -d
+```
+
+boxwise 容器仅绑定 `127.0.0.1:5000`，不直接暴露到公网。你需要自行配置反向代理将流量转发到此地址。
+
+**Nginx 反代示例：**
+
+```nginx
+server {
+    listen 80;
+    server_name boxwise.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name boxwise.example.com;
+
+    ssl_certificate     /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    client_max_body_size 10m;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**Caddy 反代示例（宿主机直接安装）：**
+
+```caddyfile
+boxwise.example.com {
+    reverse_proxy localhost:5000 {
+        header_up X-Forwarded-Proto {scheme}
+    }
+    encode gzip
+    header /api/images/* Cache-Control "public, max-age=86400"
+}
+```
+
+> **注意：** 独立部署模式下不包含 TLS 终止，需在反向代理层配置 HTTPS 证书。ASP.NET Core 的 Cookie 策略在生产环境（`ASPNETCORE_ENVIRONMENT=Production`）自动设为 `SameSite=Lax` + `SecurePolicy=Always`，与自有反代兼容。
+
 ### 3. 生产配置
 
 AI 识别功能通过服务端数据库管理，API 密钥在启动时从环境变量自动种子入库，后续可通过 Admin 后台（`/admin/llm-config`）在线更新。

@@ -1,0 +1,35 @@
+# 独立部署 — 不含 Caddy 反向代理，适用于已有 Nginx/Caddy/Traefik 等反代的场景
+#
+# 使用方式：
+#   docker compose -f docker-compose.standalone.yml up -d
+#
+# 你需要自行配置反向代理将流量转发到 127.0.0.1:5000
+# 常见反代配置示例见 README.md "Docker 部署 → 使用自有反向代理" 章节
+
+services:
+  boxwise:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+      - DataDirectory=/app/data
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/boxwise.db
+      # 管理员账户：首次启动时创建。修改密码后重启即生效。
+      - Admin__Username=admin
+      - Admin__Email=admin@boxwise.local
+      - Admin__Password=请替换为强密码
+      # WebAuthn（生产环境必需，替换为你的实际域名）
+      - WebAuthn__Origin=https://boxwise.example.com
+      - WebAuthn__ServerDomain=boxwise.example.com
+      # TOTP 2FA 配置（可选，默认值见 appsettings.json）
+      - TwoFactor__SetupGracePeriodHours=24
+      - TwoFactor__RecoveryCodeCount=8
+      - TwoFactor__RecoveryCodeLength=10
+      # 速率限制配置（可选，默认值见 appsettings.json）
+      - RateLimit__LoginPermitLimit=5
+      - RateLimit__LoginWindowMinutes=15
+    volumes:
+      - ./data:/app/data
