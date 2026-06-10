@@ -11,6 +11,16 @@ services:
       - Admin__Username=admin
       - Admin__Email=admin@boxwise.local
       - Admin__Password=请替换为强密码
+      # WebAuthn（生产环境必需，替换为你的实际域名）
+      - WebAuthn__Origin=https://boxwise.example.com
+      - WebAuthn__ServerDomain=boxwise.example.com
+      # TOTP 2FA 配置（可选，默认值见 appsettings.json）
+      - TwoFactor__SetupGracePeriodHours=24
+      - TwoFactor__RecoveryCodeCount=8
+      - TwoFactor__RecoveryCodeLength=10
+      # 速率限制配置（可选，默认值见 appsettings.json）
+      - RateLimit__LoginPermitLimit=5
+      - RateLimit__LoginWindowMinutes=15
     volumes:
       - ./data:/app/data
 

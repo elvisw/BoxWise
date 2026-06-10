@@ -237,17 +237,17 @@ builder.Services.Configure<HostOptions>(options =>
 
 builder.Services.AddScoped<CsrfValidationFilter>();
 
-// Forwarded Headers — 生产环境 Caddy 反向代理需要正确的 Request.IsHttps
-// 安全：仅信任本地回环 + Docker 默认桥接网络，而非任意代理
+// Forwarded Headers — 生产环境反向代理需要正确的 Request.IsHttps
+// 安全：仅信任本地回环 + RFC 1918 私有网络（Docker/Podman/容器运行时），而非任意代理
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
     options.KnownProxies.Add(IPAddress.Loopback);
     options.KnownProxies.Add(IPAddress.IPv6Loopback);
-    // Docker 桥接子网（Caddy 反向代理在 compose 网络中；default bridge + compose project networks）
-    options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse("172.17.0.0"), 16));
-    options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse("172.18.0.0"), 16));
-    options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse("172.19.0.0"), 16));
+    // Docker 桥接子网：172.16.0.0/12 覆盖 Docker 默认 bridge (172.17.0.0/16) + compose 网络 (172.18-31.0.0/16)
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse("172.16.0.0"), 12));
+    // Docker Desktop / 自定义网络 / 其他容器运行时（Podman 等）
+    options.KnownIPNetworks.Add(new System.Net.IPNetwork(IPAddress.Parse("192.168.0.0"), 16));
 });
 
 builder.Services.AddRazorPages();

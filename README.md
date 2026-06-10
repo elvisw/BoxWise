@@ -505,55 +505,8 @@ boxwise.example.com {
 #    - WebAuthn__ServerDomain=你的域名
 # 2. 启动（仅 boxwise 容器，监听 127.0.0.1:5000）
 docker compose -f docker-compose.standalone.yml up -d
-# 3. 配置你的反向代理将流量转发到 localhost:5000（示例见下方）
-```
-
-**Nginx 反代示例：**
-
-```nginx
-server {
-    listen 80;
-    server_name boxwise.example.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl;
-    server_name boxwise.example.com;
-
-    ssl_certificate     /path/to/fullchain.pem;
-    ssl_certificate_key /path/to/privkey.pem;
-
-    client_max_body_size 10m;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /api/images/ {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        expires 1d;
-        add_header Cache-Control "public, max-age=86400";
-    }
-}
-```
-
-**Caddy 反代示例（宿主机直接安装）：**
-
-```caddyfile
-boxwise.example.com {
-    reverse_proxy localhost:5000 {
-        header_up X-Forwarded-Proto {scheme}
-    }
-    encode gzip
-    header /api/images/* Cache-Control "public, max-age=86400"
-}
+# 3. 配置你的反向代理将流量转发到 localhost:5000
+#    详细 Nginx/Caddy 配置示例见 docs/deployment-guide.md#21-使用自有反向代理独立部署
 ```
 
 > **注意：** 独立部署模式下不包含 TLS 终止，你需要自行在反向代理层配置 HTTPS 证书。`docker-compose.standalone.yml` 中 boxwise 端口绑定到 `127.0.0.1:5000`，仅本地可访问，确保不直接暴露到公网。
