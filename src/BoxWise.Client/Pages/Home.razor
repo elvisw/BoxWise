@@ -5,8 +5,6 @@
 
 @inject ItemService ItemService
 @inject NavigationManager Navigation
-@inject AppState AppState
-@inject HttpClient Http
 
 <MudTextField @bind-Value="_query"
               @bind-Value:after="OnQueryChanged"
@@ -59,18 +57,7 @@ else if (_items is not null)
     </MudGrid>
 }
 
-@if (AppState.IsAdmin)
-{
-    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
-               Href="@AdminUrl" Class="mt-4" FullWidth="true">
-        管理后台
-    </MudButton>
-}
-
 @code {
-    private string AdminUrl => Http.BaseAddress is not null
-        ? new Uri(Http.BaseAddress, "admin").ToString()
-        : "/admin";
     private string _query = "";
     private List<ItemSummaryDto>? _items;
     private bool _loading = true;

@@ -7,6 +7,7 @@
 @inject IConfiguration Config
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
+@inject AppState AppState
 
 <MudText Typo="Typo.h5" Class="mb-4">设置</MudText>
 
@@ -65,6 +66,26 @@
             <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
         </div>
     </div>
+
+    @if (AppState.IsAdmin)
+    {
+        <MudDivider Class="my-3" />
+
+        <MudButton Href="@GetServerUrl("admin")"
+                   StartIcon="@Icons.Material.Filled.AdminPanelSettings"
+                   Color="Color.Primary"
+                   Variant="Variant.Text"
+                   Class="bw-settings-item pa-4 mb-1"
+                   FullWidth="true">
+            <div class="d-flex align-center flex-grow-1">
+                <div class="flex-grow-1" style="text-align:left;">
+                    <MudText Typo="Typo.body1" Style="font-weight:500;">管理后台</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Default">系统设置与用户管理</MudText>
+                </div>
+                <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" />
+            </div>
+        </MudButton>
+    }
 
     <MudDivider Class="my-3" />
 
