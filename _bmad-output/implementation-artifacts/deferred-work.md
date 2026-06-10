@@ -181,6 +181,6 @@
 
 ## Deferred from: code review of spec-docker-standalone-deploy (2026-06-10)
 
-- **ForwardedHeaders KnownNetworks 硬编码** — `Program.cs:248-250` 仅信任 Docker 桥接子网（172.17-19.0.0/16），独立部署中反代从 `127.0.0.1` 连接时 `X-Forwarded-Proto` 可能不被信任，导致 Cookie Secure 标志失败。需添加 `127.0.0.0/8` 到 KnownNetworks。
-- **独立 compose 环境变量比原始 compose 更完整** — 原始 `docker-compose.yml` 缺少 WebAuthn/TwoFactor/RateLimit 变量，两份文件不一致。建议同步更新原始 compose。
-- **README 与 deployment-guide 反代示例内容重复** — 两处 Nginx/Caddy 配置逐字重复，未来修改需双处同步。
+- [x] **ForwardedHeaders KnownNetworks 硬编码** — `Program.cs:248-250` 仅信任 Docker 桥接子网（172.17-19.0.0/16），独立部署中反代从 `127.0.0.1` 连接时 `X-Forwarded-Proto` 可能不被信任，导致 Cookie Secure 标志失败。 → 已修复：`Program.cs` 改为 `172.16.0.0/12`（覆盖全 Docker 私有范围）+ `192.168.0.0/16`（Docker Desktop/Podman）
+- [x] **独立 compose 环境变量比原始 compose 更完整** — 原始 `docker-compose.yml` 缺少 WebAuthn/TwoFactor/RateLimit 变量，两份文件不一致。 → 已修复：同步添加
+- [x] **README 与 deployment-guide 反代示例内容重复** — 两处 Nginx/Caddy 配置逐字重复，未来修改需双处同步。 → 已修复：README 精简为链接引用
