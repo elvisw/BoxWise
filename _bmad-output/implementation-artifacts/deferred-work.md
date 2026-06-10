@@ -172,3 +172,9 @@
 - [x] **`"未知"` 常量无 i18n 支持** — `Index.cshtml.cs:17`。硬编码中文字符串 `"未知"`，将来国际化时需迁移至资源文件。当前代码库为中文惯例，记录待后续统一处理。→ [#32](https://github.com/elvisw/BoxWise/issues/32) → 已关闭 (2026-06-07)
 - [x] **grep 正则仅匹配双引号属性** — `README.md:327`。验证命令 `grep -o 'src="[^"]*...'` 在 HTML5 单引号属性场景下返回空。Blazor 构建输出使用双引号惯例，风险极低。→ [#31](https://github.com/elvisw/BoxWise/issues/31) → 已于 Epic 14 修复 (2026-06-07)
 - [x] **HasFlag 模式静默丢弃未知标志位** — `Index.cshtml.cs:117-127`。switch 使用 `HasFlag` 匹配，若未来扩展新 `TwoFactorMethod` 标志位，现有分支可能部分匹配并丢失信息。预存模式，非本次引入。→ [#30](https://github.com/elvisw/BoxWise/issues/30) → 已于 Epic 14 修复 (2026-06-07)
+
+## Deferred from: code review of spec-move-admin-link-to-settings (2026-06-10)
+
+- **`GetServerUrl` 非 loopback 场景 URL 解析** — `Settings.razor:102`。`GetServerUrl` 直接读取 `Config["ApiBaseUrl"]`，当通过局域网 IP 访问时（非 loopback），`Http.BaseAddress` 已由 `Program.cs` 正确覆盖为当前 host，但 `GetServerUrl` 仍返回本地 `localhost` URL。预存问题：`管理账户设置` 和 `退出登录` 同样使用 `GetServerUrl` 受相同影响。修复方向：注入 `HttpClient Http` 并改用 `Http.BaseAddress`。
+- **`AppState.IsAdmin` 无变更通知** — `Settings.razor:69`。管理员状态在页面渲染后变更时按钮不响应。与代码库惯例一致（仅 MainLayout 订阅了 `StateChanged`）。预存模式。
+- **管理后台按钮无 `Target="_blank"`** — `Settings.razor:74`。与旧 Home.razor 行为一致。
