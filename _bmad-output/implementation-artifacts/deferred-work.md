@@ -178,3 +178,9 @@
 - **`GetServerUrl` 非 loopback 场景 URL 解析** — `Settings.razor:102`。`GetServerUrl` 直接读取 `Config["ApiBaseUrl"]`，当通过局域网 IP 访问时（非 loopback），`Http.BaseAddress` 已由 `Program.cs` 正确覆盖为当前 host，但 `GetServerUrl` 仍返回本地 `localhost` URL。预存问题：`管理账户设置` 和 `退出登录` 同样使用 `GetServerUrl` 受相同影响。修复方向：注入 `HttpClient Http` 并改用 `Http.BaseAddress`。
 - **`AppState.IsAdmin` 无变更通知** — `Settings.razor:69`。管理员状态在页面渲染后变更时按钮不响应。与代码库惯例一致（仅 MainLayout 订阅了 `StateChanged`）。预存模式。
 - **管理后台按钮无 `Target="_blank"`** — `Settings.razor:74`。与旧 Home.razor 行为一致。
+
+## Deferred from: code review of spec-docker-standalone-deploy (2026-06-10)
+
+- **ForwardedHeaders KnownNetworks 硬编码** — `Program.cs:248-250` 仅信任 Docker 桥接子网（172.17-19.0.0/16），独立部署中反代从 `127.0.0.1` 连接时 `X-Forwarded-Proto` 可能不被信任，导致 Cookie Secure 标志失败。需添加 `127.0.0.0/8` 到 KnownNetworks。
+- **独立 compose 环境变量比原始 compose 更完整** — 原始 `docker-compose.yml` 缺少 WebAuthn/TwoFactor/RateLimit 变量，两份文件不一致。建议同步更新原始 compose。
+- **README 与 deployment-guide 反代示例内容重复** — 两处 Nginx/Caddy 配置逐字重复，未来修改需双处同步。

@@ -17,3 +17,10 @@ route: 'one-shot'
 1. `docker-compose.standalone.yml` — 新增的独立部署文件，与原始 compose 对比确认差异
 2. `README.md:499-548` — 新增"使用自有反向代理"章节
 3. `docs/deployment-guide.md:104-145` — 新增"2.1 使用自有反向代理"章节
+
+## Review Findings
+
+- [x] [Review][Patch] Nginx 示例缺少图片缓存头 — 已修复，补充 `/api/images/` location 块含 `expires 1d` + `Cache-Control` 头
+- [x] [Review][Defer] ForwardedHeaders KnownNetworks 硬编码 — `Program.cs:248-250` 仅信任 Docker 桥接子网（172.17-19.0.0/16），独立部署中反代从 `127.0.0.1` 连接时 `X-Forwarded-Proto` 可能不被信任，导致 Cookie Secure 标志失败。需单独修复 Program.cs 添加 `127.0.0.0/8` 到 KnownNetworks。
+- [x] [Review][Defer] 独立 compose 环境变量比原始 compose 更完整 — 原始 `docker-compose.yml` 缺少 WebAuthn/TwoFactor/RateLimit 变量，两份文件不一致。建议同步更新原始 compose。
+- [x] [Review][Defer] README 与 deployment-guide 反代示例内容重复 — 两处 Nginx/Caddy 配置逐字重复，未来修改需双处同步。
