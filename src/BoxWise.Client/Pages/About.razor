@@ -34,7 +34,6 @@
             <div class="bw-license-row">
                 <div class="flex-grow-1">
                     <MudText Typo="Typo.body2" Style="font-weight:500;">@lib.Name</MudText>
-                    <MudText Typo="Typo.caption" Color="Color.Default">@lib.Version</MudText>
                 </div>
                 <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Color="@(lib.License is "MIT" ? Color.Success : Color.Info)">@lib.License</MudChip>
             </div>
@@ -75,17 +74,17 @@
     private string _version = "";
     private string _framework = "";
 
-    private record struct LibInfo(string Name, string Version, string License);
+    private record struct LibInfo(string Name, string License);
 
     private static readonly List<LibInfo> _libraries = new()
     {
-        new("MudBlazor", "9.4.0", "MIT"),
-        new("SkiaSharp", "3.119.2", "MIT"),
-        new("SixLabors.ImageSharp", "3.1.7", "Apache-2.0"),
-        new("ASP.NET Core", "10.0.8", "MIT"),
-        new("Entity Framework Core", "10.0.8", "MIT"),
-        new("xunit", "2.9.3", "MIT"),
-        new("coverlet", "6.0.4", "MIT"),
+        new("MudBlazor", "MIT"),
+        new("SkiaSharp", "MIT"),
+        new("SixLabors.ImageSharp", "Apache-2.0"),
+        new("ASP.NET Core", "MIT"),
+        new("Entity Framework Core", "MIT"),
+        new("xunit", "MIT"),
+        new("coverlet", "MIT"),
     };
 
     protected override void OnInitialized()
