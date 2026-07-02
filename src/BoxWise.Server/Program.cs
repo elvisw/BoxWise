@@ -44,6 +44,9 @@ builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<AppDbContext>()
 .AddDefaultTokenProviders();
 
+builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
+    options.TokenLifespan = TimeSpan.FromHours(1));
+
 builder.Services.AddScoped<IPasswordValidator<AppUser>, NoNumericOnlyValidator>();
 builder.Services.AddScoped<IPasswordValidator<AppUser>, CommonPasswordValidator>();
 
@@ -203,6 +206,16 @@ builder.Services.AddRateLimiter(options =>
     {
         config.PermitLimit = builder.Configuration.GetValue("RateLimit:PasskeyLoginPermitLimit", 30);
         config.Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("RateLimit:PasskeyLoginWindowMinutes", 5));
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        config.QueueLimit = 0;
+    });
+
+    // 忘记密码端点 - 按 IP（防邮件轰炸和用户名枚举）
+    options.AddFixedWindowLimiter(policyName: "forgot-password", config =>
+    {
+        config.PermitLimit = builder.Configuration.GetValue("RateLimit:ForgotPasswordPermitLimit", 1);
+        config.Window = TimeSpan.FromSeconds(
+            builder.Configuration.GetValue("RateLimit:ForgotPasswordWindowSeconds", 60));
         config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
     });
