@@ -48,6 +48,9 @@
 | 37 | `Account/ResetPassword.cshtml` | Email → userId（hidden），脱敏邮箱提示，`autocomplete="username"` 隐藏框，中文化 | 配合 PasswordManager 保存新密码 | Epic 15 | 重新适配 |
 | 38 | `Account/ResetPasswordConfirmation.cshtml` | 新建：`[AllowAnonymous]`，中文化，"点击此处登录"链接 | 脚手架排除列表中无此页面，全新创建 | Epic 15 | 重新适配 |
 | 39 | `Account/Login.cshtml` | 底部添加"忘记密码？"链接 | 用户入口 | Epic 15 | 保留 |
+| 40 | `Account/_StatusMessage.cshtml` | 从 `Manage/_StatusMessage.cshtml` 复制到 `Account/` 目录 | `ConfirmEmail.cshtml` 引用 `_StatusMessage` 分部视图，但该视图仅存在于 `Manage/` 子目录，ASP.NET Core 搜索路径无法找到 → 500 错误 | Bug 修复 (2026-07-02) | 保留 |
+| 41 | `Manage/Email.cshtml.cs` | `OnPostSendVerificationEmailAsync` + `OnPostChangeEmailAsync` 邮件内容中文化：主题 `"Confirm your email"` → `"BoxWise - 确认邮箱"`，HTML 正文改为中文；状态消息 `StatusMessage` 中文化 | 用户收到的确认邮件和页面提示为英文 | 本地化修复 (2026-07-02) | 重新适配 |
+| 42 | `ConfirmEmail.cshtml.cs` | `StatusMessage` 中文化：`"Thank you for confirming your email." / "Error confirming your email."` → `"邮箱确认成功。" / "邮箱确认失败。"` | 邮箱确认页面提示为英文 | 本地化修复 (2026-07-02) | 保留 |
 
 ## 脚手架排除的文件
 

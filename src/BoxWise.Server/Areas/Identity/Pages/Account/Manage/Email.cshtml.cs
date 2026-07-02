@@ -126,14 +126,14 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
                     protocol: Request.Scheme);
                 await _emailSender.SendEmailAsync(
                     Input.NewEmail,
-                    "Confirm your email",
-                    $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
+                    "BoxWise - 确认邮箱变更",
+                    $"<p>您好，</p><p>请点击以下链接确认您的邮箱变更：</p><p><a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>确认邮箱变更</a></p>");
 
-                StatusMessage = "Confirmation link to change email sent. Please check your email.";
+                StatusMessage = "邮箱变更确认链接已发送，请检查您的邮箱。";
                 return RedirectToPage();
             }
 
-            StatusMessage = "Your email is unchanged.";
+            StatusMessage = "邮箱未变更。";
             return RedirectToPage();
         }
 
@@ -160,12 +160,12 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account.Manage
                 pageHandler: null,
                 values: new { area = "Identity", userId = userId, code = code },
                 protocol: Request.Scheme);
-            await _emailSender.SendEmailAsync(
-                email,
-                "Confirm your email",
-                $"Please confirm your account by <a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>clicking here</a>.");
+                await _emailSender.SendEmailAsync(
+                    email,
+                    "BoxWise - 确认邮箱",
+                    $"<p>您好，</p><p>请点击以下链接确认您的 BoxWise 账户邮箱：</p><p><a href='{HtmlEncoder.Default.Encode(callbackUrl)}'>确认邮箱</a></p>");
 
-            StatusMessage = "Verification email sent. Please check your email.";
+                StatusMessage = "验证邮件已发送，请检查您的邮箱。";
             return RedirectToPage();
         }
     }
