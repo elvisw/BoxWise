@@ -14,6 +14,7 @@
 
 **Files:**
 - Modify: `src/BoxWise.Server/Program.cs`
+- Modify: `src/BoxWise.Server/appsettings.json`
 
 - [ ] **Step 1: 添加 TokenLifespan 配置**
 
@@ -40,7 +41,18 @@ builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
     });
 ```
 
-- [ ] **Step 3: 构建验证**
+- [ ] **Step 3: 在 appsettings.json 中添加 ForgotPassword 速率限制配置**
+
+编辑 `src/BoxWise.Server/appsettings.json`，在 `RateLimit` 块中 `PasskeyLoginWindowMinutes` 之后添加：
+
+```json
+    "ForgotPasswordPermitLimit": 1,
+    "ForgotPasswordWindowSeconds": 60
+```
+
+> 注意：单位是 `Seconds`（非 `Minutes`），与 60 秒窗口匹配。
+
+- [ ] **Step 4: 构建验证**
 
 ```bash
 dotnet build src/BoxWise.Server
@@ -48,16 +60,18 @@ dotnet build src/BoxWise.Server
 
 Expected: 构建成功，无编译错误。
 
-- [ ] **Step 4: 提交**
+- [ ] **Step 5: 提交**
 
 ```bash
-git add src/BoxWise.Server/Program.cs
+git add src/BoxWise.Server/Program.cs src/BoxWise.Server/appsettings.json
 git commit -m "feat: 配置重置令牌1h有效期 + ForgotPassword速率限制"
 ```
 
 ---
 
 ## 任务 2: ForgotPassword 页面（表单 + 后端）
+
+> **前置依赖：** 任务 1 中的 `forgot-password` 速率限制策略。跳过任务 1 直接运行会抛出 `InvalidOperationException: No policy 'forgot-password' found`。
 
 **Files:**
 - Create: `src/BoxWise.Server/Areas/Identity/Pages/Account/ForgotPassword.cshtml`
@@ -346,7 +360,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             [Required]
             public string UserId { get; set; }
 
-            [Required]
+            [Required(ErrorMessage = "请输入新密码")]
             [StringLength(100, ErrorMessage = "密码长度至少为 {2} 个字符。", MinimumLength = 8)]
             [DataType(DataType.Password)]
             [Display(Name = "新密码")]
@@ -386,15 +400,17 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
 
         public async Task<IActionResult> OnPostAsync()
         {
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
-
             var user = await _userManager.FindByIdAsync(Input.UserId);
             if (user == null)
             {
                 return RedirectToPage("./ResetPasswordConfirmation");
+            }
+
+            MaskedEmail = MaskEmail(user.Email ?? "");
+
+            if (!ModelState.IsValid)
+            {
+                return Page();
             }
 
             var result = await _userManager.ResetPasswordAsync(user, Input.Code, Input.Password);
@@ -412,6 +428,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             {
                 ModelState.AddModelError(string.Empty, error.Description);
             }
+            MaskedEmail = MaskEmail(user.Email ?? "");
             return Page();
         }
 
