@@ -40,13 +40,21 @@
 | 30 | `Manage/_ManageNav.cshtml` | 移除 `@inject SignInManager` 指令、`hasExternalLogins` 变量计算和 `@if (hasExternalLogins)` 死链接区块 | ExternalLogins 页面在脚手架排除列表中，侧边栏恢复可见后该链接会产生 404 | Deferred code review (2026-06-03) | 保留 |
 | 31 | `Manage/ManageNavPages.cs` | 移除已排除页面的孤立常量和 NavClass 方法（DownloadPersonalData/DeletePersonalData/PersonalData/ExternalLogins） | 消除维护债务——这些页面在脚手架排除列表中，对应常量和方法已失效 | Deferred code review (2026-06-03) | 保留 |
 | 32 | `Manage/Index.cshtml`, `Manage/Email.cshtml`, `Manage/ChangePassword.cshtml`, `Manage/EnableAuthenticator.cshtml` | `col-md-6` → `col-md-8` | 侧边栏 `col-md-3` 布局嵌套使表单渲染在 `col-md-9` 内容区而非全宽容器，表单有效宽度缩小；加宽列恢复预期视觉宽度 | Deferred Code Review (2026-06-03) | 保留 |
+| 33 | `Account/ForgotPassword.cshtml.cs` | 基于脚手架模板：`FindByEmailAsync` → `FindByNameAsync`，`[AllowAnonymous]` + `[EnableRateLimiting("forgot-password")]`，`EmailConfirmed` 检查，UTF8 → Base64UrlEncode 令牌编码，`protocol: Request.Scheme` 绝对 URL | BoxWise 用户名登录体系；防枚举和邮件轰炸 | Epic 15 | 重新适配 |
+| 34 | `Account/ForgotPassword.cshtml` | Email → Username 输入框，中文化，`form-floating` 样式，"返回登录"链接 | 与 Login.cshtml 风格一致 | Epic 15 | 重新适配 |
+| 35 | `Account/ForgotPasswordConfirmation.cshtml` | 新建：`[AllowAnonymous]`，中文化提示（含垃圾邮件文件夹提示） | 脚手架排除列表中无此页面，全新创建 | Epic 15 | 重新适配 |
+| 35a | `Program.cs` | `DataProtectionTokenProviderOptions.TokenLifespan = 1h` + `AddFixedWindowLimiter("forgot-password")` 速率限制策略 | 默认 TokenLifespan 为 24h；无默认 ForgotPassword 限流策略 | Epic 15 | 保留 |
+| 36 | `Account/ResetPassword.cshtml.cs` | 基于脚手架模板：`FindByEmailAsync` → `FindByIdAsync`，`OnGet` 参数 `userId` + `code`，Base64UrlDecode → UTF8 令牌解码，脱敏邮箱显示，重置成功后发送安全通知邮件 | BoxWise 用户名/ID 体系；URL 传递 userId 替代邮箱 | Epic 15 | 重新适配 |
+| 37 | `Account/ResetPassword.cshtml` | Email → userId（hidden），脱敏邮箱提示，`autocomplete="username"` 隐藏框，中文化 | 配合 PasswordManager 保存新密码 | Epic 15 | 重新适配 |
+| 38 | `Account/ResetPasswordConfirmation.cshtml` | 新建：`[AllowAnonymous]`，中文化，"点击此处登录"链接 | 脚手架排除列表中无此页面，全新创建 | Epic 15 | 重新适配 |
+| 39 | `Account/Login.cshtml` | 底部添加"忘记密码？"链接 | 用户入口 | Epic 15 | 保留 |
 
 ## 脚手架排除的文件
 
 以下 Identity 页面**有意未生成**，代码中引用这些页面的链接会产生 404：
 
 - `Account.Register` / `Account.RegisterConfirmation` — BoxWise 由 Admin 后台创建用户，无自助注册
-- `Account.ForgotPassword` / `Account.ResetPassword` — v1 未实现
+- 无（ForgotPassword 和 ResetPassword 已在 Epic 15 实现）
 - `Account.ExternalLogin` — 无第三方 OAuth 登录
 - `Account.AccessDenied` / `Account.ResendEmailConfirmation` — v1 不需要
 - `Account.Manage.ShowRecoveryCodes` — 由 `GenerateRecoveryCodes` 覆盖
