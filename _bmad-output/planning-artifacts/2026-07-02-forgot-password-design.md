@@ -65,6 +65,7 @@ ResetPasswordConfirmation
 ## ForgotPassword.cshtml.cs
 
 - `[AllowAnonymous]`
+- `[EnableRateLimiting("forgot-password")]`（Razor Page 通过属性启用，非 `.RequireRateLimiting` 扩展方法）
 - 注入 `UserManager<AppUser>` + `IEmailSender`
 - `InputModel.Username`（`[Required]`）
 - `OnPostAsync`：
@@ -135,6 +136,7 @@ ResetPasswordConfirmation
 - 所有 4 个页面均为 `[AllowAnonymous]`
 - SMTP 未配置时静默降级（IdentityEmailSender 已有此行为）
 - 令牌通过 URL query string 传输是 Identity 标准模式，1 小时有效期缓解日志泄露风险
+- 若用户重置密码时持有有效登录 Cookie，SecurityStamp 更新后该 Cookie 在下次请求时失效（约数秒），用户将被重定向至登录页——这是预期行为
 
 ## 与 2FA 的交互
 
@@ -153,10 +155,24 @@ ResetPasswordConfirmation
 
 ```csharp
 // 配置密码重置令牌有效期为 1 小时（默认 24 小时）
-// 插入到 AddDefaultTokenProviders() 之前或之后
 builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
     options.TokenLifespan = TimeSpan.FromHours(1));
 ```
+
+在 `AddRateLimiter` 配置中新增 ForgotPassword 策略：
+
+```csharp
+options.AddFixedWindowLimiter(policyName: "forgot-password", config =>
+{
+    config.PermitLimit = builder.Configuration.GetValue("RateLimit:ForgotPasswordPermitLimit", 1);
+    config.Window = TimeSpan.FromSeconds(
+        builder.Configuration.GetValue("RateLimit:ForgotPasswordWindowSeconds", 60));
+    config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+    config.QueueLimit = 0;
+});
+```
+
+**注意：** ForgotPassword 是 Razor Page（非 Minimal API），速率限制通过 `[EnableRateLimiting("forgot-password")]` 属性在 PageModel 上启用，而非 `.RequireRateLimiting()` 扩展方法。
 
 ## ForgotPasswordConfirmation.cshtml / .cs
 
