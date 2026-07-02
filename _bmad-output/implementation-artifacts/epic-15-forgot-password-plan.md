@@ -43,7 +43,7 @@ builder.Services.Configure<DataProtectionTokenProviderOptions>(options =>
 
 - [ ] **Step 3: 在 appsettings.json 中添加 ForgotPassword 速率限制配置**
 
-编辑 `src/BoxWise.Server/appsettings.json`，在 `RateLimit` 块中 `PasskeyLoginWindowMinutes` 之后添加：
+编辑 `src/BoxWise.Server/appsettings.json`，在 `RateLimit` 块末尾（`TwoFactorRecoveryWindowMinutes` 之后）添加：
 
 ```json
     "ForgotPasswordPermitLimit": 1,
@@ -101,7 +101,6 @@ using Microsoft.AspNetCore.WebUtilities;
 namespace BoxWise.Server.Areas.Identity.Pages.Account
 {
     [AllowAnonymous]
-    [EnableRateLimiting("forgot-password")]
     public class ForgotPasswordModel : PageModel
     {
         private readonly UserManager<AppUser> _userManager;
@@ -122,6 +121,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             public string Username { get; set; }
         }
 
+        [EnableRateLimiting("forgot-password")]
         public async Task<IActionResult> OnPostAsync()
         {
             if (ModelState.IsValid)
@@ -428,7 +428,6 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             {
                 ModelState.AddModelError(string.Empty, error.Description);
             }
-            MaskedEmail = MaskEmail(user.Email ?? "");
             return Page();
         }
 
@@ -597,7 +596,8 @@ git commit -m "feat: 新增 ResetPasswordConfirmation Identity 页面"
 ```markdown
 | 33 | `Account/ForgotPassword.cshtml.cs` | 基于脚手架模板：`FindByEmailAsync` → `FindByNameAsync`，`[AllowAnonymous]` + `[EnableRateLimiting("forgot-password")]`，`EmailConfirmed` 检查，UTF8 → Base64UrlEncode 令牌编码，`protocol: Request.Scheme` 绝对 URL | BoxWise 用户名登录体系；防枚举和邮件轰炸 | Epic 15 | 重新适配 |
 | 34 | `Account/ForgotPassword.cshtml` | Email → Username 输入框，中文化，`form-floating` 样式，"返回登录"链接 | 与 Login.cshtml 风格一致 | Epic 15 | 重新适配 |
-| 35 | `Account/ForgotPasswordConfirmation.cshtml` | 新建：`[AllowAnonymous]`，中文化提示（含垃圾邮件文件夹提示） | 脚手架模板仅英文 | Epic 15 | 重新适配 |
+| 35 | `Account/ForgotPasswordConfirmation.cshtml` | 新建：`[AllowAnonymous]`，中文化提示（含垃圾邮件文件夹提示） | 脚手架排除列表中无此页面，全新创建 | Epic 15 | 重新适配 |
+| 35a | `Program.cs` | `DataProtectionTokenProviderOptions.TokenLifespan = 1h` + `AddFixedWindowLimiter("forgot-password")` 速率限制策略 | 默认 TokenLifespan 为 24h；无默认 ForgotPassword 限流策略 | Epic 15 | 保留 |
 | 36 | `Account/ResetPassword.cshtml.cs` | 基于脚手架模板：`FindByEmailAsync` → `FindByIdAsync`，`OnGet` 参数 `userId` + `code`，Base64UrlDecode → UTF8 令牌解码，脱敏邮箱显示，重置成功后发送安全通知邮件 | BoxWise 用户名/ID 体系；URL 传递 userId 替代邮箱 | Epic 15 | 重新适配 |
 | 37 | `Account/ResetPassword.cshtml` | Email → userId（hidden），脱敏邮箱提示，`autocomplete="username"` 隐藏框，中文化 | 配合 PasswordManager 保存新密码 | Epic 15 | 重新适配 |
 | 38 | `Account/ResetPasswordConfirmation.cshtml` | 新建：`[AllowAnonymous]`，中文化，"点击此处登录"链接 | 脚手架模板仅英文 | Epic 15 | 重新适配 |
