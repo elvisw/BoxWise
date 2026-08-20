@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-23
-last_updated: 2026-06-07
+last_updated: 08-20-2026 15:00
 project: BoxWise
 project_key: NOKEY
 tracking_system: file-system
@@ -128,3 +128,19 @@ development_status:
   14-4-ci-tar-validate: done
   14-5-grep-regex-universal: done
   14-6-i18n-close: done
+  epic-15: done
+  15-1-forgot-password-reset: done
+  epic-15-retrospective: done
+action_items:
+  - id: "epic-15-retro-item-1-恢复标准-story-文件格式-story-n-m-标题-epic-15-采用任"
+    epic: 15
+    action: "恢复标准 Story 文件格式（# Story N.M: 标题）——Epic 15 采用任务式计划文件导致解析器无法解析、状态需手动补录"
+    owner: "Elvis"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-15-retro-2026-08-20.md"
+  - id: "epic-15-retro-item-2-执行-epic-15-manual-test-guide-md-的-7-组手动测"
+    epic: 15
+    action: "执行 epic-15-manual-test-guide.md 的 7 组手动测试场景并记录结果"
+    owner: "Elvis"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-15-retro-2026-08-20.md"
