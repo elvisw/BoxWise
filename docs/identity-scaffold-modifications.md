@@ -9,8 +9,8 @@
 |---|------|------|------|-------|-----------|
 | 1 | `Login.cshtml` | `Input.Email` → `Input.Username`，汉化标签，移除 Register/ForgotPassword/ResendEmailConfirmation 死链接，移除 External Login 区域 | BoxWise 用用户名登录，非邮箱；未生成的页面产生死链接 | 10（回顾修复） | 重新适配 |
 | 2 | `Login.cshtml.cs` | 移除 `[EmailAddress]` 校验，属性 `Email` → `Username`，`PasswordSignInAsync` 调用更新 | 同上 | 10（回顾修复） | 重新适配 |
-| 3 | `LoginWith2fa.cshtml.cs` | 提取 `GetTwoFactorUserAsync()` 辅助方法，`NameIdentifier → FindByIdAsync` 优先，`Name → FindByNameAsync` 兜底；删除死代码 `var userId`；添加 `using Microsoft.AspNetCore.Authentication` + `using System.Security.Claims`；清理重复 `using Microsoft.Extensions.Logging` | dotnet/aspnetcore#66929 + Identity `CreateTwoFactorIdentityAsync` 中 NameIdentifier 可能缺失 | 10.4 + 回顾修复 | **等上游修复后删除 workaround，恢复原始调用** |
-| 4 | `LoginWithRecoveryCode.cshtml.cs` | 同上：提取 `GetTwoFactorUserAsync()` 辅助方法 + 双路径 fallback + 清理 using | 同上 | 10.4 + 回顾修复 | 同上 |
+| 3 | `LoginWith2fa.cshtml.cs` | 恢复 `_signInManager.GetTwoFactorAuthenticationUserAsync()` 原生调用；移除 workaround 私有方法 `GetTwoFactorUserAsync()` | dotnet/aspnetcore#66929 在 .NET 10.0.11 上验证不复现（E2E 测试 + 人工验证通过），workaround 安全移除 | 回归修复 (2026-08-20) | 保留 |
+| 4 | `LoginWithRecoveryCode.cshtml.cs` | 同上：恢复 `GetTwoFactorAuthenticationUserAsync()` 原生调用；移除 workaround 私有方法 `GetTwoFactorUserAsync()` | 同上 | 回归修复 (2026-08-20) | 保留 |
 | 5 | `Logout.cshtml.cs` | 添加 `OnGet` handler（独立实现，不委托给 `OnPost`），重定向 `/Identity/Account/Login`；移除未使用的 `using Microsoft.AspNetCore.Authorization` | 支持 GET 登出（Settings.razor 链接导航）；登出后直接进 Identity 登录页 | 10.3 + 回顾修复 | 保留 |
 | 6 | `EnableAuthenticator.cshtml` | `@section Scripts` 中添加 CDN qrcode.js + QR 码渲染脚本 | Identity UI NuGet 包静态资源路径不可用，CDN 提供 QR 码库 | 10（回顾修复） | 保留（CDN URL 可能需要更新） |
 | 7 | `EnableAuthenticator.cshtml.cs` | `RedirectToPage("./ShowRecoveryCodes")` → `RedirectToPage("./GenerateRecoveryCodes")` | `ShowRecoveryCodes` 页面未被脚手架生成（已由 `GenerateRecoveryCodes` 覆盖） | 10（回顾修复） | 保留 |

@@ -615,11 +615,9 @@ dotnet build                    # 3. 本地构建自动读取标签作为版本�
 
 ## 已知限制
 
-1. **.NET 10 `GetTwoFactorAuthenticationUserAsync()` Bug**（[dotnet/aspnetcore#66929](https://github.com/dotnet/aspnetcore/issues/66929)）— 影响 2FA 用户登录流程。Workaround 已就位（内联 `HttpContext.AuthenticateAsync` + `FindByIdAsync`）。待上游修复后移除。
+1. **Docker 构建版本号始终回退 v1.0.0** — `.dockerignore` 排除了 `.git/` 目录。详见上方"版本管理"章节的 CI/Docker 注意事项。
 
-2. **Docker 构建版本号始终回退 v1.0.0** — `.dockerignore` 排除了 `.git/` 目录。详见上方"版本管理"章节的 CI/Docker 注意事项。
-
-3. **ConfiguredMethods 同步** — Identity 页面操作（如邮箱修改）不自动更新 `AppUser` 的自定义扩展字段，需手动同步（内部机制，供开发者参考）。
+2. **ConfiguredMethods 同步** — Identity 页面操作（如邮箱修改）不自动更新 `AppUser` 的自定义扩展字段，需手动同步（内部机制，供开发者参考）。
 
 4. **Email 2FA 登录路径已退役** — 自 v0.11 起移除 Email 验证码双因素登录，当前仅支持 TOTP + WebAuthn。SMTP 配置仅用于 Identity 邮箱管理功能。
 

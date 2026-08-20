@@ -230,7 +230,7 @@ builder.Services.AddDataProtection()
 
 ## 已知问题
 
-- **.NET 10 `GetTwoFactorAuthenticationUserAsync()` Bug**（[dotnet/aspnetcore#66929](https://github.com/dotnet/aspnetcore/issues/66929)）— 影响 2FA 用户登录流程。Workaround 已就位（内联 `HttpContext.AuthenticateAsync` + `FindByIdAsync`）。待上游修复后移除。
+- 无（dotnet/aspnetcore#66929 已于 2026-08-20 验证不复现，workaround 已移除）
 
 ## 相关文件
 
