@@ -303,12 +303,12 @@ grep -rn "<已退役类名或端点路由>" docs/ CLAUDE.md _bmad-output/ --incl
 
 ## .NET Framework 已知问题
 
-### .NET 10 SignInManager.GetTwoFactorAuthenticationUserAsync() Bug (2026-05-30)
+### .NET 10 SignInManager.GetTwoFactorAuthenticationUserAsync() Bug (2026-05-30, 已解决 2026-08-20)
 
 - **Issue:** [dotnet/aspnetcore#66929](https://github.com/dotnet/aspnetcore/issues/66929)
-- **影响:** `SignInManager.GetTwoFactorAuthenticationUserAsync()` 在 .NET 10.0.8 中返回 null，即使 TwoFactorUserId Cookie 有效。内部 `UserManager.GetUserId(principal)` 返回 UserName 而非 UserId，导致 `FindByIdAsync` 用用户名查 GUID 列。
-- **症状:** 2FA 用户登录时挑战端点返回 401 → 前端提示"无法获取可用的验证方式"。
-- **Workaround:** 使用 `LoginWith2fa.cshtml.cs` / `LoginWithRecoveryCode.cshtml.cs` 中 PageModel 层的内联 workaround（`HttpContext.AuthenticateAsync` + `FindByIdAsync`）。`TwoFactorEndpoints.cs` 已在 Story 11.3 退役。**待上游修复后移除 workaround。**
+- **状态:** **已解决** — Workaround 已移除，恢复框架原生 `GetTwoFactorAuthenticationUserAsync()` 调用。
+- **历史:** 2026-05-30 在 .NET 10.0.8 上报告 `GetTwoFactorAuthenticationUserAsync()` 返回 null，应用 workaround。2026-08-20 在 .NET 10.0.11 上验证不复现（3 个 E2E 测试 + 人工完整 2FA 登录验证通过），workaround 安全移除。
+- **注意:** 上游维护者指出框架 `RetrieveTwoFactorInfoAsync` 读 `ClaimTypes.Name`（=userId），不调用 `GetUserId`。原调查文档的根因分析（"GetUserId 返回 UserName"）有误。bug 要么从未存在（误诊），要么是 10.0.8 transient 已消失。
 - **详细调查:** `_bmad-output/implementation-artifacts/investigations/2fa-gettwofactoruserasync-null-investigation.md`
 - **脚手架修改清单:** `docs/identity-scaffold-modifications.md` — 所有对 `Areas/Identity/` 下文件的修改必须记录在此。**每次涉及脚手架代码的改动，在修改代码前先查阅此文件。**
 
