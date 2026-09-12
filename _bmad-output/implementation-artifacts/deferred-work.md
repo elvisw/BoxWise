@@ -1,5 +1,9 @@
 # Deferred Work
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-fix-ci-skia-package-version.md`
+  summary: 更新仍标注 SkiaSharp 3.x/3.119.4 的项目文档版本信息
+  evidence: README.md、CLAUDE.md、_bmad-output/project-context.md 与 docs/architecture-server.md 的版本在本次修复前已落后于实际依赖；这不影响 CI 恢复，超出本次最小修复范围
+
 ## Deferred from: code review of 13-1-llm-config-backend (2026-06-06)
 
 - Missing CancellationToken parameter in GetLlmConfigAsync — pre-existing pattern across all endpoint handlers
