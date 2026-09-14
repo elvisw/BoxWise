@@ -26,7 +26,7 @@
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
     <PackageVersion Include="Fido2" Version="4.0.1" />
     <PackageVersion Include="Fido2.Models" Version="4.0.1" />
-    <PackageVersion Include="MailKit" Version="4.17.0" />
+    <PackageVersion Include="MailKit" Version="4.18.0" />
     <PackageVersion Include="NuGet.Packaging" Version="6.12.5" />
     <PackageVersion Include="NuGet.Protocol" Version="6.12.5" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.12" />
