@@ -4,7 +4,7 @@ type: 'feature'
 created: '2026-05-31'
 status: 'done'
 baseline_commit: 'f18a439'
-context: ['_bmad-output/implementation-artifacts/investigations/passkey-stale-credentials-investigation.md']
+context: ['_bmad-output/initiative-boxwise/investigations/passkey-stale-credentials-investigation.md']
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
