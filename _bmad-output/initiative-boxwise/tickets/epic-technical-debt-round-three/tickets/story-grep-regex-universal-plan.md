@@ -19,4 +19,3 @@ status_source: sprint-status.yaml
 - 原始独立 build record 缺失；验收条件保留在来源 _bmad-output/initiative-boxwise/sprint-change-proposal-2026-06-07-tech-debt-3/sprint-change-proposal-2026-06-07-tech-debt-3.md:181。
 - v6 tracking: done @ 129；v7 status: done。
 - 本计划为最小迁移计划，不重新验收历史业务。
-

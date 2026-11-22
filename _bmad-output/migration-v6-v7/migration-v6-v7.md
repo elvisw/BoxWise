@@ -1,7 +1,8 @@
 ---
 type: migration
 title: "BoxWise：BMad v6 → 官方 v7 Preview Alpha"
-status: approved
+status: done
+completed: 2026-11-22
 approved: 2026-11-22
 approval: A
 created: 2026-11-22
@@ -9,7 +10,7 @@ created: 2026-11-22
 
 # BoxWise：BMad v6 → 官方 v7 Preview Alpha
 
-**状态：approved（例外 A，2026-11-22）。** 本文件是计划与执行记录；项目内迁移已执行并本地提交。
+**状态：done（例外 A，2026-11-22）。** 本文件是计划与执行记录；项目内迁移已执行、本地提交并通过结项复核。
 
 **审批范围：** 在现有 BoxWise Git 仓库建立一个 v7 initiative，迁移本地 OpenCode 的 BMad 安装与项目工件。不改全局技能，不拆仓，不推送、不合并，不碰应用、业务数据库、认证或 SMTP，不执行历史工件中的命令，不删除来源不明或未追踪的原件。
 
@@ -116,19 +117,94 @@ created: 2026-11-22
 
 ## 官方验收记录（获批后执行）
 
-- [ ] ① 每个源文件均有目标或说明；② 每个成套文档仍完整，主文件或路由可读；③ 版本全部存留；本次新建的空目录有 `.gitkeep`，已空的 v6 目录移除。
-- [ ] ④ `uv run <project-root>/_bmad/method/scripts/tickets.py --project-root <project-root> status <initiative folder>` 退出 0，且 15 Epic / 60 Story 对账，backlog 分计；若 setup 后解析器路径不同，记录实际路径并以模块解析为准。⑤ `find` 逐项验证联接和唯一性，无 Epic Story 叶子文件。
-- [ ] ⑥ 状态、构建类型、基线、缺失记录、回顾位置与结论正确；保留上游“done stays done, review stays in-review”语义；15 条 `review` 的 A/B 例外须在批准时由用户明确决定并逐条记录，不冒充逐条验收。⑦ 从主 PRD 的 FR 至 Epic/Story 的 `covers` 和依赖逐条验证；R21/R22 与 epic-local 分开核对。
-- [ ] ⑧ 无遗留预览 spec 形状；经典 SPEC 保留历史引用，不冒称预览 spec 折叠。在移动文件的 live requirement/引用中核对 CAP 映射，若上游规则与完整保留原档冲突，在不修改归档原文的前提下列明并报告。
-- [ ] ⑨ 所有活动路径都能解析；分栏列出现存断链与新增断链，后者必须修复。留置文件（含 `spec-passkey-stale-credential-ux/SPEC.md`）的引用重扫；Epic 9 live 回顾两处按上述规则处理。⑩ 本地 active initiative、输出根正确；⑪ 移动过的模块配置路径正确（无则注明）。
-- [ ] ⑫ Git 保持原仓库、目标 Alpha 项目技能优先、备份不入库、全局未动；⑬ 备份完整性复核；⑭ 所有决定与逐项验证有记录。重启 OpenCode 后实测 `/bmad` 或技能入口和 Sofia 解析；如环境不能重启此会话做验证，另用新会话核对或明确未覆盖。
-- [ ] ⑮ 本计划在获批前保持 `status: draft`；未执行的步骤不填“通过”，未核验的 CLI 版本不写具体值。
+- [x] ① 每个源文件均有目标或说明；② 每个成套文档仍完整，主文件或路由可读；③ 版本全部存留；本次新建的空目录有 `.gitkeep`，已空的 v6 目录移除。
+- [x] ④ `uv run <project-root>/_bmad/method/scripts/tickets.py --project-root <project-root> status <initiative folder>` 退出 0，且 15 Epic / 60 Story 对账，backlog 分计；若 setup 后解析器路径不同，记录实际路径并以模块解析为准。⑤ `find` 逐项验证联接和唯一性，无 Epic Story 叶子文件。
+- [x] ⑥ 状态、构建类型、基线、缺失记录、回顾位置与结论正确；保留上游“done stays done, review stays in-review”语义；15 条 `review` 的 A/B 例外须在批准时由用户明确决定并逐条记录，不冒充逐条验收。⑦ 从主 PRD 的 FR 至 Epic/Story 的 `covers` 和依赖逐条验证；R21/R22 与 epic-local 分开核对。
+- [x] ⑧ 无遗留预览 spec 形状；经典 SPEC 保留历史引用，不冒称预览 spec 折叠。在移动文件的 live requirement/引用中核对 CAP 映射，若上游规则与完整保留原档冲突，在不修改归档原文的前提下列明并报告。
+- [x] ⑨ 所有活动路径都能解析；分栏列出现存断链与新增断链，后者必须修复。留置文件（含 `spec-passkey-stale-credential-ux/SPEC.md`）的引用重扫；Epic 9 live 回顾两处按上述规则处理。⑩ 本地 active initiative、输出根正确；⑪ 移动过的模块配置路径正确（无则注明）。
+- [x] ⑫ Git 保持原仓库、目标 Alpha 项目技能优先、备份不入库、全局未动；⑬ 备份完整性复核；⑭ 所有决定与逐项验证有记录。重启 OpenCode 后实测 `/bmad` 或技能入口和 Sofia 解析；如环境不能重启此会话做验证，另用新会话核对或明确未覆盖。
+- [x] ⑮ 本计划在获批前保持 `status: draft`；未执行的步骤不填“通过”，未核验的 CLI 版本不写具体值。
+
+## 结项验收记录（2026-11-22）
+
+**结论：PASS，store 内无实质阻塞。** 本记录接受主代理的独立复核：固定 commit 的官方 `tickets.py` blob、两个项目实例（仅 CRLF 差异）、`verify-migration-live.py`、78 个 `find`、15 条 review 例外、143 条去向、原始跟踪档字节和 Git 边界。已核验的 78 个查找未重跑；下列为增量复核和主代理证据的归档。
+
+### 逐项结果
+
+| 项 | 结果 |
+| --- | --- |
+| ① 去向完整 | 143/143 源文件有目标或留置说明；139 个移动、4 个留置；0 重复目标。 |
+| ② 成套文件 | 15 个 Epic 文件、60 个 story plan、18 个 backlog 文件可读；`investigations.md` 列出 18 个文件，不含自身。 |
+| ③ 版本与目录 | 原始 `epics.md`、`sprint-status.yaml` 与首份备份逐字节一致；仅新建空目录 `.gitkeep`；空 `planning-artifacts/`、`implementation-artifacts/`、`brainstorming/` 已移除。 |
+| ④ 官方 status | `tickets.py status` 退出 0：60 total / 60 done，15 Epic；backlog 18/18。 |
+| ⑤ find 唯一性 | 60 个 initiative ref 与 18 个 backlog 文件全部 `find` 成功；`bad: []`、`bbad: []`；Epic story 叶子文件 0。 |
+| ⑥ 状态/类型/基线 | 40 feature、15 chore、3 refactor、2 bugfix；21 sprint + 10 backlog 有基线；15 条 review 例外全部 `status: done` + `legacy_status: review`，无静默 `in-review`；回顾位置与结论保留。 |
+| ⑦ 需求与依赖 | R1–R20 来自主 PRD；R21 来自 05-28 提案；R22a–R22g 来自安全提案正文；R22h 未被伪造；Epic 10/11 局部 FR 与主编号分开；Epic 8 六个字母 ID 的依赖在 `tickets.toml` 可解析；12/13 的显式实施顺序已写 `after`。 |
+| ⑧ CAP/经典 SPEC | Identity Epic 的 live Requirements 保留 CAP-1–CAP-7 引用；无 preview `stories.yaml` 形状；未搬走的经典 SPEC 保留原档，未冒称折叠。 |
+| ⑨ 链接 | store 内无迁移新增断链；27 条既有断链见下表，均未修复；外部 `docs/index.md` 的两条入口因目录迁移变成新死链，已列入“Store 外旧路径重扫”，按计划不在 Method 内改。 |
+| ⑩ active initiative/输出根 | `_bmad/custom/config.user.toml` 的 `[core] active_initiative = "initiative-boxwise"` 生效；`tickets.py status` 无目录参数时解析到该 initiative；输出根仍为 `_bmad-output`。 |
+| ⑪ 模块配置路径 | 本项目没有移动的模块配置路径；`setup.py --status` 两模块脚本 `current`，无 pending questions/problems；无外部 tracker 文件。 |
+| ⑫ Git/全局边界 | 原仓库 `chore/bmad-v7-preview` 本地提交；备份和本地 v6 技能备份不入库；安装只用项目级 `--agent opencode --copy`，未用 `-g`，未改全局技能；未推送/合并。 |
+| ⑬ 备份完整性 | 首份备份 36 + 143 文件逐字节一致；本地 v6 备份 243 文件（29 技能 + 29 命令）有 SHA-256 清单；迁移前后备份均未编辑。 |
+| ⑭ 新会话/入口 | 主代理新子会话 `ses_dfc44fb5bffe7MlJ4WiWqgolsn` 以原生 skill 加载 `bmad`、`bmad-agent-po`，Base directory 指向项目 `.agents/skills`；本会话 `render_skill.py` 解析 Sofia 工作流无 `HALT`；旧 slash 命令未测试，不声明“全局无副本”。 |
+| ⑮ 状态 | 获批前保持 `draft`；用户批准例外 A 后转为 `approved`；结项复核无 store 内阻塞，现转 `done`。 |
+
+### 缺基线名单
+
+无基线不填 HEAD；完整字段见“票据迁移台账”的 baseline 列。缺失的 39 条 sprint Story：
+
+- Epic 1：`1-1`、`1-2`、`1-3`
+- Epic 2：`2-1`、`2-2`、`2-3`、`2-4`
+- Epic 3：`3-1`、`3-2`、`3-3`、`3-4`、`3-5`
+- Epic 4：`4-1`、`4-2`、`4-3`、`4-4`、`4-5`、`4-6`
+- Epic 5：`5-1`、`5-2`、`5-3`
+- Epic 7：`7-2`、`7-3`
+- Epic 8：`8-1`、`8-2a-1`、`8-2a-2`、`8-2b`、`8-3`、`8-4`、`8-5a`、`8-5b`、`8-5c`
+- Epic 14：`14-1`、`14-2`、`14-3`、`14-4`、`14-5`、`14-6`
+- Epic 15：`15-1`
+
+缺失的 8 条 backlog：`spec-about-remove-hardcoded-versions`、`spec-admin-edit-user-email`、`spec-docker-standalone-deploy`、`spec-fix-ci-skia-package-version`、`spec-fix-wasm-fingerprint-placeholder`、`spec-git-version-from-tag`、`spec-move-admin-link-to-settings`、`spec-recovery-codes-bulk-actions`。
+
+### 27 条既有断链
+
+分类依据：每条目标字符串都能在首份备份的对应原文中找到；目标文件在当前 HEAD 已不存在，或留置文件的目标字符串逐字未变且原本相对深度错误。均不是移动造成的新断链；store 内没有新增断链，未逐一改写历史 plan。
+
+| 源文件（相对项目根） | 目标 | 为何是既有 |
+| --- | --- | --- |
+| `_bmad-output/backlog/bug-fix-deferred-bugs-group1-plan.md` | `../../src/BoxWise.Server/Services/LlmClient.cs#L28` | 目标在 Epic 12 前已删除；旧 plan 同字符串已坏。 |
+| `_bmad-output/backlog/story-complete-webauthn-frontend-plan.md` | `../../src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs#L248`；`../../src/BoxWise.Client/Components/TwoFactorSetup.razor#L52`；`../../src/BoxWise.Client/Components/TwoFactorManage.razor#L82` | 三个源码文件均已在后续退役；旧 plan 同字符串已坏。 |
+| `_bmad-output/backlog/story-consolidate-email-settings-plan.md` | `../../src/BoxWise.Server/Endpoints/EmailVerificationEndpoints.cs#L1`；`../../src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs#L429`；`../../src/BoxWise.Server/Endpoints/TwoFactorModifyEndpoints.cs#L1`；`../../src/BoxWise.Client/Components/AccountInfoDialog.razor#L1`；`../../src/BoxWise.Client/Components/TwoFactorSetup.razor#L1`；`../../src/BoxWise.Client/Components/TwoFactorManage.razor#L1`；`../../src/BoxWise.Shared/Dtos/EmailVerificationDtos.cs#L1`；`../../src/BoxWise.Server.Tests/Endpoints/EmailVerificationEndpointsTests.cs#L1` | 对应端点、组件、DTO、测试已随 Identity 迁移退役；旧 plan 同字符串已坏。 |
+| `_bmad-output/backlog/story-recovery-codes-bulk-actions-plan.md` | `../../../src/BoxWise.Client/Components/TwoFactorSetup.razor` | 目标已退役；旧 plan 的 `../../../` 深度也在移动前就错误。 |
+| `_bmad-output/backlog/story-smtp-config-test-email-plan.md` | `../../src/BoxWise.Server.Tests/Endpoints/TwoFactorEndpointsTests.cs#L25` | 测试文件已退役/改名；旧 plan 同字符串已坏。 |
+| `_bmad-output/initiative-boxwise/tickets/epic-two-factor-settings/tickets/story-2fa-modify-settings-plan.md` | `src/BoxWise.Server/Endpoints/TwoFactorEndpoints.cs` | 目标已退役；该 plan 原本就从 `implementation-artifacts/` 以项目根相对写法引用，已坏。 |
+| `_bmad-output/specs/spec-passkey-stale-credential-ux/SPEC.md` | `../../../../src/BoxWise.Server/Services/WebAuthnService.cs#L127`；`../../../../src/BoxWise.Server/Endpoints/WebAuthnEndpoints.cs#L200`；`.../WebAuthnEndpoints.cs#L57`；`.../WebAuthnCredentialDto.cs#L3`；`.../WebAuthnAvailableResponse.cs#L3`；`.../webauthn.js#L34`；`.../AuthService.cs#L510`；`.../AuthService.cs#L594`；`.../AuthService.cs#L403`；`.../Login.razor#L237`；`.../WebAuthnSetup.razor#L140`；`.../WebAuthnCredentialList.razor#L95` | 该文件原地留置、未移动；目标字符串与首份备份逐字相同，`../../../../` 深度原本就多一层；部分目标源码仍存在但链接仍为既有坏相对路径。 |
+
+### Store 外旧路径重扫
+
+只报告，未编辑：
+
+- `AGENTS.md:143-145` 仍写 `_bmad-output/planning-artifacts/`、`implementation-artifacts/` 和旧 `sprint-status.yaml`；这是用户维护的文件，需单独授权更新。
+- `docs/index.md:62-63` 仍有“规划工件/实现工件”旧目录链接；目录移除后成为新的外部死链，Method 只报告，未改。
+- `docs/source-tree-analysis.md:199-200` 的目录树仍列 `planning-artifacts/`、`implementation-artifacts/`；历史分析快照，未改。
+- `docs/superpowers/plans/2026-05-26-camera-capture.md:479,500` 与 `docs/superpowers/specs/2026-05-26-camera-capture-design.md:27` 仍引用旧 PRD 路径；历史设计/计划快照，未改。
+- `README.md` 与 `docs/` 其余 Markdown 未发现其他旧 store 路径；以上外部项不影响 store 的 `tickets.py` 验收。
+
+### Migration 2 detect
+
+只读复核 `migration-2.toml` 的 detect：`initiative-boxwise/` 根没有 `tickets.toml`、leaf 或 plan；15 个 `tickets/epic-*/` 目录也都没有直接放 `tickets.toml`、leaf 或 plan。检测结果 `migration2DetectMatched: false`，未执行 Migration 2。
+
+### 未覆盖/边界
+
+- 旧 slash 命令未测试；不声明全局无副本。
+- `--clean` 和 v6 遗留清理未执行，属可选。
+- 27 条既有断链和 5 处外部旧路径未改写，按计划只报告。
+- `skills-lock.json` 由项目级安装生成，未纳入本提交；是否入库待决定。
 
 <!-- generated-inventory -->
 
 ## 票据迁移台账
 
-路径相对 `_bmad-output/`；状态栏 `@` 后是旧 `sprint-status.yaml` 行号。表中每条历史 Story 拟建一个 `[[entry]]` 并连接一个 plan；除“状态例外（待批准）”列出的 15 条外，其余按 tracking `done`。例外 A（建议）待用户批准后写 `done`；例外 B 则写 `in-review`。本表“文件状态”保留 build record 的原 `review`，不代表 v7 plan 已逐条验收。
+路径相对 `_bmad-output/`；状态栏 `@` 后是旧 `sprint-status.yaml` 行号。表中每条历史 Story 拟建一个 `[[entry]]` 并连接一个 plan；除“状态例外（待批准）”列出的 15 条外，其余按 tracking `done`。例外 A 已批准并写 `done`；本表“文件状态”保留 build record 的原 `review`，不代表 v7 plan 已逐条验收。
 
 | Epic ID | 票据容器 | Story 数 | 主要来源 |
 | --- | --- | ---: | --- |
@@ -389,5 +465,5 @@ created: 2026-11-22
 ## 盘点校验
 
 - 精确同名或确认替代的 sprint 实施记录：41（40 条编号记录 + Epic 15.1 的 1 份任务式计划）；缺少独立编号实施记录：19。
-- 旧独立实施文件仍写 `review` 的 Story：15 条；v7 状态按“状态例外（待批准）”A/B 处理，不把 `review` 静默改写成验收结论。
+- 旧独立实施文件仍写 `review` 的 Story：15 条；v7 状态按已批准的例外 A 写 `done` 并保留 `legacy_status: review`，不把 `review` 静默改写成验收结论。
 - 有可验证明确基线：sprint 21 条，backlog 10 条；缺失或未验证逐行显示。60 条 sprint 中 39 条、18 条 backlog 中 8 条无基线，不填当前 HEAD。

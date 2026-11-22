@@ -19,4 +19,3 @@ status_source: sprint-status.yaml
 - 原始独立 build record 缺失；验收条件保留在来源 _bmad-output/initiative-boxwise/archive-v6/planning-artifacts/epics.md:701。
 - v6 tracking: done @ 74；v7 status: done。
 - 本计划为最小迁移计划，不重新验收历史业务。
-
