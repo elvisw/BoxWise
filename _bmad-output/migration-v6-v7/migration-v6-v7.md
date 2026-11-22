@@ -207,7 +207,7 @@ created: 2026-11-22
 
 - 旧 slash 命令未测试；不声明全局无副本。
 - 27 条既有断链和 `docs/source-tree-analysis.md`、`docs/superpowers/` 历史快照未改写，按批准范围只报告。
-- `skills-lock.json` 只含 `bmad-code-org/BMAD-METHOD`、固定 ref、`skills/` 子路径、哈希和 `installMode: copy`，无本机绝对路径或凭据；当前锁记录 `method` 16 项，`core-tools` 仍由项目目录/安装记录提供但不在该锁内。本轮按批准范围纳入提交。
+- `skills-lock.json` 只含 `bmad-code-org/BMAD-METHOD`、固定 ref、`skills/` 子路径、哈希和 `installMode: copy`，无本机绝对路径或凭据；现覆盖 28 项（`core-tools` 12 + `method` 16），由隔离临时目录的一次官方 `skills@1.9.0 add --full-depth` 调用生成。验证项与项目 `.agents/skills/` 的 28 个目录逐名对齐，路径仅 `skills/core-tools/` 与 `skills/method/`，346 个文件逐文件匹配，无 founder/toolsmith 或其他未授权技能。另在隔离干净目录以 `experimental_install --agent opencode --frozen-lockfile` 成功恢复 28 项，恢复结果与项目 346 个文件一致。项目 `.agents/skills/` 未重装；本文件为唯一替换。
 
 <!-- generated-inventory -->
 

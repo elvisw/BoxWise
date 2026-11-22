@@ -1,6 +1,24 @@
 {
   "version": 2,
   "skills": {
+    "bmad": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad/SKILL.md",
+      "computedHash": "da40eaaccf08b2f25a04a5510269e44cb8136474b53b74fa2069136d935acb61",
+      "installMode": "copy"
+    },
+    "bmad-advanced-elicitation": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-advanced-elicitation/SKILL.md",
+      "computedHash": "730926f289a13842d1dc3f577ff4eabcbbc80e801a71287248e67921d8bf04cb",
+      "installMode": "copy"
+    },
     "bmad-agent-analyst": {
       "source": "bmad-code-org/BMAD-METHOD",
       "ref": "e435a22574fe55722841086e5566420178b98df3",
@@ -64,6 +82,15 @@
       "computedHash": "2aa275f6fb9709fda578f84d50b516a44507a5a4bb8d03cb079c6215ca1014c0",
       "installMode": "copy"
     },
+    "bmad-brainstorming": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-brainstorming/SKILL.md",
+      "computedHash": "8a6adde66a08551ca8afc08e32a2b9096028d58fa01caa8507bbfb832366c7ec",
+      "installMode": "copy"
+    },
     "bmad-build": {
       "source": "bmad-code-org/BMAD-METHOD",
       "ref": "e435a22574fe55722841086e5566420178b98df3",
@@ -89,6 +116,60 @@
       "sourceType": "github",
       "skillPath": "skills/method/bmad-code-review/SKILL.md",
       "computedHash": "ea559d0fc985fab460ef81897bef876853546d9b57bf59a6870e5493a0403290",
+      "installMode": "copy"
+    },
+    "bmad-customize": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-customize/SKILL.md",
+      "computedHash": "277d63086d392cad3d11dba2ac11223261e4fdebff89d93efa2f4fdfd38c11b3",
+      "installMode": "copy"
+    },
+    "bmad-deep-recon": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-deep-recon/SKILL.md",
+      "computedHash": "231bfdf7c8587b66479c4076d50beb5f7aa03eb8c5494cfd53b6d958b3b69a7e",
+      "installMode": "copy"
+    },
+    "bmad-facilitate": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-facilitate/SKILL.md",
+      "computedHash": "1ae3c7ec6a166f1b3a50c35d54195d12550865fdf119bc09de669d2e2ccbfc37",
+      "installMode": "copy"
+    },
+    "bmad-forge-idea": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-forge-idea/SKILL.md",
+      "computedHash": "046de83b908d58b982cfe0f38ae22ad794c525865cda34a658a1fd8598c923d6",
+      "installMode": "copy"
+    },
+    "bmad-ingest": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-ingest/SKILL.md",
+      "computedHash": "06c0d9e6d8a79efdf6f8037376b3cd293f75ef70a76232e16b7fc67f1ed0413c",
+      "installMode": "copy"
+    },
+    "bmad-party-mode": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-party-mode/SKILL.md",
+      "computedHash": "17ce7bf8334f120aeb5c0dac2e64f89547a1220575b3ca97269f080cb70beb4b",
       "installMode": "copy"
     },
     "bmad-project-context": {
@@ -118,6 +199,24 @@
       "computedHash": "81b5d4ae27d7cb92f3b63e485e8319cd7092df33e0990b41d6c201d1d64564fe",
       "installMode": "copy"
     },
+    "bmad-review": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-review/SKILL.md",
+      "computedHash": "eeee3a319ac5b69e7c86c2f6f262c27a82729e7a9c533c3bf848b52ebd7b11ac",
+      "installMode": "copy"
+    },
+    "bmad-shard-pro": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmad-shard-pro/SKILL.md",
+      "computedHash": "5a1dee2d01e280c7ab530533813e909f602d1adca5a6dda37f5874480e2b0b1d",
+      "installMode": "copy"
+    },
     "bmad-ux": {
       "source": "bmad-code-org/BMAD-METHOD",
       "ref": "e435a22574fe55722841086e5566420178b98df3",
@@ -134,6 +233,15 @@
       "sourceType": "github",
       "skillPath": "skills/method/bmad-walkthrough/SKILL.md",
       "computedHash": "664b1fe7a92b6b14b82c73da5239ddacbd6dbdfa6f57343ea0f36f28f2432598",
+      "installMode": "copy"
+    },
+    "bmod-core-tools": {
+      "source": "bmad-code-org/BMAD-METHOD",
+      "ref": "e435a22574fe55722841086e5566420178b98df3",
+      "commit": "e435a22574fe55722841086e5566420178b98df3",
+      "sourceType": "github",
+      "skillPath": "skills/core-tools/bmod-core-tools/SKILL.md",
+      "computedHash": "1e1312242cd78a893e788796084dfc4c8783048a952b347dff5a8eff5b0a0cbf",
       "installMode": "copy"
     },
     "bmod-method": {
