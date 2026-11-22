@@ -164,9 +164,9 @@ builder.Services.AddScoped<WebAuthnService>();
 var webAuthnOrigin = builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001";
 var fido2Config = new Fido2Configuration
 {
-    ServerDomain = builder.Configuration["WebAuthn:ServerDomain"]
+    RPID = builder.Configuration["WebAuthn:ServerDomain"]
         ?? new Uri(webAuthnOrigin).Host,
-    ServerName = "BoxWise",
+    RPName = "BoxWise",
     Origins = new HashSet<string>
     {
         webAuthnOrigin,
