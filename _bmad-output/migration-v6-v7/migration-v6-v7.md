@@ -3,6 +3,7 @@ type: migration
 title: "BoxWise：BMad v6 → 官方 v7 Preview Alpha"
 status: done
 completed: 2026-11-22
+cleaned: 2026-11-22
 approved: 2026-11-22
 approval: A
 created: 2026-11-22
@@ -181,13 +182,22 @@ created: 2026-11-22
 
 ### Store 外旧路径重扫
 
-只报告，未编辑：
+结项后按用户批准范围更新活动入口，历史快照保持不改：
 
-- `AGENTS.md:143-145` 仍写 `_bmad-output/planning-artifacts/`、`implementation-artifacts/` 和旧 `sprint-status.yaml`；这是用户维护的文件，需单独授权更新。
-- `docs/index.md:62-63` 仍有“规划工件/实现工件”旧目录链接；目录移除后成为新的外部死链，Method 只报告，未改。
-- `docs/source-tree-analysis.md:199-200` 的目录树仍列 `planning-artifacts/`、`implementation-artifacts/`；历史分析快照，未改。
+- `AGENTS.md` 的 BMad 段已更新为真实 v7 Preview Alpha（`6.13.0-next`，`core-tools` + `method`）、原生 `bmad`/`bmad-agent-po` 入口和 `tickets.py` 状态路径；旧的 `planning-artifacts/`、`implementation-artifacts/`、`sprint-status.yaml` 指针已移除。文件头与子代理委派规则保留。
+- `docs/index.md` 的 BMad 产出链接已从旧 `planning-artifacts/`、`implementation-artifacts/` 改为活动 `initiative-boxwise/initiative-boxwise.md` 与历史 `backlog/`；旧链接不再作为活动入口。
+- `docs/source-tree-analysis.md:199-200` 的目录树仍列旧目录；历史分析快照，未改。
 - `docs/superpowers/plans/2026-05-26-camera-capture.md:479,500` 与 `docs/superpowers/specs/2026-05-26-camera-capture-design.md:27` 仍引用旧 PRD 路径；历史设计/计划快照，未改。
-- `README.md` 与 `docs/` 其余 Markdown 未发现其他旧 store 路径；以上外部项不影响 store 的 `tickets.py` 验收。
+- `README.md` 与 `docs/memory/boxwise-current-state.md` 各只纳入前轮已核对的一行 `CLAUDE.md` → `AGENTS.md` 更名；`docs/source-tree-analysis.md`、`docs/superpowers/` 不改。
+
+### 后续清理（2026-11-22）
+
+- 固定官方 `e435a22574fe55722841086e5566420178b98df3` 的 `migrate_v6.py` 与项目实例 blob 均为 `30da4d85ff93d54fdd12dad7618656f7c9bddfa8`；脚本 `LEGACY_LEFTOVERS` 只列 `_bmad` 内 11 项，`V6_KEYS` 只列固定旧键，`backup_bmad()` 先复制整个 `_bmad` 到独立备份并写 `.gitignore *`，所有删除路径经 `inside_bmad()` 检查，无全局扫描。
+- 清理前 report：`legacy_leftovers` 11 项、`stale_config_keys` 4 项（`core.document_output_language`、`modules.bmm.planning_artifacts`、`modules.bmm.implementation_artifacts`、`modules.bmm.project_knowledge`）、`unused_customizations: []`、`notes: []`。
+- `--clean` 报告：备份 `.v6-v7-migration-backup-20261122-2303/`；删除 11 个本地 v6 文件、4 个旧键；无 moved keys、无 removed customizations。
+- 备份复核：`_bmad` 60 个文件，移除前的 11 个路径全部存在，`.gitignore` 为 `*`，文件清单 SHA-256 汇总 `3d3282bd6a1ded842e7bf315e70142fb46ffcffc04472ac8135f7c1989ddb410`。
+- 清理后 report 为空；`setup.py --status` 为 `current: true`；`active_initiative` 仍为 `initiative-boxwise`；`tickets.py status` 仍为 60/60。
+- 保留三套备份：`.v6-v7-migration-backup-20261122-2133/`（首份）、`.v6-v7-local-backup-20261122-2216/`（本地技能/命令）、`.v6-v7-migration-backup-20261122-2303/`（清理前）；`_bmad-output/initiative-boxwise/archive-v6/` 历史原件保留。
 
 ### Migration 2 detect
 
@@ -196,9 +206,8 @@ created: 2026-11-22
 ### 未覆盖/边界
 
 - 旧 slash 命令未测试；不声明全局无副本。
-- `--clean` 和 v6 遗留清理未执行，属可选。
-- 27 条既有断链和 5 处外部旧路径未改写，按计划只报告。
-- `skills-lock.json` 由项目级安装生成，未纳入本提交；是否入库待决定。
+- 27 条既有断链和 `docs/source-tree-analysis.md`、`docs/superpowers/` 历史快照未改写，按批准范围只报告。
+- `skills-lock.json` 只含 `bmad-code-org/BMAD-METHOD`、固定 ref、`skills/` 子路径、哈希和 `installMode: copy`，无本机绝对路径或凭据；当前锁记录 `method` 16 项，`core-tools` 仍由项目目录/安装记录提供但不在该锁内。本轮按批准范围纳入提交。
 
 <!-- generated-inventory -->
 
