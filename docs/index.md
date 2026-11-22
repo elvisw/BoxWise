@@ -53,14 +53,14 @@
 
 - [README](../README.md) — 项目介绍与快速开始
 - [LICENSE](../LICENSE) — GPLv3
-- [CLAUDE.md](../CLAUDE.md) — AI 开发上下文（架构/规范/决策）
+- [AGENTS.md](../AGENTS.md) — AI 开发上下文（架构/规范/决策）
 - [Dockerfile](../Dockerfile) — 容器构建
 - [GitHub Actions](../.github/workflows/release.yml) — CI/CD 发布
 
 ## BMad 工作流产出
 
-- [规划工件](../_bmad-output/planning-artifacts/) — PRD, UX 设计, 架构, Epic
-- [实现工件](../_bmad-output/implementation-artifacts/) — Story 文档, Sprint 状态, 回顾
+- [Initiative 与票据树](../_bmad-output/initiative-boxwise/initiative-boxwise.md) — PRD, UX 设计, 架构, Epic/Story 票据
+- [历史 Backlog](../_bmad-output/backlog/) — 独立交付票据
 
 ## Superpowers 设计文档
 

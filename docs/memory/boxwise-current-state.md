@@ -35,4 +35,4 @@ BoxWise 项目在 2026-06-02 全部完成，共 11 个 Epic、43 个 Story，261
 **Epic 4: 查找浏览与生产部署** ✅
 **设置页与导航重构** ✅
 
-**关键文档:** `CLAUDE.md`, `docs/superpowers/specs/2026-05-27-settings-navigation-design.md`, `docs/superpowers/plans/2026-05-27-settings-navigation-plan.md`
+**关键文档:** `AGENTS.md`, `docs/superpowers/specs/2026-05-27-settings-navigation-design.md`, `docs/superpowers/plans/2026-05-27-settings-navigation-plan.md`

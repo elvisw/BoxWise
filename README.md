@@ -559,7 +559,7 @@ BoxWise/
 ├── Dockerfile                       # 多阶段构建
 ├── docker-compose.yml               # 双服务编排
 ├── Caddyfile                        # 反向代理配置（Docker 场景）
-└── CLAUDE.md                        # AI 辅助开发上下文
+└── AGENTS.md                        # AI 辅助开发上下文
 ```
 
 ## 相关文档
