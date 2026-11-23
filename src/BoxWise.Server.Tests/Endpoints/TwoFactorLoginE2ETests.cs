@@ -208,6 +208,7 @@ public class TwoFactorLoginE2ETests : IDisposable
     {
         var user = await CreateTwoFactorUserAsync("recovery-ok");
         var codes = await StoreRecoveryCodesAsync(user.Id);
+        var stampBefore = user.SecurityStamp;
         var client = CreateClient();
 
         var loginResponse = await PostLoginAsync(client, user.UserName!, "TestPass123!");
@@ -239,6 +240,7 @@ public class TwoFactorLoginE2ETests : IDisposable
             Assert.Null(updated.EmailForTwoFactor);
             Assert.Null(updated.TwoFactorSetupCompletedAt);
             Assert.NotNull(updated.TwoFactorGracePeriodUntil);
+            Assert.NotEqual(stampBefore, updated.SecurityStamp);
             Assert.Equal(0, await db.RecoveryCodes.CountAsync(rc => rc.UserId == user.Id));
         }
 

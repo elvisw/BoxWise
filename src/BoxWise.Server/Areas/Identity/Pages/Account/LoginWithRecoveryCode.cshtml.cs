@@ -104,6 +104,9 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                 _logger.LogInformation(
                     "User with ID '{UserId}' disabled two-factor authentication with a recovery code.", user.Id);
 
+                // 使已有登录会话失效：2FA 状态发生了安全相关变更。
+                await _userManager.UpdateSecurityStampAsync(user);
+
                 // 清除 2FA 会话 cookie：恢复码只用于关闭 2FA，不建立登录会话。
                 await HttpContext.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
                 TempData["StatusMessage"] = "双重验证已关闭，全部恢复码已作废。请使用密码重新登录。";
