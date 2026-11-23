@@ -2,7 +2,7 @@
 
 ## 概述
 
-BoxWise 支持 WebAuthn（通行密钥）作为双因素认证（2FA）方式。用户可以使用设备的指纹、面容或硬件密钥（如 YubiKey）进行登录验证，无需输入验证码。
+BoxWise 支持 WebAuthn（通行密钥）作为无密码登录方式。用户可以使用设备的指纹、面容或硬件密钥（如 YubiKey）登录，无需输入密码或验证码。
 
 WebAuthn 基于 [FIDO2 标准](https://fidoalliance.org/fido2/)，凭证与注册时的 **origin（协议 + 域名 + 端口）** 绑定。
 
@@ -141,13 +141,14 @@ environment:
   → POST /api/auth/webauthn/register-begin（获取 CredentialCreateOptions）
   → 浏览器弹出指纹/面容/PIN 验证（navigator.credentials.create）
   → POST /api/auth/webauthn/register-complete（提交 attestation + X-Device-Name）
-  → 2FA 启用，返回 8 个 10 位恢复码
+  → 账号被标记为已配置 WebAuthn（`TwoFactorEnabled=true`），但密码登录不会因此进入 2FA 挑战
+  → 返回 8 个 10 位恢复码
   → 注册完成区域展示恢复码（仅显示一次，可一键复制）
 ```
 
 ### 无密码登录流程（Passkey）
 
-> **注意：** 通行密钥仅用于首次无密码登录，不再作为密码后的 2FA 第二因素验证。
+> **注意：** 通行密钥仅用于无密码登录，不作为密码登录后的 2FA 第二因素验证。触发条件与已知限制见 [安全模型与已知限制](#安全模型与已知限制)。
 
 ```
 用户点击"使用通行密钥登录"
@@ -170,6 +171,25 @@ DELETE /api/auth/webauthn/credentials/{id} → 删除指定凭据
 - **前端**：浏览器原生 `WebAuthn API`（通过 `webauthn.js` 封装）
 - **Session**：服务器端内存 Session（5 分钟超时），存储注册/登录中间状态
 - **速率限制**：Passkey 登录端点使用 `passkey-login` 策略（30次/5分钟/IP）
+
+---
+
+## 安全模型与已知限制
+
+密码登录是否进入 2FA 挑战由 `SignInManager.IsTwoFactorEnabledAsync` 决定：
+
+```
+TwoFactorEnabled && GetValidTwoFactorProvidersAsync(user).Count > 0
+```
+
+有效 provider 来自 Identity authenticator key（通过 Identity `EnableAuthenticator` 设置 TOTP）、已确认邮箱（Email provider）或已确认电话（本应用未使用）。**通行密钥不是 Identity provider**：注册通行密钥只写 `ConfiguredMethods |= WebAuthn` 并置 `TwoFactorEnabled=true`，不会让密码登录进入 2FA 挑战。
+
+因此存在两个真实组合：
+
+- **仅通行密钥 + 邮箱未确认**：密码登录不触发 2FA，通行密钥不保护密码登录。
+- **仅通行密钥 + 邮箱已确认**：Identity 会发起 2FA 挑战，但 `LoginWith2fa` 只接受验证器码，用户无法完成；只能用恢复码关闭双重验证。这是当前已知限制。
+
+仅通行密钥的账户不要只依赖密码登录来保护账户；在相关问题修复前，也不要通过确认邮箱来为这类账户启用密码找回。
 
 ---
 

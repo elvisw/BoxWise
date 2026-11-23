@@ -69,7 +69,7 @@ POST   /api/auth/webauthn/login-complete             → 200 Ok<AuthUserDto> | 4
 ```json
 { "codes": ["ABCDEFGHIJ", "KLMNOPQRST", "..."] }
 ```
-首次注册时自动启用 2FA。响应中的 8 个 10 位 base32 恢复码**仅用于一次性展示**：用户可在密码登录的 2FA 页面输入任意一个码来关闭双重验证（不建立登录会话），验证成功会作废全部恢复码。服务端只保存 SHA-256 哈希，明文不落库。
+注册成功会置 `TwoFactorEnabled=true` 并加入 `ConfiguredMethods`；这不会使密码登录进入 2FA 挑战。详见 [密码登录的 2FA 触发条件](auth-security.md#密码登录的-2fa-触发条件)。响应中的 8 个 10 位 base32 恢复码**仅用于一次性展示**：用户可在密码登录的 2FA 页面输入任意一个码来关闭双重验证（不建立登录会话），验证成功会作废全部恢复码。服务端只保存 SHA-256 哈希，明文不落库。
 
 ### GET `/api/auth/webauthn/credentials` [认证]
 

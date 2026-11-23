@@ -56,7 +56,7 @@ BoxWise 是一款面向家庭用户的物品收纳管理应用。用户通过拍
 
 #### 用户认证与安全
 - ASP.NET Core Identity + Cookie 认证
-- 双因素认证（2FA）：TOTP 验证器应用、Email 验证码、WebAuthn 通行密钥
+- 双因素认证（2FA）：TOTP 验证器应用（密码登录的第二因素）
 - 2FA 宽限期机制：首次设置后 24 小时内仅首次登录验证
 - 通行密钥无密码登录（passkey login）
 - 恢复码生成与验证（SHA-256 哈希存储）

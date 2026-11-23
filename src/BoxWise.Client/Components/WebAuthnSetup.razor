@@ -18,12 +18,14 @@
 {
     <MudAlert Severity="Severity.Success" Class="mb-3" Dense="true">
         通行密钥注册成功！
+        <br />
+        通行密钥用于无密码登录，不会作为密码登录后的第二因素。
     </MudAlert>
 
     @if (_recoveryCodes is { Count: > 0 })
     {
         <MudAlert Severity="Severity.Warning" Class="mb-3" Dense="true">
-            恢复码仅显示一次，请立即离线保存。每个恢复码只能使用一次；丢失设备时，可在密码登录的第二步用它关闭双重验证。
+            恢复码仅显示一次，请立即离线保存。每个恢复码只能使用一次；如果该账户同时启用了验证器应用（密码登录会要求第二步验证），可用恢复码关闭双重验证。
         </MudAlert>
         <MudPaper Class="pa-3 mb-3" Outlined="true">
             @foreach (var recoveryCode in _recoveryCodes)

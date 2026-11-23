@@ -80,9 +80,22 @@ BoxWise 支持多种 2FA 方法，用户可同时启用多个方法（[Flags] �
 
 | 方法 | 枚举值 | 状态 | 说明 |
 |------|--------|------|------|
-| `TOTP` | 1 | 活跃 | 基于时间的一次性密码（Google Authenticator / Authy 等） |
+| `TOTP` | 1 | 活跃 | 密码登录的第二因素；基于时间的一次性密码（Google Authenticator / Authy 等） |
 | `Email` | 2 | 已退役 (v0.11) | 邮箱验证码，不再支持作为登录方式 |
-| `WebAuthn` | 4 | 活跃 | 通行密钥（指纹、面容、YubiKey） |
+| `WebAuthn` | 4 | 活跃 | 无密码登录；通行密钥（指纹、面容、YubiKey），不作为密码登录的第二因素 |
+
+### 密码登录的 2FA 触发条件
+
+密码登录是否进入 2FA 挑战由 `SignInManager.IsTwoFactorEnabledAsync` 决定：
+
+```
+TwoFactorEnabled && GetValidTwoFactorProvidersAsync(user).Count > 0
+```
+
+有效 provider 来自 Identity authenticator key（通过 Identity `EnableAuthenticator` 设置 TOTP）、已确认邮箱（Email provider）或已确认电话（本应用未使用）。**通行密钥不是 Identity provider**：注册只写 `ConfiguredMethods |= WebAuthn` 并置 `TwoFactorEnabled=true`，不会让密码登录进入 2FA 挑战。
+
+- **a) 仅通行密钥 + 邮箱未确认**：密码登录不触发 2FA，通行密钥不保护密码登录。
+- **b) 仅通行密钥 + 邮箱已确认**：Identity 会发起 2FA 挑战，但 `LoginWith2fa` 只接受验证器码，用户无法完成；只能用恢复码关闭双重验证。这是当前已知限制。
 
 ### 2FA 流程
 
@@ -117,6 +130,7 @@ sequenceDiagram
 
 ### WebAuthn（通行密钥）
 
+- **定位:** 无密码登录方式；本方法不参与密码登录的 2FA 挑战。
 - **库:** FIDO2 .NET Library (`Fido2NetLib`)
 - **凭证存储:** `WebAuthnCredential` 实体（`Id`, `UserId`, `CredentialId`, `PublicKey`, `SignCount`, `DeviceName`, `CreatedAt`）
 - **配置:** `Fido2Configuration` 中的 `RPID`、`Origins`、`RPName`（配置键为 `WebAuthn:ServerDomain` 与 `WebAuthn:Origin`）
