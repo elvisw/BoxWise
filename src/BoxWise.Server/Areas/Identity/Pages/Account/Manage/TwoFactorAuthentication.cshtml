@@ -18,7 +18,7 @@
             {
                 <div class="alert alert-danger">
                     <strong>您没有剩余的恢复码。</strong>
-                    <p>您必须<a asp-page="./GenerateRecoveryCodes">生成一组新的恢复码</a>，然后才能使用恢复码登录。</p>
+                    <p>您必须<a asp-page="./GenerateRecoveryCodes">生成一组新的恢复码</a>，然后才能使用恢复码关闭双重验证。</p>
                 </div>
             }
             else if (Model.RecoveryCodesLeft == 1)

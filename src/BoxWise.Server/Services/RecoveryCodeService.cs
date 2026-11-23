@@ -57,7 +57,8 @@ public class RecoveryCodeService
     }
 
     /// <summary>
-    /// 验证恢复码，成功返回 true + 删除所有恢复码 + 清除所有 2FA 设置。
+    /// 验证自定义恢复码，成功返回 true 并关闭 2FA。
+    /// 保持“先校验、后消耗”的顺序：只有哈希命中后才清除状态。
     /// </summary>
     public async Task<bool> VerifyRecoveryCodeAsync(AppUser user, string code, UserManager<AppUser> userManager)
     {
@@ -68,13 +69,23 @@ public class RecoveryCodeService
         if (!match)
             return false;
 
-        // 清除所有恢复码
+        return await DisableTwoFactorAsync(user, userManager);
+    }
+
+    /// <summary>
+    /// 关闭用户的双重验证：清除全部自定义恢复码与 2FA 字段，并轮换 SecurityStamp。
+    /// Identity token store 的恢复码不在此清除：调用方需先用
+    /// <see cref="UserManager{TUser}.RedeemTwoFactorRecoveryCodeAsync"/> 按单次语义消耗，
+    /// 其余码保留原生一次性行为。
+    /// </summary>
+    public async Task<bool> DisableTwoFactorAsync(AppUser user, UserManager<AppUser> userManager)
+    {
         var allCodes = await _db.RecoveryCodes
             .Where(rc => rc.UserId == user.Id)
             .ToListAsync();
-        _db.RecoveryCodes.RemoveRange(allCodes);
+        if (allCodes.Count > 0)
+            _db.RecoveryCodes.RemoveRange(allCodes);
 
-        // 清除所有 2FA 设置
         user.TwoFactorEnabled = false;
         user.ConfiguredMethods = TwoFactorMethod.None;
         user.TotpSecretKey = null;
@@ -84,12 +95,18 @@ public class RecoveryCodeService
 
         try
         {
-            await userManager.UpdateAsync(user);
+            var updateResult = await userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+                return false;
+
             await _db.SaveChangesAsync();
+
+            // 使已有登录会话失效：2FA 状态发生了安全相关变更。
+            await userManager.UpdateSecurityStampAsync(user);
         }
         catch (DbUpdateConcurrencyException)
         {
-            // 并发请求已消耗恢复码
+            // 并发请求已消耗恢复码或更新了用户
             return false;
         }
 

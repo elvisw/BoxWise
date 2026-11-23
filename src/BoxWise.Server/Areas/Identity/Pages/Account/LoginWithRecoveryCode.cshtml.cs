@@ -99,13 +99,27 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
 
             var success = await _recoveryCodeService.VerifyRecoveryCodeAsync(user, recoveryCode, _userManager);
 
+            if (!success)
+            {
+                // 兼容 TOTP 用户在 Identity 管理页生成的恢复码（10 个，存于 token store）。
+                // 该调用按 Identity 原生语义消耗本次使用的码（10 → 9）。
+                var identityResult = await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, recoveryCode);
+                if (identityResult.Succeeded)
+                {
+                    success = await _recoveryCodeService.DisableTwoFactorAsync(user, _userManager);
+                    if (!success)
+                    {
+                        _logger.LogWarning(
+                            "Identity recovery code was consumed for user with ID '{UserId}', but disabling 2FA did not complete.",
+                            user.Id);
+                    }
+                }
+            }
+
             if (success)
             {
                 _logger.LogInformation(
                     "User with ID '{UserId}' disabled two-factor authentication with a recovery code.", user.Id);
-
-                // 使已有登录会话失效：2FA 状态发生了安全相关变更。
-                await _userManager.UpdateSecurityStampAsync(user);
 
                 // 清除 2FA 会话 cookie：恢复码只用于关闭 2FA，不建立登录会话。
                 await HttpContext.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);

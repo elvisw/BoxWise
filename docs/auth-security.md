@@ -129,9 +129,11 @@ sequenceDiagram
 - **生成:** `RecoveryCodeService.GenerateRecoveryCodes()` → 8 个 10 位 base32 随机码（大写字母 + 数字）
 - **存储:** SHA-256 哈希存储到 `RecoveryCode` 表（明文仅在注册成功后一次性展示）
 - **用途:** 恢复码**不是登录凭据**。用户在密码登录的第二步（2FA 页面）输入恢复码后，服务端立即关闭该账户的双重验证，然后要求用户用密码重新登录。
-- **消耗语义:** `VerifyRecoveryCodeAsync()` 验证成功后清除该用户的**全部**恢复码，并清除所有 2FA 设置（`TwoFactorEnabled=false`、`ConfiguredMethods=None`、TOTP 密钥、Email 地址、`TwoFactorSetupCompletedAt`），同时写入 24 小时宽限期（`TwoFactorGracePeriodUntil`）。即使只使用一个码，其余恢复码也全部作废。
-- **失败语义:** 恢复码无效时不修改用户状态、不消耗任何码。
-- **重新生成:** 每次成功注册通行密钥都会重新生成 8 个恢复码，旧码全部失效。
+- **两种来源:** WebAuthn 注册生成 8 个自定义恢复码（`RecoveryCodes` 表）；TOTP 用户在 Manage 页生成 10 个 Identity 恢复码（Identity token store）。恢复码页同时接受两种来源。
+- **消耗语义:** 自定义码命中时 `VerifyRecoveryCodeAsync()` 验证成功后清除该用户的**全部自定义恢复码**；Identity 码命中时 `RedeemTwoFactorRecoveryCodeAsync()` 按 Identity 原生单次语义只消耗本次使用的码（10 → 9）。两条路径最终都调用 `RecoveryCodeService.DisableTwoFactorAsync()` 清除 2FA 设置（`TwoFactorEnabled=false`、`ConfiguredMethods=None`、TOTP 密钥、Email 地址、`TwoFactorSetupCompletedAt`），写入 24 小时宽限期（`TwoFactorGracePeriodUntil`），并轮换 `SecurityStamp`。
+- **自定义码批量作废:** 即使只使用一个自定义码，其余自定义码也全部作废。
+- **失败语义:** 两种来源都未命中时不修改用户状态、不消耗任何码。
+- **重新生成:** 每次成功注册通行密钥都会重新生成 8 个自定义恢复码，旧码全部失效；TOTP 用户可在 Manage 页重新生成 10 个 Identity 恢复码。
 - **非消耗性验证:** `ValidateRecoveryCodeAsync()` 用于 2FA 修改流程的身份验证（不销毁码）
 
 ### 恢复码使用流程
@@ -140,7 +142,7 @@ sequenceDiagram
 
 1. 用户输入密码登录，进入 2FA 验证页。
 2. 点击"使用恢复码关闭双重验证"，输入一个恢复码。
-3. 验证成功：清除 2FA 设置与全部恢复码，更新 `SecurityStamp`（使已有会话失效），清除 2FA 会话 Cookie，重定向到登录页并显示一次性提示。
+3. 验证成功：清除 2FA 设置，清除全部自定义恢复码（Identity 码按单次语义消耗本次使用的码），更新 `SecurityStamp`（使已有会话失效），清除 2FA 会话 Cookie，重定向到登录页并显示一次性提示。
 4. 用户用密码重新登录；此时 2FA 已关闭，可在设置页重新注册通行密钥或配置 TOTP。
 
 成功后进入 24 小时宽限期（`TwoFactorGracePeriodUntil`），期间用户可以重新设置新的 2FA 方法。`OnPostAsync` 使用 `login-per-ip` 速率限制策略。

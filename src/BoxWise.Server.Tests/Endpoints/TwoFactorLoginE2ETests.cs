@@ -251,6 +251,74 @@ public class TwoFactorLoginE2ETests : IDisposable
     }
 
     /// <summary>
+    /// Identity token store 的恢复码（TOTP 用户在 Manage 页生成）也应在恢复码页关闭 2FA：
+    /// 本次码被消耗（10 → 9）、2FA 关闭、自定义码清空、SecurityStamp 变化，随后密码可重登。
+    /// </summary>
+    [Fact]
+    public async Task IdentityRecoveryCode_Post_DisablesTwoFactor_LeavesNineCodes_AndAllowsPasswordRelogin()
+    {
+        var user = await CreateTwoFactorUserAsync("recovery-identity");
+        string identityCode;
+        string stampBefore;
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var fresh = await userManager.FindByIdAsync(user.Id);
+            Assert.NotNull(fresh);
+
+            var codes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(fresh!, 10);
+            Assert.NotNull(codes);
+            identityCode = codes!.First();
+            stampBefore = fresh!.SecurityStamp!;
+
+            Assert.True(fresh.TwoFactorEnabled);
+            Assert.Equal(10, await userManager.CountRecoveryCodesAsync(fresh));
+            Assert.Equal(0, await db.RecoveryCodes.CountAsync(rc => rc.UserId == user.Id));
+        }
+
+        var client = CreateClient();
+        var loginResponse = await PostLoginAsync(client, user.UserName!, "TestPass123!");
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        Assert.Contains("LoginWith2fa", loginResponse.Headers.Location?.OriginalString ?? "");
+
+        // Identity 恢复码含连字符；小写 + 前后空格应被规范化后接受。
+        var codeResponse = await client.PostAsync(
+            "/Identity/Account/LoginWithRecoveryCode",
+            new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("Input.RecoveryCode", $"  {identityCode.ToLowerInvariant()}  ")
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, codeResponse.StatusCode);
+        Assert.Contains("Login", codeResponse.Headers.Location?.OriginalString ?? "");
+        Assert.DoesNotContain("LoginWithRecoveryCode", codeResponse.Headers.Location?.OriginalString ?? "");
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var updated = await userManager.FindByIdAsync(user.Id);
+
+            Assert.NotNull(updated);
+            Assert.False(updated!.TwoFactorEnabled);
+            Assert.Equal(TwoFactorMethod.None, updated.ConfiguredMethods);
+            Assert.Null(updated.TotpSecretKey);
+            Assert.Null(updated.EmailForTwoFactor);
+            Assert.Null(updated.TwoFactorSetupCompletedAt);
+            Assert.NotNull(updated.TwoFactorGracePeriodUntil);
+            Assert.NotEqual(stampBefore, updated.SecurityStamp);
+            Assert.Equal(9, await userManager.CountRecoveryCodesAsync(updated));
+            Assert.Equal(0, await db.RecoveryCodes.CountAsync(rc => rc.UserId == user.Id));
+        }
+
+        var reloginResponse = await PostLoginAsync(client, user.UserName!, "TestPass123!");
+        Assert.Equal(HttpStatusCode.Redirect, reloginResponse.StatusCode);
+        Assert.Equal("/", reloginResponse.Headers.Location?.OriginalString);
+    }
+
+    /// <summary>
     /// 错误恢复码不应产生任何状态变更（2FA、恢复码、安全戳均保持不变）。
     /// </summary>
     [Fact]

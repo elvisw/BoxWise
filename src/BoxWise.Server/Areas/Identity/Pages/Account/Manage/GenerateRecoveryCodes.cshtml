@@ -12,6 +12,7 @@
     <div class="alert alert-success" role="alert">
         <p><strong>请将这些恢复码保存在安全的地方。</strong></p>
         <p>如果您丢失了设备且没有恢复码，将无法访问您的账户。</p>
+        <p>恢复码用于在无法完成双重验证时关闭双重验证，不能直接登录。</p>
     </div>
     <div>
         <pre class="bg-light p-3 border rounded"><code>@foreach (var code in Model.RecoveryCodes)
@@ -29,6 +30,9 @@ else
     </p>
     <p>
         如果您丢失了设备且没有恢复码，将无法访问您的账户。
+    </p>
+    <p>
+        恢复码用于在无法完成双重验证时关闭双重验证，不能直接登录。
     </p>
     <p>
         生成新的恢复码不会更改验证器应用中使用的密钥。如果您想更改验证器应用中使用的密钥，应<a asp-page="./ResetAuthenticator">重置您的验证器密钥。</a>
