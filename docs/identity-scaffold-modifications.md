@@ -57,7 +57,7 @@
 | 46 | `Account/Login.cshtml.cs` | 新增 `[TempData] StatusMessage` 属性 | 接收恢复码页关闭 2FA 后的一次性成功提示 | Passkey 恢复码修复 (2026-11-23) | 保留 |
 | 47 | `Account/Login.cshtml` | 在标题下渲染 `<partial name="_StatusMessage" model="Model.StatusMessage" />` | 显示上述一次性提示 | Passkey 恢复码修复 (2026-11-23) | 保留 |
 | 48 | `Pages/_Layout.cshtml` | 在 Scripts 段之前加载 `~/lib/jquery/dist/jquery.min.js`；本地新增 jQuery 3.7.1、jquery-validation 1.21.0、jquery-validation-unobtrusive 4.0.0 文件 | `_ValidationScriptsPartial` 引用的 `~/lib/jquery-validation*` 文件不存在且未加载 jQuery，登录页出现 404/SyntaxError | Passkey 恢复码修复 (2026-11-23) | 保留 |
-| 49 | `Account/LoginWithRecoveryCode.cshtml.cs` | 恢复码页同时接受自定义 `RecoveryCodes` 表与 Identity token store：自定义未命中时调用 `RedeemTwoFactorRecoveryCodeAsync`；两条路径统一调用 `RecoveryCodeService.DisableTwoFactorAsync`（清自定义码、清 2FA 字段、换 `SecurityStamp`） | 修复 TOTP 用户在 Manage 页生成的 Identity 恢复码在恢复码页全部失效的回归 | 恢复码双来源兼容 (2026-11-23) | 保留 |
+| 49 | `Account/LoginWithRecoveryCode.cshtml.cs` | 恢复码页同时接受自定义 `RecoveryCodes` 表与 Identity token store：自定义未命中时调用 `RedeemTwoFactorRecoveryCodeAsync`；两条路径统一调用 `RecoveryCodeService.DisableTwoFactorAsync`（清两套恢复码、清 2FA 字段、换 `SecurityStamp`） | 修复 TOTP 用户在 Manage 页生成的 Identity 恢复码在恢复码页全部失效的回归 | 恢复码双来源兼容 (2026-11-23) | 保留 |
 | 50 | `Account/LoginWithRecoveryCode.cshtml` | 说明改为"每个恢复码只能使用一次；验证成功会关闭双重验证并作废该账户的全部恢复码（自定义与 Identity 两套），随后用密码重新登录" | 明确恢复码只用于关闭 2FA，不建立登录会话 | 恢复码双来源兼容 (2026-11-23) | 保留 |
 | 51 | `Manage/TwoFactorAuthentication.cshtml` | "使用恢复码登录" → "使用恢复码关闭双重验证" | 恢复码不再是登录凭据 | 恢复码双来源兼容 (2026-11-23) | 保留 |
 | 52 | `Manage/GenerateRecoveryCodes.cshtml` | 增加说明"恢复码用于在无法完成双重验证时关闭双重验证，不能直接登录" | 校正恢复码用途文案 | 恢复码双来源兼容 (2026-11-23) | 保留 |

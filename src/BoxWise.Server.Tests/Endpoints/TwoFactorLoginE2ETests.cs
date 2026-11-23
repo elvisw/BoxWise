@@ -252,10 +252,11 @@ public class TwoFactorLoginE2ETests : IDisposable
 
     /// <summary>
     /// Identity token store 的恢复码（TOTP 用户在 Manage 页生成）也应在恢复码页关闭 2FA：
-    /// 本次码被消耗（10 → 9）、2FA 关闭、自定义码清空、SecurityStamp 变化，随后密码可重登。
+    /// 本次码被消耗后，关闭 2FA 会清空剩余 Identity 码与全部自定义码、SecurityStamp 变化，
+    /// 随后密码可重登。
     /// </summary>
     [Fact]
-    public async Task IdentityRecoveryCode_Post_DisablesTwoFactor_LeavesNineCodes_AndAllowsPasswordRelogin()
+    public async Task IdentityRecoveryCode_Post_DisablesTwoFactor_ClearsAllCodes_AndAllowsPasswordRelogin()
     {
         var user = await CreateTwoFactorUserAsync("recovery-identity");
         string identityCode;
@@ -309,7 +310,7 @@ public class TwoFactorLoginE2ETests : IDisposable
             Assert.Null(updated.TwoFactorSetupCompletedAt);
             Assert.NotNull(updated.TwoFactorGracePeriodUntil);
             Assert.NotEqual(stampBefore, updated.SecurityStamp);
-            Assert.Equal(9, await userManager.CountRecoveryCodesAsync(updated));
+            Assert.Equal(0, await userManager.CountRecoveryCodesAsync(updated));
             Assert.Equal(0, await db.RecoveryCodes.CountAsync(rc => rc.UserId == user.Id));
         }
 

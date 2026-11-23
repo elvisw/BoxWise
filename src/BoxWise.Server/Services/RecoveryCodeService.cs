@@ -73,10 +73,8 @@ public class RecoveryCodeService
     }
 
     /// <summary>
-    /// 关闭用户的双重验证：清除全部自定义恢复码与 2FA 字段，并轮换 SecurityStamp。
-    /// Identity token store 的恢复码不在此清除：调用方需先用
-    /// <see cref="UserManager{TUser}.RedeemTwoFactorRecoveryCodeAsync"/> 按单次语义消耗，
-    /// 其余码保留原生一次性行为。
+    /// 关闭用户的双重验证：清除两套恢复码（自定义表与 Identity token store）与 2FA 字段，
+    /// 并轮换 SecurityStamp。重新启用 2FA 时会重新生成恢复码。
     /// </summary>
     public async Task<bool> DisableTwoFactorAsync(AppUser user, UserManager<AppUser> userManager)
     {
@@ -100,6 +98,16 @@ public class RecoveryCodeService
                 return false;
 
             await _db.SaveChangesAsync();
+
+            // 关闭 2FA 后两套恢复码都应失效：自定义码已删除，
+            // Identity token store 使用 0 个新码替换，等价于清空全部恢复码。
+            var remainingIdentityCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 0);
+            if (remainingIdentityCodes is null
+                || await userManager.CountRecoveryCodesAsync(user) != 0)
+            {
+                throw new InvalidOperationException(
+                    "Failed to clear Identity recovery codes while disabling two-factor authentication.");
+            }
 
             // 使已有登录会话失效：2FA 状态发生了安全相关变更。
             await userManager.UpdateSecurityStampAsync(user);

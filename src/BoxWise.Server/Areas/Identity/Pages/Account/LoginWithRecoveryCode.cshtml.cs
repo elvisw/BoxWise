@@ -102,7 +102,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             if (!success)
             {
                 // 兼容 TOTP 用户在 Identity 管理页生成的恢复码（10 个，存于 token store）。
-                // 该调用按 Identity 原生语义消耗本次使用的码（10 → 9）。
+                // 先按 Identity 原生语义消耗本次使用的码，再由 DisableTwoFactorAsync 清空剩余码。
                 var identityResult = await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, recoveryCode);
                 if (identityResult.Succeeded)
                 {
