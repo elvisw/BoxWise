@@ -103,7 +103,8 @@ public static class WebAuthnEndpoints
     }
 
     private static async Task<Results<Ok, ProblemHttpResult>> DeleteCredentialAsync(
-        int id, UserManager<AppUser> userManager, WebAuthnService webAuthnService, HttpContext httpContext)
+        int id, UserManager<AppUser> userManager, WebAuthnService webAuthnService,
+        RecoveryCodeService recoveryCodeService, HttpContext httpContext)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
         if (user?.UserName is null)
@@ -116,12 +117,20 @@ public static class WebAuthnEndpoints
         if (remaining.Count == 0)
         {
             user.ConfiguredMethods &= ~TwoFactorMethod.WebAuthn;
+            var twoFactorDisabled = user.ConfiguredMethods == TwoFactorMethod.None;
             // 如果不再有任何已配置的 2FA 方法，禁用 2FA
-            if (user.ConfiguredMethods == TwoFactorMethod.None)
+            if (twoFactorDisabled)
                 user.TwoFactorEnabled = false;
             try
             {
                 await userManager.UpdateAsync(user);
+
+                if (twoFactorDisabled)
+                {
+                    // 2FA 已关闭：恢复码不再有任何用途，全部作废并使现有会话失效。
+                    await recoveryCodeService.RemoveAllRecoveryCodesAsync(user);
+                    await userManager.UpdateSecurityStampAsync(user);
+                }
             }
             catch (DbUpdateConcurrencyException)
             {

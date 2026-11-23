@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using BoxWise.Server.Data;
 using BoxWise.Server.Models;
+using BoxWise.Server.Services;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BoxWise.Server.Tests.Endpoints;
@@ -119,6 +121,20 @@ public class TwoFactorLoginE2ETests : IDisposable
         return await client.PostAsync("/Identity/Account/Login", content);
     }
 
+    private async Task<List<string>> StoreRecoveryCodesAsync(string userId)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var service = new RecoveryCodeService(db);
+
+        var user = await userManager.FindByIdAsync(userId)
+            ?? throw new InvalidOperationException("Test user not found");
+        var codes = RecoveryCodeService.GenerateRecoveryCodes();
+        await service.StoreRecoveryCodesAsync(user, codes);
+        return codes;
+    }
+
     /// <summary>
     /// 核心：密码正确 + 2FA 启用 → Login 页 302 到 LoginWith2fa →
     /// GET LoginWith2fa 应返回 200（GetTwoFactorAuthenticationUserAsync 成功）。
@@ -181,6 +197,102 @@ public class TwoFactorLoginE2ETests : IDisposable
         Assert.Equal(HttpStatusCode.OK, recoveryResponse.StatusCode);
         var body = await recoveryResponse.Content.ReadAsStringAsync();
         Assert.Contains("恢复码", body);
+    }
+
+    /// <summary>
+    /// 恢复码验证成功后：2FA 关闭、全部恢复码删除、SecurityStamp 变化，
+    /// 且用户可以用密码重新登录（不建立恢复码登录会话）。
+    /// </summary>
+    [Fact]
+    public async Task RecoveryCode_Post_DisablesTwoFactor_AndAllowsPasswordRelogin()
+    {
+        var user = await CreateTwoFactorUserAsync("recovery-ok");
+        var codes = await StoreRecoveryCodesAsync(user.Id);
+        var client = CreateClient();
+
+        var loginResponse = await PostLoginAsync(client, user.UserName!, "TestPass123!");
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        Assert.Contains("LoginWith2fa", loginResponse.Headers.Location?.OriginalString ?? "");
+
+        // 小写 + 前后空格应被规范化后接受。
+        var codeResponse = await client.PostAsync(
+            "/Identity/Account/LoginWithRecoveryCode",
+            new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("Input.RecoveryCode", $"  {codes[0].ToLowerInvariant()}  ")
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, codeResponse.StatusCode);
+        Assert.Contains("Login", codeResponse.Headers.Location?.OriginalString ?? "");
+        Assert.DoesNotContain("LoginWithRecoveryCode", codeResponse.Headers.Location?.OriginalString ?? "");
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var updated = await userManager.FindByIdAsync(user.Id);
+
+            Assert.NotNull(updated);
+            Assert.False(updated!.TwoFactorEnabled);
+            Assert.Equal(TwoFactorMethod.None, updated.ConfiguredMethods);
+            Assert.Null(updated.TotpSecretKey);
+            Assert.Null(updated.EmailForTwoFactor);
+            Assert.Null(updated.TwoFactorSetupCompletedAt);
+            Assert.NotNull(updated.TwoFactorGracePeriodUntil);
+            Assert.Equal(0, await db.RecoveryCodes.CountAsync(rc => rc.UserId == user.Id));
+        }
+
+        // 恢复码不建立登录会话：重新用密码登录应直接成功。
+        var reloginResponse = await PostLoginAsync(client, user.UserName!, "TestPass123!");
+        Assert.Equal(HttpStatusCode.Redirect, reloginResponse.StatusCode);
+        Assert.Equal("/", reloginResponse.Headers.Location?.OriginalString);
+    }
+
+    /// <summary>
+    /// 错误恢复码不应产生任何状态变更（2FA、恢复码、安全戳均保持不变）。
+    /// </summary>
+    [Fact]
+    public async Task RecoveryCode_Post_InvalidCode_DoesNotChangeState()
+    {
+        var user = await CreateTwoFactorUserAsync("recovery-bad");
+        await StoreRecoveryCodesAsync(user.Id);
+        var client = CreateClient();
+
+        var loginResponse = await PostLoginAsync(client, user.UserName!, "TestPass123!");
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        Assert.Contains("LoginWith2fa", loginResponse.Headers.Location?.OriginalString ?? "");
+
+        string? stampBefore;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            stampBefore = (await userManager.FindByIdAsync(user.Id))!.SecurityStamp;
+        }
+
+        var codeResponse = await client.PostAsync(
+            "/Identity/Account/LoginWithRecoveryCode",
+            new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("Input.RecoveryCode", "ZZZZZZZZZZ")
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, codeResponse.StatusCode);
+        var body = System.Net.WebUtility.HtmlDecode(
+            await codeResponse.Content.ReadAsStringAsync());
+        Assert.Contains("恢复码无效", body);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var unchanged = await userManager.FindByIdAsync(user.Id);
+
+            Assert.NotNull(unchanged);
+            Assert.True(unchanged!.TwoFactorEnabled);
+            Assert.Equal(TwoFactorMethod.TOTP, unchanged.ConfiguredMethods);
+            Assert.Equal(stampBefore, unchanged.SecurityStamp);
+            Assert.Equal(8, await db.RecoveryCodes.CountAsync(rc => rc.UserId == user.Id));
+        }
     }
 }
 

@@ -162,18 +162,19 @@ builder.Services.AddScoped<WebAuthnService>();
 
 // FIDO2 WebAuthn
 var webAuthnOrigin = builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001";
+var webAuthnOrigins = new HashSet<string> { webAuthnOrigin };
+if (builder.Environment.IsDevelopment())
+{
+    // 开发环境同时允许两个 localhost 端口；生产环境只允许配置的 origin。
+    webAuthnOrigins.Add("https://localhost:5000");
+    webAuthnOrigins.Add("https://localhost:5001");
+}
 var fido2Config = new Fido2Configuration
 {
     RPID = builder.Configuration["WebAuthn:ServerDomain"]
         ?? new Uri(webAuthnOrigin).Host,
     RPName = "BoxWise",
-    Origins = new HashSet<string>
-    {
-        webAuthnOrigin,
-        // 开发环境同时允许两个 localhost 端口
-        "https://localhost:5000",
-        "https://localhost:5001"
-    }
+    Origins = webAuthnOrigins
 };
 builder.Services.AddSingleton<IFido2>(new Fido2NetLib.Fido2(fido2Config));
 

@@ -50,7 +50,7 @@
 | `GET /api/auth/me` | `FallbackPolicy` → 401（获取当前用户信息） |
 | `Login.cshtml` (Identity Razor Page) | `.AllowAnonymous()` |
 | `LoginWith2fa.cshtml` (Identity Razor Page) | `.AllowAnonymous()` |
-| `LoginWithRecoveryCode.cshtml` (Identity Razor Page) | `.AllowAnonymous()` |
+| `LoginWithRecoveryCode.cshtml` (Identity Razor Page) | `.AllowAnonymous()`（验证恢复码后关闭 2FA，不建立登录会话） |
 | `GET /index.html` (SPA 回退) | `.AllowAnonymous()` |
 | `MapStaticAssets()` | `.AllowAnonymous()` |
 | WebAuthn 断言/注册端点 | `.AllowAnonymous()`（部分端点授权见下方） |
@@ -59,7 +59,7 @@
 **登录/登出处理:** 不再使用 Minimal API 端点。登录、登出、2FA 验证均由 ASP.NET Core Identity 脚手架 Razor Pages（`Areas/Identity/Pages/Account/`）处理，包括：
 - `Login.cshtml` — 密码登录
 - `LoginWith2fa.cshtml` — TOTP 双因素验证
-- `LoginWithRecoveryCode.cshtml` — 恢复码登录
+- `LoginWithRecoveryCode.cshtml` — 使用恢复码关闭双重验证（不登录，成功后需用密码重新登录）
 
 ### 管理员创建
 
@@ -119,24 +119,31 @@ sequenceDiagram
 
 - **库:** FIDO2 .NET Library (`Fido2NetLib`)
 - **凭证存储:** `WebAuthnCredential` 实体（`Id`, `UserId`, `CredentialId`, `PublicKey`, `SignCount`, `DeviceName`, `CreatedAt`）
-- **配置:** `Fido2Configuration` 中的 `ServerDomain`、`Origins`、`ServerName`
-- **认证方式:** MakeCredential（注册）和 GetAssertion（登录），分别对应 `POST /api/webauthn/register/*` 和 `POST /api/webauthn/login/*`
+- **配置:** `Fido2Configuration` 中的 `RPID`、`Origins`、`RPName`（配置键为 `WebAuthn:ServerDomain` 与 `WebAuthn:Origin`）
+- **认证方式:** MakeCredential（注册）和 GetAssertion（登录），分别对应 `POST /api/auth/webauthn/register/*` 和 `POST /api/auth/webauthn/login/*`
 - **Session 依赖:** 使用 `IDistributedMemoryCache` + `ISession` 存储 WebAuthn 挑战状态（5 分钟超时）
 - **速率限制:** passkey-login 策略限制 WebAuthn 断言端点（默认 30 次/5 分钟，按 IP）
 
 ### 恢复码
 
-- **生成:** `RecoveryCodeService.GenerateRecoveryCodes()` → 8 个 10 位 base32 随机码
-- **存储:** SHA-256 哈希存储到 `RecoveryCode` 表（明文仅一次性展示）
-- **消耗:** `VerifyRecoveryCodeAsync()` 验证成功后清除所有恢复码 + 所有 2FA 设置 + 启用 24 小时宽限期
-- **重新生成:** 用户可在设置页面重新生成（旧码全部失效）
+- **生成:** `RecoveryCodeService.GenerateRecoveryCodes()` → 8 个 10 位 base32 随机码（大写字母 + 数字）
+- **存储:** SHA-256 哈希存储到 `RecoveryCode` 表（明文仅在注册成功后一次性展示）
+- **用途:** 恢复码**不是登录凭据**。用户在密码登录的第二步（2FA 页面）输入恢复码后，服务端立即关闭该账户的双重验证，然后要求用户用密码重新登录。
+- **消耗语义:** `VerifyRecoveryCodeAsync()` 验证成功后清除该用户的**全部**恢复码，并清除所有 2FA 设置（`TwoFactorEnabled=false`、`ConfiguredMethods=None`、TOTP 密钥、Email 地址、`TwoFactorSetupCompletedAt`），同时写入 24 小时宽限期（`TwoFactorGracePeriodUntil`）。即使只使用一个码，其余恢复码也全部作废。
+- **失败语义:** 恢复码无效时不修改用户状态、不消耗任何码。
+- **重新生成:** 每次成功注册通行密钥都会重新生成 8 个恢复码，旧码全部失效。
 - **非消耗性验证:** `ValidateRecoveryCodeAsync()` 用于 2FA 修改流程的身份验证（不销毁码）
 
 ### 恢复码使用流程
 
-恢复码用于用户丢失所有 2FA 设备的场景。通过 Identity 脚手架页面 `LoginWithRecoveryCode.cshtml` 验证。
+恢复码用于用户丢失所有 2FA 设备的场景。通过 Identity 脚手架页面 `LoginWithRecoveryCode.cshtml` 使用：
 
-成功后清除所有 2FA 设置，进入 24 小时宽限期（`TwoFactorGracePeriodUntil`），期间用户可以重新设置新的 2FA 方法。
+1. 用户输入密码登录，进入 2FA 验证页。
+2. 点击"使用恢复码关闭双重验证"，输入一个恢复码。
+3. 验证成功：清除 2FA 设置与全部恢复码，清除 2FA 会话 Cookie，重定向到登录页并显示一次性提示。
+4. 用户用密码重新登录；此时 2FA 已关闭，可在设置页重新注册通行密钥或配置 TOTP。
+
+成功后进入 24 小时宽限期（`TwoFactorGracePeriodUntil`），期间用户可以重新设置新的 2FA 方法。`OnPostAsync` 使用 `login-per-ip` 速率限制策略。
 
 ### 管理员 2FA 重置
 
@@ -155,7 +162,7 @@ sequenceDiagram
 
 | 策略名称 | 类型 | 默认限制 | 应用端点 |
 |---------|------|---------|---------|
-| `login-per-ip` | FixedWindow (IP) | 5 次 / 15 分钟 | 密码登录端点 |
+| `login-per-ip` | FixedWindow (IP) | 5 次 / 15 分钟 | 密码登录端点、恢复码关闭 2FA 端点 |
 | `passkey-login` | FixedWindow (IP) | 30 次 / 5 分钟 | WebAuthn 断言端点 |
 | `login-per-account` | FixedWindow (Policy) | 5 次 / 15 分钟 | 管理员 2FA 重置端点（分区键 = userId / 用户名 / IP） |
 
@@ -177,7 +184,7 @@ sequenceDiagram
   }
 }
 ```
-> **注：** `LoginPermitLimit`/`LoginWindowMinutes` 用于登录和 2FA 重置端点；`PasskeyLoginPermitLimit`/`PasskeyLoginWindowMinutes` 用于 WebAuthn 通行密钥登录。`TwoFactor*` 系列键已存在于配置文件但尚未在速率限制策略中使用，预留将来扩展。
+> **注：** `LoginPermitLimit`/`LoginWindowMinutes` 用于登录、恢复码关闭 2FA 和 2FA 重置端点；`PasskeyLoginPermitLimit`/`PasskeyLoginWindowMinutes` 用于 WebAuthn 通行密钥登录。`TwoFactor*` 系列键已存在于配置文件但尚未在速率限制策略中使用，预留将来扩展。
 
 超过限制时返回 HTTP 429。
 

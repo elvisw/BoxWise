@@ -44,18 +44,19 @@ dotnet run
 
 ```csharp
 var webAuthnOrigin = builder.Configuration.GetValue<string>("WebAuthn:Origin") ?? "https://localhost:5001";
+var webAuthnOrigins = new HashSet<string> { webAuthnOrigin };
+if (builder.Environment.IsDevelopment())
+{
+    // 仅开发环境允许两个 localhost 端口
+    webAuthnOrigins.Add("https://localhost:5000");
+    webAuthnOrigins.Add("https://localhost:5001");
+}
 var fido2Config = new Fido2Configuration
 {
-    ServerDomain = builder.Configuration["WebAuthn:ServerDomain"]
+    RPID = builder.Configuration["WebAuthn:ServerDomain"]
         ?? new Uri(webAuthnOrigin).Host,
-    ServerName = "BoxWise",
-    Origins = new HashSet<string>
-    {
-        webAuthnOrigin,
-        // 开发环境同时允许两个 localhost 端口
-        "https://localhost:5000",
-        "https://localhost:5001"
-    }
+    RPName = "BoxWise",
+    Origins = webAuthnOrigins
 };
 ```
 
@@ -70,7 +71,7 @@ var fido2Config = new Fido2Configuration
 }
 ```
 
-**注意：** `Origins` 集合始终包含 `https://localhost:5000` 和 `https://localhost:5001` 两个端口，确保开发环境下无论用户使用哪个端口访问，通行密钥认证都能正常工作。`WebAuthn:Origin` 配置仅控制 `ServerDomain` 的 fallback 解析，不影响 `Origins` 的多端口支持。
+**注意：** 生产环境的 `Origins` 只包含 `WebAuthn:Origin` 配置的 origin；`https://localhost:5000` 和 `https://localhost:5001` 仅在开发环境（`builder.Environment.IsDevelopment()`）自动加入。`WebAuthn:Origin` 同时用于解析 `RPID` 的 fallback 值。
 
 ---
 
@@ -140,7 +141,8 @@ environment:
   → POST /api/auth/webauthn/register-begin（获取 CredentialCreateOptions）
   → 浏览器弹出指纹/面容/PIN 验证（navigator.credentials.create）
   → POST /api/auth/webauthn/register-complete（提交 attestation + X-Device-Name）
-  → 2FA 启用，返回恢复码
+  → 2FA 启用，返回 8 个 10 位恢复码
+  → 注册完成区域展示恢复码（仅显示一次，可一键复制）
 ```
 
 ### 无密码登录流程（Passkey）
@@ -214,15 +216,21 @@ boxwise.example.com {
 }
 ```
 
-### Q: 恢复码未显示
+### Q: 恢复码在哪里查看？
 
-WebAuthn 注册成功后，恢复码会在完成对话框中显示。如果作为第二个 2FA 方法注册（已有 TOTP 或 Email），恢复码会重新生成。请务必在关闭对话框前保存恢复码。
+通行密钥注册成功后，完成区域会显示 8 个恢复码，并提供"复制全部恢复码"按钮。恢复码**仅显示一次**，请在关闭对话框前离线保存。
+
+如果已错过展示：在仍能通过 2FA 登录的情况下，注册一个新的通行密钥会重新生成恢复码（旧码全部失效）；也可以在 TOTP 管理页重新生成恢复码。
+
+### Q: 丢失通行密钥设备，也没有 TOTP 验证器怎么办？
+
+使用任意一个已保存的恢复码：密码登录 → 2FA 页面点击"使用恢复码关闭双重验证" → 输入恢复码。验证成功会关闭该账户的双重验证并作废全部恢复码，随后用密码重新登录，在设置页重新注册通行密钥。恢复码不是登录凭据，不会直接建立登录会话。
 
 ---
 
 ## 安全建议
 
 1. **凭据数量限制**：建议用户仅注册常用设备，定期清理不再使用的凭据
-2. **恢复码保管**：恢复码应离线保存（打印或密码管理器），不要存储在设备明文文件中
-3. **设备丢失**：如通行密钥设备丢失，使用恢复码登录后立即删除该设备的凭据
-4. **生产环境**：仅允许 HTTPS origin，不要将 `localhost` 加入生产环境的 Origins 白名单
+2. **恢复码保管**：恢复码应离线保存（打印或密码管理器），不要存储在设备明文文件中；每个码只能使用一次，使用任意一个码会作废全部恢复码
+3. **设备丢失**：如通行密钥设备丢失，使用恢复码关闭双重验证后，立即用密码重新登录、删除失效凭据并重新注册
+4. **生产环境**：仅允许 HTTPS origin；`localhost` 只在开发环境自动加入 `Origins`，不要在生产配置中保留

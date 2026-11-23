@@ -107,6 +107,21 @@ public class RecoveryCodeService
     }
 
     /// <summary>
+    /// 删除该用户全部恢复码（不更改 2FA 状态）。用于删除最后一个通行密钥后关闭 2FA 的场景。
+    /// </summary>
+    public async Task RemoveAllRecoveryCodesAsync(AppUser user)
+    {
+        var codes = await _db.RecoveryCodes
+            .Where(rc => rc.UserId == user.Id)
+            .ToListAsync();
+        if (codes.Count == 0)
+            return;
+
+        _db.RecoveryCodes.RemoveRange(codes);
+        await _db.SaveChangesAsync();
+    }
+
+    /// <summary>
     /// 检查用户是否存在恢复码。
     /// </summary>
     public async Task<bool> HasRecoveryCodesAsync(AppUser user)

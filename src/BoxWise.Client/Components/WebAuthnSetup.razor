@@ -19,6 +19,28 @@
     <MudAlert Severity="Severity.Success" Class="mb-3" Dense="true">
         通行密钥注册成功！
     </MudAlert>
+
+    @if (_recoveryCodes is { Count: > 0 })
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-3" Dense="true">
+            恢复码仅显示一次，请立即离线保存。每个恢复码只能使用一次；丢失设备时，可在密码登录的第二步用它关闭双重验证。
+        </MudAlert>
+        <MudPaper Class="pa-3 mb-3" Outlined="true">
+            @foreach (var recoveryCode in _recoveryCodes)
+            {
+                <MudText Typo="Typo.body1" Class="mb-1" Style="font-family: monospace; letter-spacing: 0.08em;">
+                    @recoveryCode
+                </MudText>
+            }
+        </MudPaper>
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Primary"
+                   FullWidth="true"
+                   Class="mt-1"
+                   OnClick="CopyRecoveryCodesAsync">
+            复制全部恢复码
+        </MudButton>
+    }
 }
 else
 {
@@ -69,6 +91,7 @@ else
     private string? _error;
     private bool _isRegistering;
     private bool _isComplete;
+    private List<string>? _recoveryCodes;
 
     private async Task StartRegistrationAsync()
     {
@@ -136,6 +159,7 @@ else
                 return;
             }
 
+            _recoveryCodes = recoveryCodes;
             _isComplete = true;
             Snackbar.Add("通行密钥已注册成功", Severity.Success);
 
@@ -169,5 +193,17 @@ else
         {
             _isRegistering = false;
         }
+    }
+
+    private async Task CopyRecoveryCodesAsync()
+    {
+        if (_recoveryCodes is null || _recoveryCodes.Count == 0) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText",
+                string.Join("\n", _recoveryCodes));
+            Snackbar.Add("恢复码已复制到剪贴板", Severity.Success);
+        }
+        catch { /* 剪贴板不可用时静默降级 */ }
     }
 }
