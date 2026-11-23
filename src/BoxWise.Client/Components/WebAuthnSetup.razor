@@ -200,10 +200,13 @@ else
         if (_recoveryCodes is null || _recoveryCodes.Count == 0) return;
         try
         {
-            await JS.InvokeVoidAsync("navigator.clipboard.writeText",
+            await JS.InvokeVoidAsync("copyTextToClipboard",
                 string.Join("\n", _recoveryCodes));
             Snackbar.Add("恢复码已复制到剪贴板", Severity.Success);
         }
-        catch { /* 剪贴板不可用时静默降级 */ }
+        catch
+        {
+            Snackbar.Add("复制失败，请手动选择恢复码复制", Severity.Warning);
+        }
     }
 }

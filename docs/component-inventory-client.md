@@ -103,7 +103,7 @@ Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门
 **MudBlazor:** `MudButton`, `MudProgressCircular`, `MudText`, `MudPaper`
 
 ### WebAuthnSetup.razor
-通行密钥注册组件。调用 WebAuthn API 注册通行密钥；注册成功后显示 8 个一次性恢复码（等宽列表）、离线保存警告和"复制全部恢复码"按钮（`navigator.clipboard`，不可用时静默降级）。
+通行密钥注册组件。调用 WebAuthn API 注册通行密钥；注册成功后显示 8 个一次性恢复码（等宽列表）、离线保存警告和"复制全部恢复码"按钮（优先 `navigator.clipboard`，非安全上下文回退到 `execCommand`，失败时提示手动复制）。
 
 **注入:** `AuthService`, `ISnackbar`, `IJSRuntime`
 **MudBlazor:** `MudButton`, `MudAlert`, `MudText`, `MudPaper`
