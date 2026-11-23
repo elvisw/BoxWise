@@ -106,27 +106,44 @@ sequenceDiagram
     participant Server
     participant Authenticator
 
-    Note over User, Authenticator: 设置阶段
-    User->>Browser: 开启 2FA 设置
-    Browser->>Server: POST /api/two-factor/setup (SessionToken)
-    Server->>Server: 生成 TOTP 密钥 + Data Protection 加密
-    Server-->>Browser: 返回 QR 码 URI
-    Browser->>Authenticator: 用户扫描 QR 码
-    Authenticator-->>Browser: 显示 6 位 TOTP 码
-    User->>Browser: 输入 TOTP 码
-    Browser->>Server: POST /api/two-factor/verify?code=xxx&token=xxx
-    Server->>Server: 验证 TOTP + 防重放检查
-    Server-->>Browser: 返回恢复码（8 个 10 位 base32）
+    Note over User, Authenticator: 设置阶段（Identity 脚手架）
+    User->>Browser: 打开 2FA 设置页
+    Browser->>Server: Manage/EnableAuthenticator
+    Server->>Server: GetAuthenticatorKeyAsync / ResetAuthenticatorKeyAsync
+    Server-->>Browser: 返回密钥与 otpauth URI（二维码）
+    Browser->>Authenticator: 用户扫描二维码或输入密钥
+    Authenticator-->>User: 显示 6 位 TOTP 码
+    User->>Browser: 输入验证码
+    Browser->>Server: POST Manage/EnableAuthenticator
+    Server->>Server: VerifyTwoFactorTokenAsync(AuthenticatorTokenProvider)
+    Server->>Server: TwoFactorEnabled=true, ConfiguredMethods |= TOTP
+    Server->>Server: CountRecoveryCodesAsync == 0 时生成 10 个 Identity 恢复码
+    Server-->>Browser: 设置成功，展示一次性恢复码
+
+    Note over User, Authenticator: 登录阶段
+    User->>Browser: 输入用户名和密码
+    Browser->>Server: POST Login
+    Server->>Server: PasswordSignInAsync → IsTwoFactorEnabledAsync
+    Server-->>Browser: 要求 2FA，跳转 LoginWith2fa
+    User->>Browser: 输入验证器验证码
+    Browser->>Server: POST LoginWith2fa
+    Server->>Server: TwoFactorAuthenticatorSignInAsync
+    Server-->>Browser: 签发认证 Cookie
+    Browser-->>User: 登录完成
 ```
 
 ### TOTP（身份验证器）
 
-- **密钥生成:** 20 字节随机密钥（`OtpNet.KeyGeneration`），Base32 编码
-- **密钥保护:** 通过 `IDataProtector`（"BoxWise.TwoFactor" purpose）加密存储到 `AppUser.TotpSecretKey`
-- **双密钥窗口:** 登录验证时优先检查 `TotpSecretKey`，失败时回退到 `PendingTotpSecretKey`（TOTP 修改流程）
-- **防重放:** 使用 `IMemoryCache` 按 `userId:purpose:timeStepMatched` 缓存 2 分钟，防止同一时间步长重复使用
-- **SessionToken:** 基于 Data Protection 的自包含令牌（5 分钟有效期），用于首次绑定验证
-- **TOTP 修改流程:** 生成临时密钥存入 `PendingTotpSecretKey`，验证通过后提升为主密钥（15 分钟 SessionToken 窗口）
+#### 当前生效（Identity 脚手架）
+
+- **设置:** `Manage/EnableAuthenticator` 通过 `UserManager.GetAuthenticatorKeyAsync()` / `ResetAuthenticatorKeyAsync()` 管理 Identity authenticator key（Identity token store）。
+- **验证:** `VerifyTwoFactorTokenAsync(user, AuthenticatorTokenProvider, code)`。
+- **启用:** `TwoFactorEnabled=true`、`ConfiguredMethods |= TOTP`；若 `CountRecoveryCodesAsync == 0`，生成 10 个 Identity 恢复码。
+- **登录:** `PasswordSignInAsync` → `IsTwoFactorEnabledAsync` → `LoginWith2fa` → `TwoFactorAuthenticatorSignInAsync` → 签发 Cookie。
+
+#### 历史实现（未参与当前登录/设置）
+
+`TwoFactorService` 中仍保留 `TotpSecretKey` / `PendingTotpSecretKey` / SessionToken / `IMemoryCache` 防重放等代码，但当前没有任何端点调用，不参与线上登录与设置流程。保留这些代码仅为历史兼容，阅读时不要将其视为当前生效实现。
 
 ### WebAuthn（通行密钥）
 
