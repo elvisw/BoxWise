@@ -1,13 +1,14 @@
 ﻿@page
 @model LoginWithRecoveryCodeModel
 @{
-    ViewData["Title"] = "恢复码验证";
+    ViewData["Title"] = "使用恢复码关闭双重验证";
 }
 
 <h1>@ViewData["Title"]</h1>
 <hr />
 <p>
-    您已请求使用恢复码登录。在下次登录时提供验证器应用验证码或禁用双重验证并重新登录前，此次登录将不会被记住。
+    如果无法使用验证器应用或通行密钥，请输入一个尚未使用的恢复码。
+    每个恢复码只能使用一次；验证成功会关闭双重验证并作废该账户的全部恢复码（自定义与 Identity 两套），随后用密码重新登录。
 </p>
 <div class="row">
     <div class="col-md-4">
@@ -18,7 +19,7 @@
                 <label asp-for="Input.RecoveryCode" class="form-label">恢复码</label>
                 <span asp-validation-for="Input.RecoveryCode" class="text-danger"></span>
             </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">登录</button>
+            <button type="submit" class="w-100 btn btn-lg btn-primary">关闭双重验证</button>
         </form>
     </div>
 </div>

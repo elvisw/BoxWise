@@ -51,6 +51,16 @@
 | 40 | `Account/_StatusMessage.cshtml` | 从 `Manage/_StatusMessage.cshtml` 复制到 `Account/` 目录 | `ConfirmEmail.cshtml` 引用 `_StatusMessage` 分部视图，但该视图仅存在于 `Manage/` 子目录，ASP.NET Core 搜索路径无法找到 → 500 错误 | Bug 修复 (2026-07-02) | 保留 |
 | 41 | `Manage/Email.cshtml.cs` | `OnPostSendVerificationEmailAsync` + `OnPostChangeEmailAsync` 邮件内容中文化：主题 `"Confirm your email"` → `"BoxWise - 确认邮箱"`，HTML 正文改为中文；状态消息 `StatusMessage` 中文化 | 用户收到的确认邮件和页面提示为英文 | 本地化修复 (2026-07-02) | 重新适配 |
 | 42 | `ConfirmEmail.cshtml.cs` | `StatusMessage` 中文化：`"Thank you for confirming your email." / "Error confirming your email."` → `"邮箱确认成功。" / "邮箱确认失败。"` | 邮箱确认页面提示为英文 | 本地化修复 (2026-07-02) | 保留 |
+| 43 | `Account/LoginWithRecoveryCode.cshtml.cs` | 注入 `RecoveryCodeService`；`OnPostAsync` 改为 `VerifyRecoveryCodeAsync(user, code, userManager)`（输入去空格 + 转大写）；成功后 `UpdateSecurityStampAsync` + `SignOutAsync(IdentityConstants.TwoFactorUserIdScheme)` + `TempData["StatusMessage"]` + 重定向 `./Login`，不调用任何 `SignInAsync`；失败显示"恢复码无效"；添加 `[EnableRateLimiting("login-per-ip")]` | 恢复码只用于关闭 2FA，不作为登录凭据；原实现走 Identity token store，与自定义 `RecoveryCodes` 表不互通 | Passkey 恢复码修复 (2026-11-23) | 保留 |
+| 44 | `Account/LoginWithRecoveryCode.cshtml` | 标题/说明/按钮改为"使用恢复码关闭双重验证"，说明验证成功后立即关闭 2FA 并作废全部恢复码 | 与新语义一致，避免误认为恢复码可直接登录 | Passkey 恢复码修复 (2026-11-23) | 保留 |
+| 45 | `Account/LoginWith2fa.cshtml` | 恢复码链接文案 → "使用恢复码关闭双重验证" | 与新语义一致 | Passkey 恢复码修复 (2026-11-23) | 保留 |
+| 46 | `Account/Login.cshtml.cs` | 新增 `[TempData] StatusMessage` 属性 | 接收恢复码页关闭 2FA 后的一次性成功提示 | Passkey 恢复码修复 (2026-11-23) | 保留 |
+| 47 | `Account/Login.cshtml` | 在标题下渲染 `<partial name="_StatusMessage" model="Model.StatusMessage" />` | 显示上述一次性提示 | Passkey 恢复码修复 (2026-11-23) | 保留 |
+| 48 | `Pages/_Layout.cshtml` | 在 Scripts 段之前加载 `~/lib/jquery/dist/jquery.min.js`；本地新增 jQuery 3.7.1、jquery-validation 1.21.0、jquery-validation-unobtrusive 4.0.0 文件 | `_ValidationScriptsPartial` 引用的 `~/lib/jquery-validation*` 文件不存在且未加载 jQuery，登录页出现 404/SyntaxError | Passkey 恢复码修复 (2026-11-23) | 保留 |
+| 49 | `Account/LoginWithRecoveryCode.cshtml.cs` | 恢复码页同时接受自定义 `RecoveryCodes` 表与 Identity token store：自定义未命中时调用 `RedeemTwoFactorRecoveryCodeAsync`；两条路径统一调用 `RecoveryCodeService.DisableTwoFactorAsync`（清两套恢复码、清 2FA 字段、换 `SecurityStamp`） | 修复 TOTP 用户在 Manage 页生成的 Identity 恢复码在恢复码页全部失效的回归 | 恢复码双来源兼容 (2026-11-23) | 保留 |
+| 50 | `Account/LoginWithRecoveryCode.cshtml` | 说明改为"每个恢复码只能使用一次；验证成功会关闭双重验证并作废该账户的全部恢复码（自定义与 Identity 两套），随后用密码重新登录" | 明确恢复码只用于关闭 2FA，不建立登录会话 | 恢复码双来源兼容 (2026-11-23) | 保留 |
+| 51 | `Manage/TwoFactorAuthentication.cshtml` | "使用恢复码登录" → "使用恢复码关闭双重验证" | 恢复码不再是登录凭据 | 恢复码双来源兼容 (2026-11-23) | 保留 |
+| 52 | `Manage/GenerateRecoveryCodes.cshtml` | 增加说明"恢复码用于在无法完成双重验证时关闭双重验证，不能直接登录" | 校正恢复码用途文案 | 恢复码双来源兼容 (2026-11-23) | 保留 |
 
 ## 脚手架排除的文件
 

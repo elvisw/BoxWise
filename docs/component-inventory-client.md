@@ -103,16 +103,13 @@ Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门
 **MudBlazor:** `MudButton`, `MudProgressCircular`, `MudText`, `MudPaper`
 
 ### WebAuthnSetup.razor
-通行密钥注册组件。调用 WebAuthn API 注册通行密钥，注册成功后显示恢复码。
+通行密钥注册组件。调用 WebAuthn API 注册通行密钥；注册成功后显示 8 个一次性恢复码（等宽列表）、离线保存警告和"复制全部恢复码"按钮（优先 `navigator.clipboard`，非安全上下文回退到 `execCommand`，失败时提示手动复制）。
 
-**注入:** `AuthService`
-**MudBlazor:** `MudButton`, `MudAlert`, `MudProgressCircular`
+**注入:** `AuthService`, `ISnackbar`, `IJSRuntime`
+**MudBlazor:** `MudButton`, `MudAlert`, `MudText`, `MudPaper`
 
 ### WebAuthnCredentialList.razor
-已注册通行密钥凭据列表。显示设备名称、注册时间、凭据 ID，支持删除。
-
-**注入:** `AuthService`
-**MudBlazor:** `MudTable`, `MudButton`, `MudText`
+已注册通行密钥凭据列表。显示设备名称、注册时间、凭据 ID，支持删除。删除最后一个凭据时，确认文案提示"删除后将关闭双重验证，已保存的恢复码同时作废"。
 
 ### PasskeyManageDialog.razor
 通行密钥管理弹窗（设置页调用）。列出并管理已注册的通行密钥，支持删除和查看恢复码。

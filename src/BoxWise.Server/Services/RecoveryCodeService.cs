@@ -57,7 +57,8 @@ public class RecoveryCodeService
     }
 
     /// <summary>
-    /// 验证恢复码，成功返回 true + 删除所有恢复码 + 清除所有 2FA 设置。
+    /// 验证自定义恢复码，成功返回 true 并关闭 2FA。
+    /// 保持“先校验、后消耗”的顺序：只有哈希命中后才清除状态。
     /// </summary>
     public async Task<bool> VerifyRecoveryCodeAsync(AppUser user, string code, UserManager<AppUser> userManager)
     {
@@ -68,13 +69,21 @@ public class RecoveryCodeService
         if (!match)
             return false;
 
-        // 清除所有恢复码
+        return await DisableTwoFactorAsync(user, userManager);
+    }
+
+    /// <summary>
+    /// 关闭用户的双重验证：清除两套恢复码（自定义表与 Identity token store）与 2FA 字段，
+    /// 并轮换 SecurityStamp。重新启用 2FA 时会重新生成恢复码。
+    /// </summary>
+    public async Task<bool> DisableTwoFactorAsync(AppUser user, UserManager<AppUser> userManager)
+    {
         var allCodes = await _db.RecoveryCodes
             .Where(rc => rc.UserId == user.Id)
             .ToListAsync();
-        _db.RecoveryCodes.RemoveRange(allCodes);
+        if (allCodes.Count > 0)
+            _db.RecoveryCodes.RemoveRange(allCodes);
 
-        // 清除所有 2FA 设置
         user.TwoFactorEnabled = false;
         user.ConfiguredMethods = TwoFactorMethod.None;
         user.TotpSecretKey = null;
@@ -84,12 +93,28 @@ public class RecoveryCodeService
 
         try
         {
-            await userManager.UpdateAsync(user);
+            var updateResult = await userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+                return false;
+
             await _db.SaveChangesAsync();
+
+            // 关闭 2FA 后两套恢复码都应失效：自定义码已删除，
+            // Identity token store 使用 0 个新码替换，等价于清空全部恢复码。
+            var remainingIdentityCodes = await userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 0);
+            if (remainingIdentityCodes is null
+                || await userManager.CountRecoveryCodesAsync(user) != 0)
+            {
+                throw new InvalidOperationException(
+                    "Failed to clear Identity recovery codes while disabling two-factor authentication.");
+            }
+
+            // 使已有登录会话失效：2FA 状态发生了安全相关变更。
+            await userManager.UpdateSecurityStampAsync(user);
         }
         catch (DbUpdateConcurrencyException)
         {
-            // 并发请求已消耗恢复码
+            // 并发请求已消耗恢复码或更新了用户
             return false;
         }
 
@@ -104,6 +129,21 @@ public class RecoveryCodeService
         var codes = GenerateRecoveryCodes();
         await StoreRecoveryCodesAsync(user, codes);
         return codes;
+    }
+
+    /// <summary>
+    /// 删除该用户全部恢复码（不更改 2FA 状态）。用于删除最后一个通行密钥后关闭 2FA 的场景。
+    /// </summary>
+    public async Task RemoveAllRecoveryCodesAsync(AppUser user)
+    {
+        var codes = await _db.RecoveryCodes
+            .Where(rc => rc.UserId == user.Id)
+            .ToListAsync();
+        if (codes.Count == 0)
+            return;
+
+        _db.RecoveryCodes.RemoveRange(codes);
+        await _db.SaveChangesAsync();
     }
 
     /// <summary>

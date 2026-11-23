@@ -9,9 +9,11 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using BoxWise.Server.Models;
+using BoxWise.Server.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 namespace BoxWise.Server.Areas.Identity.Pages.Account
 {
@@ -20,15 +22,18 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
     {
         private readonly SignInManager<AppUser> _signInManager;
         private readonly UserManager<AppUser> _userManager;
+        private readonly RecoveryCodeService _recoveryCodeService;
         private readonly ILogger<LoginWithRecoveryCodeModel> _logger;
 
         public LoginWithRecoveryCodeModel(
             SignInManager<AppUser> signInManager,
             UserManager<AppUser> userManager,
+            RecoveryCodeService recoveryCodeService,
             ILogger<LoginWithRecoveryCodeModel> logger)
         {
             _signInManager = signInManager;
             _userManager = userManager;
+            _recoveryCodeService = recoveryCodeService;
             _logger = logger;
         }
 
@@ -74,6 +79,7 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             return Page();
         }
 
+        [EnableRateLimiting("login-per-ip")]
         public async Task<IActionResult> OnPostAsync(string returnUrl = null)
         {
             if (!ModelState.IsValid)
@@ -85,26 +91,45 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             if (user is null)
                 return RedirectToPage("./Login");
 
-            var recoveryCode = Input.RecoveryCode.Replace(" ", string.Empty);
+            // 恢复码为 base32 大写字符；容忍用户输入空格和小写。
+            var recoveryCode = Input.RecoveryCode
+                .Replace(" ", string.Empty)
+                .Trim()
+                .ToUpperInvariant();
 
-            var result = await _signInManager.TwoFactorRecoveryCodeSignInAsync(recoveryCode);
+            var success = await _recoveryCodeService.VerifyRecoveryCodeAsync(user, recoveryCode, _userManager);
 
-            if (result.Succeeded)
+            if (!success)
             {
-                _logger.LogInformation("User with ID '{UserId}' logged in with a recovery code.", user.Id);
-                return LocalRedirect(string.IsNullOrEmpty(returnUrl) ? Url.Content("~/") : returnUrl);
+                // 兼容 TOTP 用户在 Identity 管理页生成的恢复码（10 个，存于 token store）。
+                // 先按 Identity 原生语义消耗本次使用的码，再由 DisableTwoFactorAsync 清空剩余码。
+                var identityResult = await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, recoveryCode);
+                if (identityResult.Succeeded)
+                {
+                    success = await _recoveryCodeService.DisableTwoFactorAsync(user, _userManager);
+                    if (!success)
+                    {
+                        _logger.LogWarning(
+                            "Identity recovery code was consumed for user with ID '{UserId}', but disabling 2FA did not complete.",
+                            user.Id);
+                    }
+                }
             }
-            if (result.IsLockedOut)
+
+            if (success)
             {
-                _logger.LogWarning("User account locked out.");
-                return RedirectToPage("./Lockout");
+                _logger.LogInformation(
+                    "User with ID '{UserId}' disabled two-factor authentication with a recovery code.", user.Id);
+
+                // 清除 2FA 会话 cookie：恢复码只用于关闭 2FA，不建立登录会话。
+                await HttpContext.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
+                TempData["StatusMessage"] = "双重验证已关闭，全部恢复码已作废。请使用密码重新登录。";
+                return RedirectToPage("./Login");
             }
-            else
-            {
-                _logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}' ", user.Id);
-                ModelState.AddModelError(string.Empty, "Invalid recovery code entered.");
-                return Page();
-            }
+
+            _logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}'.", user.Id);
+            ModelState.AddModelError(string.Empty, "恢复码无效。");
+            return Page();
         }
     }
 }
