@@ -114,7 +114,7 @@ TwoFactorMethod ([Flags] 枚举: None=0, TOTP=1, Email=2, WebAuthn=4)
 
 ## AI 集成
 
-AI 识别已迁移至客户端浏览器直调火山 ARK API（Story 12.1）。服务端不再参与 AI 调用。
+AI 识别由客户端浏览器直调配置的 OpenAI 兼容 Chat Completions 端点（Story 12.1）；服务端只存取 LLM 配置，不参与推理调用。
 
 ## 图片处理
 

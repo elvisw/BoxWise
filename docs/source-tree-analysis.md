@@ -54,7 +54,7 @@ BoxWise/                              # 解决方案根目录
 │   │   │   ├── ItemEntryService.cs   # 物品创建
 │   │   │   ├── LocationService.cs    # 位置 CRUD
 │   │   │   ├── TagService.cs         # 标签 CRUD
-│   │   │   └── AiService.cs          # AI 识别 (30s 超时, 客户端直调火山 ARK)
+│   │   │   └── AiService.cs          # AI 识别 (30s 超时, 客户端直调配置端点)
 │   │   ├── Models/                   # 客户端模型
 │   │   │   └── PhotoCapture.cs       # 照片数据载体 record
 │   │   └── wwwroot/                  # 静态资源
@@ -101,7 +101,7 @@ BoxWise/                              # 解决方案根目录
 │   │   │   ├── LocationRepository.cs
 │   │   │   ├── ItemRepository.cs
 │   │   │   └── TagRepository.cs
-│   │   ├── Services/                 # 业务服务 (11 个 .cs)
+│   │   ├── Services/                 # 业务服务
 │   │   │   ├── ImageStorageService.cs       # Singleton - 图片文件管理
 │   │   │   ├── ThumbnailService.cs          # Singleton - SkiaSharp 缩略图生成
 
@@ -112,7 +112,9 @@ BoxWise/                              # 解决方案根目录
 │   │   │   ├── RecoveryCodeService.cs       # 恢复码生成与验证
 │   │   │   ├── SmtpConfigurationService.cs  # SMTP 配置管理服务
 │   │   │   ├── ISmtpConfigurationService.cs # SMTP 配置服务接口
-│   │   │   └── IdentityEmailSender.cs       # Identity 邮箱发送（MailKit）
+│   │   │   ├── IdentityEmailSender.cs       # Identity 邮箱发送（MailKit）
+│   │   │   ├── LlmConfigKeyPolicy.cs        # LLM URL/Key 来源规则
+│   │   │   └── LlmConfigWriter.cs           # LLM 配置条件更新（API/Admin 共用）
 │   │   ├── Configuration/            # 选项配置
 
 │   │   ├── Dtos/                     # Server 端 DTO (空，共用 Shared)
@@ -165,6 +167,7 @@ BoxWise/                              # 解决方案根目录
 │       ├── BoxWise.Server.Tests.csproj
 │       ├── TestDbContextFactory.cs         # InMemory DbContext 工厂
 │       ├── TestIdentityFactory.cs          # Identity 测试工厂
+│       ├── SqliteTestDatabase.cs           # 临时 SQLite 测试库与并发拦截器
 │       ├── AdminUserManagementTests.cs     # Admin 用户管理测试
 │       ├── AuthEndpointsTests.cs           # 认证端点集成测试
 │       ├── Repositories/                   # Repository 层单元测试
@@ -180,12 +183,17 @@ BoxWise/                              # 解决方案根目录
 │       │   ├── RecoveryCodeServiceTests.cs
 │       │   ├── TwoFactorServiceTests.cs
 │       │   ├── EmailTwoFactorServiceTests.cs
+│       │   ├── LlmConfigKeyPolicyTests.cs
+│       │   ├── LlmConfigWriterTests.cs
 │       │   └── SmtpConfigurationServiceTests.cs
+│       ├── Pages/                          # Admin Razor Page 测试
+│       │   └── LlmConfigModelTests.cs
 │       └── Endpoints/                      # 端点集成测试
 │           ├── AuthEndpointsTests.cs
 │           ├── ItemEndpointsTests.cs
 │           ├── LocationEndpointsTests.cs
 │           ├── TagEndpointsTests.cs
+│           ├── LlmConfigEndpointsTests.cs
 │           └── TwoFactorFlowE2ETests.cs
 │
 ├── docs/                             # 项目文档（本次生成）

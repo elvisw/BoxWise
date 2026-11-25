@@ -3,13 +3,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
 using BoxWise.Server.Models;
+using BoxWise.Server.Services;
 using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Endpoints;
 
 public static class LlmConfigEndpoints
 {
-    private const int ConfigId = 1;
+    private const int ConfigId = LlmConfigWriter.ConfigId;
 
     public static RouteGroupBuilder MapLlmConfigEndpoints(this IEndpointRouteBuilder app)
     {
@@ -26,6 +27,7 @@ public static class LlmConfigEndpoints
             .ProducesProblem(400)
             .ProducesProblem(401)
             .ProducesProblem(403)
+            .ProducesProblem(409)
             .WithTags("LlmConfig")
             .WithDescription("更新 LLM API 配置（管理员）");
 
@@ -67,51 +69,23 @@ public static class LlmConfigEndpoints
         if (string.IsNullOrWhiteSpace(request.BaseUrl))
             return TypedResults.Problem("BaseUrl 不能为空", statusCode: 400);
 
-        var model = string.IsNullOrWhiteSpace(request.Model) ? "doubao-seed-2-0-pro-260215" : request.Model.Trim();
-        var timeoutSeconds = Math.Clamp(request.TimeoutSeconds, 5, 120);
+        var result = await LlmConfigWriter.SaveAsync(
+            db,
+            new LlmConfigUpdate(request.BaseUrl, request.ApiKey, request.Model, request.TimeoutSeconds));
 
-        try
+        if (result.Status == LlmConfigWriteStatus.Saved)
         {
-            var entity = await db.LlmConfigs.FindAsync(ConfigId);
-            if (entity is null)
-            {
-                entity = new LlmConfig { Id = ConfigId };
-                db.LlmConfigs.Add(entity);
-            }
-
-            entity.BaseUrl = request.BaseUrl.Trim();
-            if (!string.IsNullOrWhiteSpace(request.ApiKey))
-                entity.ApiKey = request.ApiKey.Trim();
-            entity.Model = model;
-            entity.TimeoutSeconds = timeoutSeconds;
-
-            await db.SaveChangesAsync();
-
+            var saved = result.Config!;
             return TypedResults.Ok(new LlmConfigDto(
-                entity.BaseUrl,
-                entity.ApiKey,
-                entity.Model,
-                entity.TimeoutSeconds));
+                saved.BaseUrl,
+                saved.ApiKey,
+                saved.Model,
+                saved.TimeoutSeconds));
         }
-        catch (DbUpdateException)
-        {
-            // Retry: PK conflict means another request created the record
-            var entity = await db.LlmConfigs.FindAsync(ConfigId);
-            if (entity is null)
-                return TypedResults.Problem("配置创建失败，请重试", statusCode: 400);
 
-            entity.BaseUrl = request.BaseUrl.Trim();
-            if (!string.IsNullOrWhiteSpace(request.ApiKey))
-                entity.ApiKey = request.ApiKey.Trim();
-            entity.Model = model;
-            entity.TimeoutSeconds = timeoutSeconds;
+        if (result.Status == LlmConfigWriteStatus.KeyRequired)
+            return TypedResults.Problem(LlmConfigWriter.KeyRequiredMessage, statusCode: 400);
 
-            await db.SaveChangesAsync();
-            return TypedResults.Ok(new LlmConfigDto(
-                entity.BaseUrl,
-                entity.ApiKey,
-                entity.Model,
-                entity.TimeoutSeconds));
-        }
+        return TypedResults.Problem(LlmConfigWriter.ConflictMessage, statusCode: 409);
     }
 }

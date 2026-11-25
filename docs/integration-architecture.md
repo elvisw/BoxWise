@@ -102,13 +102,15 @@
 ### 2. 物品录入流程
 ```
 1. ItemEntry.razor: 拍照/选图
-2. [可选] AiService.RecognizeAsync() → POST 火山 ARK API /chat/completions (JSON, CORS)
+2. [可选] AiService.RecognizeAsync() → POST 配置的 Chat Completions 端点 (JSON, CORS, Bearer)
 3. 用户确认名称/位置/标签
 4. ItemEntryService.CreateItemAsync() → POST /api/items (JSON) → 201 itemId
 5. HttpClient.PostAsync() → POST /api/images/upload (multipart) → 202
 6. Server 后台 SkiaSharp 生成缩略图
 7. AppState.SetContinuousLocation() → 导航回首页
 ```
+
+`AiService` 从 `/api/llm/config` 读取 `BaseUrl`，该值可以是 API 根地址或完整端点：根地址自动追加 `/chat/completions`，已以该后缀结尾则原样使用，查询参数保留；火山 ARK 裸域名 `https://ark.cn-beijing.volces.com` 使用 `/api/v3/chat/completions`。识别阶段浏览器把 Base64 图片和 `Authorization: Bearer <ApiKey>` 直接发送给配置的 provider；保存物品时照片仍通过 `POST /api/images/upload` 上传到 BoxWise，两条链路相互独立。浏览器直连端点，因此端点需支持 HTTPS 与 CORS（允许部署 Origin、`POST`、`authorization`、`content-type`）；HTTPS 页面不能调用 HTTP 端点。服务端只存取配置，不代理推理请求，也不覆盖输出长度或思考模式。
 
 ### 3. 浏览/搜索流程
 ```

@@ -25,17 +25,29 @@
         <label for="BaseUrl">BaseUrl</label>
         <input asp-for="BaseUrl" placeholder="https://ark.cn-beijing.volces.com/api/v3" />
         <span asp-validation-for="BaseUrl" class="error-message" style="display:block;padding:0.25rem 0;background:none;border:none;"></span>
+        <p style="margin:0.35rem 0 0;color:#607D8B;font-size:0.85rem;line-height:1.5;">
+            可填 API 根地址或完整 Chat Completions 地址。根地址会自动追加 <code>/chat/completions</code>，已以该后缀结尾则原样使用，查询参数会保留。
+            例如 DeepSeek 填 <code>https://api.deepseek.com</code>；火山 ARK 填 <code>https://ark.cn-beijing.volces.com/api/v3</code>，
+            裸域名 <code>https://ark.cn-beijing.volces.com</code> 会使用 <code>/api/v3/chat/completions</code>。
+            浏览器会直连该地址，端点必须支持 HTTPS 与 CORS（允许本站 Origin、POST、<code>authorization</code> 和 <code>content-type</code>）；HTTPS 页面不能调用 HTTP 端点。
+        </p>
     </div>
 
     <div class="form-group">
         <label for="ApiKey">ApiKey</label>
         <input asp-for="ApiKey" type="password" autocomplete="off"
                placeholder="@(Model.HasApiKey ? "已配置 (●●●●●)" : "")" />
+        <p style="margin:0.35rem 0 0;color:#607D8B;font-size:0.85rem;line-height:1.5;">
+            仅使用 Bearer 认证。ApiKey 留空时，仅当 API 地址不变（例如只改模型或超时）或协议、主机和有效端口可证明相同（此时可改路径/查询）时保留原 Key；更换来源或地址无法证明同源（包括无效旧地址）时必须填写新 Key。轮换 Key 时直接填入新值保存即可，无需重启服务。
+        </p>
     </div>
 
     <div class="form-group">
         <label for="Model">Model</label>
         <input asp-for="Model" placeholder="doubao-seed-2-0-pro-260215" />
+        <p style="margin:0.35rem 0 0;color:#607D8B;font-size:0.85rem;line-height:1.5;">
+            DeepSeek 示例模型为 <code>deepseek-flash</code>（provider 示例，需用有效 Key 验证）。BoxWise 不限制输出长度，也不覆盖思考模式；服务商默认值可能影响延迟和费用。
+        </p>
     </div>
 
     <div class="form-group">

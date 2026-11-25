@@ -49,7 +49,8 @@ public class AiService
         if (config is null || string.IsNullOrWhiteSpace(config.ApiKey) || string.IsNullOrWhiteSpace(config.BaseUrl))
             return null;
 
-        if (!Uri.TryCreate(config.BaseUrl, UriKind.Absolute, out var baseUri))
+        var endpointUri = ResolveChatCompletionsUri(config.BaseUrl);
+        if (endpointUri is null)
             return null;
 
         var model = string.IsNullOrWhiteSpace(config.Model) ? "doubao-seed-2-0-pro-260215" : config.Model.Trim();
@@ -76,19 +77,17 @@ public class AiService
                             new { type = "image_url", image_url = new { url = $"data:{mime};base64,{base64}" } }
                         }
                     }
-                },
-                max_tokens = 200
+                }
             };
 
             using var httpClient = _httpFactory.CreateClient();
-            httpClient.BaseAddress = baseUri;
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", config.ApiKey);
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v3/chat/completions")
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpointUri)
             {
                 Content = JsonContent.Create(requestBody)
             };
-            var response = await httpClient.SendAsync(request, cts.Token);
+            using var response = await httpClient.SendAsync(request, cts.Token);
 
             if (!response.IsSuccessStatusCode)
                 return null;
@@ -114,24 +113,72 @@ public class AiService
         }
     }
 
+    private static Uri? ResolveChatCompletionsUri(string baseUrl)
+    {
+        if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri))
+            return null;
+
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.Ordinal)
+            && !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(uri.Host) || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Fragment))
+            return null;
+
+        var path = uri.AbsolutePath.TrimEnd('/');
+        if (path.Length == 0)
+        {
+            path = IsBareArkOrigin(uri) ? "/api/v3/chat/completions" : "/chat/completions";
+        }
+        else if (!path.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
+        {
+            path += "/chat/completions";
+        }
+
+        var builder = new UriBuilder(uri) { Path = path };
+        return builder.Uri;
+    }
+
+    private static bool IsBareArkOrigin(Uri uri)
+        => uri.Scheme == Uri.UriSchemeHttps
+           && uri.IsDefaultPort
+           && string.Equals(uri.Host, "ark.cn-beijing.volces.com", StringComparison.OrdinalIgnoreCase)
+           && string.IsNullOrEmpty(uri.Query);
+
     private static RecognitionResultDto? TryParse(string content)
     {
         try
         {
             var dto = JsonSerializer.Deserialize<RecognitionResultDto>(content, JsonOptions);
-            if (dto is not null && !string.IsNullOrWhiteSpace(dto.Name))
-                return dto;
-            return null;
+            return dto is null ? null : Normalize(dto.Name, dto.Note);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             var nameMatch = System.Text.RegularExpressions.Regex.Match(content, "\"name\"\\s*:\\s*\"([^\"]+)\"");
-            var noteMatch = System.Text.RegularExpressions.Regex.Match(content, "\"note\"\\s*:\\s*\"([^\"]+)\"");
-            if (nameMatch.Success)
-                return new RecognitionResultDto(nameMatch.Groups[1].Value, noteMatch.Success ? noteMatch.Groups[1].Value : "");
+            if (!nameMatch.Success)
+                return null;
 
-            return null;
+            var noteMatch = System.Text.RegularExpressions.Regex.Match(content, "\"note\"\\s*:\\s*\"([^\"]+)\"");
+            return Normalize(
+                nameMatch.Groups[1].Value,
+                noteMatch.Success ? noteMatch.Groups[1].Value : "");
         }
+    }
+
+    private static RecognitionResultDto? Normalize(string? name, string? note)
+    {
+        var trimmedName = name?.Trim() ?? "";
+        var trimmedNote = note?.Trim() ?? "";
+
+        if (trimmedName.Length is 0 or > 200)
+            return null;
+
+        if (trimmedNote.Length > 2000)
+            return null;
+
+        return new RecognitionResultDto(trimmedName, trimmedNote);
     }
 
     private static string GetMimeType(string contentType) => contentType switch
