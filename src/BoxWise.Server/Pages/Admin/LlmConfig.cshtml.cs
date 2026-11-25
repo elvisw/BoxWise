@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using BoxWise.Server.Data;
-using BoxWise.Server.Models;
+using BoxWise.Server.Services;
 
 namespace BoxWise.Server.Pages.Admin;
 
@@ -36,7 +36,7 @@ public class LlmConfigModel : PageModel
 
     public async Task OnGetAsync()
     {
-        var entity = await _db.LlmConfigs.FindAsync(1);
+        var entity = await _db.LlmConfigs.FindAsync(LlmConfigWriter.ConfigId);
         if (entity is not null)
         {
             BaseUrl = entity.BaseUrl ?? "";
@@ -59,29 +59,22 @@ public class LlmConfigModel : PageModel
 
         TimeoutSeconds = Math.Clamp(TimeoutSeconds, 5, 120);
 
-        try
+        var result = await LlmConfigWriter.SaveAsync(
+            _db,
+            new LlmConfigUpdate(BaseUrl, ApiKey, Model, TimeoutSeconds));
+
+        if (result.Status == LlmConfigWriteStatus.Saved)
         {
-            var entity = await _db.LlmConfigs.FindAsync(1);
-            if (entity is null)
-            {
-                entity = new LlmConfig { Id = 1 };
-                _db.LlmConfigs.Add(entity);
-            }
-
-            entity.BaseUrl = BaseUrl.Trim();
-            if (!string.IsNullOrWhiteSpace(ApiKey))
-                entity.ApiKey = ApiKey.Trim();
-            entity.Model = Model.Trim();
-            entity.TimeoutSeconds = TimeoutSeconds;
-
-            await _db.SaveChangesAsync();
             StatusMessage = "LLM 配置已保存";
-            HasApiKey = !string.IsNullOrWhiteSpace(entity.ApiKey);
+            HasApiKey = !string.IsNullOrWhiteSpace(result.Config?.ApiKey);
             ApiKey = ""; // Clear from BindProperty to prevent HTML source leakage
         }
-        catch (DbUpdateException)
+        else
         {
-            ErrorMessage = "保存失败，请重试";
+            ErrorMessage = result.Status == LlmConfigWriteStatus.KeyRequired
+                ? LlmConfigWriter.KeyRequiredMessage
+                : LlmConfigWriter.ConflictMessage;
+            HasApiKey = !string.IsNullOrWhiteSpace(result.Config?.ApiKey);
         }
 
         return Page();

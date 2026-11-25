@@ -164,7 +164,7 @@ Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门
 | `LocationService` | Scoped | 位置 CRUD + 描述/照片；写结果分为 Success/Rejected/NotFound/Unknown |
 | `LocationSaveCoordinator` | 静态 | 先资料、后照片的纯编排；资料失败/未知不触发照片，重试沿用已创建 ID |
 | `TagService` | Scoped | 标签 CRUD |
-| `AiService` | Scoped | AI 识别（客户端直调火山 ARK API，30s 超时，静默降级） |
+| `AiService` | Scoped | AI 识别（客户端直调配置的 Chat Completions 端点，30s 超时，静默降级） |
 
 ---
 

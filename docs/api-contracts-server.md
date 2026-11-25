@@ -9,7 +9,7 @@
 - **授权:** 全局 `FallbackPolicy = RequireAuthenticatedUser`，匿名端点显式标记 `.AllowAnonymous()`
 - **错误返回:** `TypedResults.Problem()` + `ProblemDetails`
 - **所有端点:** 均需要 `.ProducesProblem(401)` 注解
-- **端点注册顺序（Program.cs）:** Auth → Locations → Location Photos → Images → Items → Tags → WebAuthn → Admin2FA
+- **端点注册顺序（Program.cs）:** Auth → Locations → Location Photos → Images → Items → Tags → WebAuthn → Admin2FA → LlmConfig
 
 ---
 
@@ -285,9 +285,27 @@ DELETE /api/tags/{id}  → 204 NoContent | 404
 
 ---
 
-## 7. AI 识别 — 已退役
+## 7. LLM 配置 — `/api/llm/config`
 
-> AI 识别已迁移至客户端浏览器直调火山 ARK API。详见 Story 12.1。
+> AI 识别在浏览器端直接调用配置的 Chat Completions 端点，服务端不代理推理请求。
+
+```
+GET /api/llm/config  → 200 LlmConfigDto | 401
+PUT /api/llm/config  → 200 LlmConfigDto | 400 | 401 | 403 | 409
+```
+
+### GET `/api/llm/config`
+
+任意已登录用户可读，返回 `{ BaseUrl, ApiKey, Model, TimeoutSeconds }`。
+
+### PUT `/api/llm/config`
+
+仅 Admin。请求体同 `LlmConfigDto`。
+
+- `BaseUrl` 必填；可填 API 根地址或完整 Chat Completions 地址。客户端对根地址追加 `/chat/completions`，已以该后缀结尾则原样使用，查询参数保留；火山 ARK 裸域名 `https://ark.cn-beijing.volces.com` 特别映射到 `/api/v3/chat/completions`。
+- `ApiKey` 为空时保留原 Key，但仅限 URL 文本未变化（可只改模型/超时）或协议、主机、有效端口均可证明相同（可改路径/查询）。更换来源或 URL 无法证明同源（包括无效旧 URL）时必须提供新 Key，否则返回 400 且不修改已存配置。
+- 保存使用条件更新：UPDATE 的谓词同时固定读取时的 `BaseUrl` 和 `ApiKey` 快照，URL 与 Key 在同一语句写入。并发修改使谓词失效时重新读取并再次校验；持续冲突返回 409，响应只包含通用提示，不包含任何 Key、URL 或模型值。
+- 仅使用 Bearer 认证；响应不回显其他凭据。服务端不限制输出长度，也不覆盖思考/推理模式。
 
 ---
 

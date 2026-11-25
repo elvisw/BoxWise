@@ -174,16 +174,25 @@ boxwise.example.com {
 
 ### 3. 生产配置
 
-AI 识别功能通过服务端数据库管理，API 密钥在启动时从环境变量自动种子入库，后续可通过 Admin 后台（`/admin/llm-config`）在线更新。
+AI 识别功能通过服务端数据库管理，API 密钥在启动时从环境变量自动种子入库，后续可通过 Admin 后台（`/admin/llm-config`）在线更新。识别请求由浏览器直接发送到配置的端点，服务端不代理推理请求。
 
 **LLM API 配置（环境变量）：**
 
 | 环境变量 | 说明 | 默认值 |
 |----------|------|--------|
-| `LlmApi__BaseUrl` | LLM API 地址 | —（必填） |
+| `LlmApi__BaseUrl` | LLM API 根地址或完整 Chat Completions 地址 | —（必填） |
 | `LlmApi__ApiKey` | API 密钥 | —（必填） |
 | `LlmApi__Model` | 模型名称 | `doubao-seed-2-0-pro-260215` |
 | `LlmApi__TimeoutSeconds` | 超时秒数 | `30` |
+
+`LlmApi__BaseUrl` 可以填根地址，也可以填完整端点：根地址自动追加 `/chat/completions`，已以该后缀结尾则原样使用，查询参数保留。火山 ARK 使用 `https://ark.cn-beijing.volces.com/api/v3`（或裸域名，自动补 `/api/v3/chat/completions`）；DeepSeek 示例使用 `https://api.deepseek.com`，模型填 `deepseek-flash`。以上为 provider 配置示例，不代表已用真实账号验证；实际识别需用有效 Key 自行验证。
+
+浏览器会从最终用户的网络直连该地址，因此：
+
+- 端点必须支持 HTTPS 与 CORS 预检，允许部署站点 Origin、`POST`、`authorization` 和 `content-type`；HTTPS 页面不能调用 HTTP 端点。
+- 请求只使用 `Authorization: Bearer <ApiKey>`。
+- ApiKey 留空时，仅当 API 地址不变（例如只改模型或超时）或协议、主机和有效端口可证明相同（此时可改路径/查询）时保留原 Key；更换来源或地址无法证明同源（包括无效旧地址）时必须填写新 Key。轮换 Key 时直接填入新值保存即可，无需重启服务；已打开的页面会缓存配置，保存后刷新页面再识别。多个管理员同时保存时，URL 与 Key 会作为一组条件更新，冲突会被拒绝并提示刷新后重试。
+- BoxWise 不限制输出长度，也不覆盖思考/推理模式；服务商默认值可能影响延迟和费用。
 
 `LlmApi__BaseUrl` 和 `LlmApi__ApiKey` 均非空时，种子数据在启动时自动创建配置记录。后续可通过 Admin 后台（登录后访问 `/admin/llm-config`）在线更新，无需重启服务。
 

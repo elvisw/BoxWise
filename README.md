@@ -10,7 +10,7 @@
 
 ## 功能一览
 
-- **拍照录入 + AI 识别** — 拍照后自动识别物品名称，客户端直调火山 ARK API（30s 超时静默降级为手动输入）
+- **拍照录入 + AI 识别** — 拍照后自动识别物品名称，客户端直调配置的 OpenAI 兼容 Vision 端点（30s 超时静默降级为手动输入）
 - **层级位置管理** — 用户自定义任意深度位置树，物化路径（通过存储完整路径字符串实现任意深度层级）
 - **标签系统** — 多对多标签，跨位置组合筛选
 - **连续收纳** — 录入时自动继承上次使用的位置
@@ -125,18 +125,29 @@ cd src/BoxWise.Client && dotnet run
 
 ### AI 识别（可选）
 
-AI 识别为可选功能。未配置时拍照后自动切换为手动输入，不阻塞录入。v1 通过客户端浏览器直调火山引擎 ARK API（doubao-seed-2-0-pro-260215）。
+AI 识别为可选功能。未配置时拍照后自动切换为手动输入，不阻塞录入。识别请求由浏览器直接发送到配置的 OpenAI 兼容 Chat Completions 端点（默认火山 ARK `doubao-seed-2-0-pro-260215`），不经过 BoxWise 服务端代理。
 
 **配置方式：** 通过 Server 端环境变量 `LlmApi__*` 注入（种子数据自动入库），或部署后通过 Admin 后台 `/admin/llm-config` 在线管理。
 
 | 环境变量 | 说明 | 必填 |
 |----------|------|:--:|
-| `LlmApi__BaseUrl` | LLM API 地址 | 是 |
+| `LlmApi__BaseUrl` | LLM API 根地址或完整 Chat Completions 地址 | 是 |
 | `LlmApi__ApiKey` | API 密钥 | 是 |
 | `LlmApi__Model` | 模型名称（默认 `doubao-seed-2-0-pro-260215`） | 否 |
 | `LlmApi__TimeoutSeconds` | 超时秒数（默认 30） | 否 |
 
-API 调用超时 30s，失败时静默降级为手动输入。
+`LlmApi__BaseUrl` 的写法：
+
+- 填 API 根地址时自动追加 `/chat/completions`；已以 `/chat/completions` 结尾则原样使用，查询参数会保留。
+- 火山 ARK：`https://ark.cn-beijing.volces.com/api/v3`，或裸域名 `https://ark.cn-beijing.volces.com`（自动使用 `/api/v3/chat/completions`）。
+- DeepSeek 示例：`https://api.deepseek.com`，模型填 `deepseek-flash`。
+- 其他 OpenAI 兼容网关：填其根路径（如 `https://gateway.example.com/openai/v1`）或完整端点。
+
+以上 URL 和模型是 provider 配置示例，不代表已用真实账号验证；实际识别需用有效 Key 自行验证。
+
+请求只使用 `Authorization: Bearer <ApiKey>`。浏览器直连要求端点支持 HTTPS 与 CORS（允许本站 Origin、`POST`、`authorization`、`content-type`）；HTTPS 页面不能调用 HTTP 端点，混合内容会被浏览器拦截。ApiKey 留空时，仅当 API 地址不变（例如只改模型或超时）或修改后的协议、主机和有效端口可证明相同（此时可改路径/查询）时才会保留原 Key；更换来源或地址无法证明同源（包括无效旧地址）时必须填写新 Key。轮换 Key 时在 Admin 后台填入新值保存即可，无需重启服务；已打开的页面会缓存配置，保存后刷新页面再识别。多个管理员同时保存时，URL 与 Key 会作为一组条件更新，冲突会被拒绝并提示刷新后重试。
+
+API 调用超时默认 30s，失败时静默降级为手动输入。BoxWise 不限制输出长度，也不覆盖思考/推理模式；服务商默认值可能影响延迟和费用。
 
 ### SMTP 邮件配置（可选）
 
@@ -711,9 +722,10 @@ docker compose logs -f
 检查以下项目：
 
 1. Server 端 `LlmApi__ApiKey` 环境变量是否已配置（种子数据自动入库）
-2. Admin 后台 `/admin/llm-config` 查看配置是否正确
+2. Admin 后台 `/admin/llm-config` 查看配置是否正确；更改来源或地址无法证明同源（包括无效旧地址）后是否重新填写了 ApiKey
 3. 客户端浏览器是否能连通 API 端点（网络防火墙、代理等）
-4. 30s 超时是否太短（部分模型首次推理较慢）
+4. 端点是否允许本站 Origin 的 CORS 预检（`POST`、`authorization`、`content-type`）；HTTPS 页面不能调用 HTTP 端点
+5. 30s 超时是否太短（部分模型首次推理较慢）
 
 确认无误后重新部署。API 调用失败时自动降级为手动输入，不阻塞录入。
 
