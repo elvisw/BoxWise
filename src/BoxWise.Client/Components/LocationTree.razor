@@ -31,6 +31,7 @@ else
 @code {
     [Parameter] public int? SelectedLocationId { get; set; }
     [Parameter] public EventCallback<int?> SelectedLocationIdChanged { get; set; }
+    [Parameter] public EventCallback<LocationDto?> SelectedLocationChanged { get; set; }
 
     private List<TreeItemData<LocationDto>> TreeItems = [];
     private LocationDto? _selectedValue;
@@ -101,6 +102,7 @@ else
     {
         _selectedValue = value;
         SelectedLocationId = value?.Id;
+        await SelectedLocationChanged.InvokeAsync(value);
         await SelectedLocationIdChanged.InvokeAsync(SelectedLocationId);
     }
 

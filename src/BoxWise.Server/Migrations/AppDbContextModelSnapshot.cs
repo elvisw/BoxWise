@@ -15,7 +15,7 @@ namespace BoxWise.Server.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
             modelBuilder.Entity("BoxWise.Server.Models.AppUser", b =>
                 {
@@ -193,6 +193,9 @@ namespace BoxWise.Server.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Description")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -204,6 +207,10 @@ namespace BoxWise.Server.Migrations
                     b.Property<string>("Path")
                         .IsRequired()
                         .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PhotoFileName")
+                        .HasMaxLength(260)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("SortOrder")

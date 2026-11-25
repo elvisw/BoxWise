@@ -36,14 +36,16 @@ Caddy (443→80)
 ```
 
 **持久化:**
-- `./data:/app/data` — SQLite + 图片 + Data Protection 密钥环 + SMTP 加密配置
+- `./data:/app/data` — SQLite + 物品图片 + 位置照片（`location-photos/`）+ Data Protection 密钥环 + SMTP 加密配置
 - `./data/caddy:/data` — Caddy 证书
+
+**位置照片备份说明：** 位置照片保存在 `<DataDirectory>/location-photos/`，文件名由服务器生成。数据库中的 `Locations.PhotoFileName` 是唯一指针；备份时必须同时备份 SQLite 数据库与该目录，只恢复其中一项会导致照片 404。位置照片目录与物品图片目录隔离，删除位置不会影响同编号物品图片。
 
 **环境变量:**
 | 变量 | 说明 |
 |------|------|
 | `ASPNETCORE_URLS` | 监听地址（生产推荐 `http://unix:/opt/boxwise/boxwise.sock`） |
-| `DataDirectory` | 数据目录（含 `keys/` 密钥环、`images/` 图片、`smtp-config.json`） |
+| `DataDirectory` | 数据目录（含 `keys/` 密钥环、`location-photos/` 位置照片、物品图片、`smtp-config.json`） |
 | `ConnectionStrings__DefaultConnection` | SQLite 连接字符串 |
 | `Admin__Password` | 管理员创建密码 |
 | `Admin__Username` | 管理员用户名（默认 admin） |
@@ -129,7 +131,9 @@ server {
     ssl_certificate     /path/to/fullchain.pem;
     ssl_certificate_key /path/to/privkey.pem;
 
-    client_max_body_size 10m;
+    # 单张照片严格限制 10 MiB；multipart 边界/字段头另需空间
+    # 建议至少 11m，否则恰好 10 MiB 的照片会被代理拒绝
+    client_max_body_size 11m;
 
     location / {
         proxy_pass http://127.0.0.1:5000;
@@ -151,6 +155,8 @@ server {
 
 **Caddy 反代示例（宿主机直接安装）：**
 
+> Caddy 默认不限制请求体大小；如果显式配置了 `request_body` 上限，请设为至少 11 MiB，以容纳 10 MiB 照片加 multipart 开销。
+
 ```caddyfile
 boxwise.example.com {
     reverse_proxy localhost:5000 {
@@ -162,6 +168,9 @@ boxwise.example.com {
 ```
 
 > **注意：** 独立部署模式下不包含 TLS 终止，需在反向代理层配置 HTTPS 证书。ASP.NET Core 的 Cookie 策略在生产环境（`ASPNETCORE_ENVIRONMENT=Production`）自动设为 `SameSite=Lax` + `SecurePolicy=Always`，与自有反代兼容。
+>
+> 位置照片路径为 `/api/locations/{id}/photo`，服务端返回 `Cache-Control: no-store`；不要在反向代理上为它配置公共缓存，以免替换照片后仍看到旧图。
+> 照片 `PUT` 只接受一个字段名为 `file` 的 multipart 文件，并需要 `X-Requested-With: XMLHttpRequest`（CSRF）。端点自行设置 10 MiB + multipart 开销的请求边界，物品上传的全局 10 MiB 表单限制不变；反向代理的请求体上限仍建议至少 11 MiB，否则恰好 10 MiB 的照片会在代理层被拒绝。
 
 ### 3. 生产配置
 

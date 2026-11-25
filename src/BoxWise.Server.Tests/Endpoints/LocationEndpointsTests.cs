@@ -1,9 +1,11 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using BoxWise.Server.Endpoints;
 using BoxWise.Server.Repositories;
+using BoxWise.Server.Services;
 using BoxWise.Shared.Dtos;
 
 namespace BoxWise.Server.Tests.Endpoints;
@@ -26,13 +28,29 @@ public class LocationEndpointsTests
         return httpContext.Response.StatusCode;
     }
 
+    private static LocationPhotoStore CreatePhotoStore()
+    {
+        var directory = Path.Combine(
+            Path.GetTempPath(), $"boxwise-location-photo-{Guid.NewGuid():N}");
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataDirectory"] = directory
+            })
+            .Build();
+
+        return new LocationPhotoStore(configuration);
+    }
+
     [Fact] public async Task GetAllLocationsAsync_ReturnsOk() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); await r.CreateAsync("客厅", null); await r.CreateAsync("卧室", null); Assert.Equal(200, await InvokeAsync("GetAllLocationsAsync", r)); }
     [Fact] public async Task GetChildrenAsync_ReturnsOk() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); var p = await r.CreateAsync("客厅", null); await r.CreateAsync("电视机柜", p.Id); Assert.Equal(200, await InvokeAsync("GetChildrenAsync", p.Id, r)); }
     [Fact] public async Task CreateLocationAsync_Root_ReturnsCreated() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); Assert.Equal(201, await InvokeAsync("CreateLocationAsync", new CreateLocationRequest("客厅", null, 0), r)); }
     [Fact] public async Task CreateLocationAsync_Child_ReturnsCreated() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); var p = await r.CreateAsync("客厅", null); Assert.Equal(201, await InvokeAsync("CreateLocationAsync", new CreateLocationRequest("电视机柜", p.Id, 0), r)); }
     [Fact] public async Task CreateLocationAsync_EmptyName_ReturnsProblem() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); Assert.Equal(400, await InvokeAsync("CreateLocationAsync", new CreateLocationRequest("", null, 0), r)); }
-    [Fact] public async Task RenameLocationAsync_Success() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); var l = await r.CreateAsync("客厅", null); Assert.Equal(200, await InvokeAsync("RenameLocationAsync", l.Id, new RenameLocationRequest("卧室"), r)); }
-    [Fact] public async Task RenameLocationAsync_NotFound() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); Assert.Equal(404, await InvokeAsync("RenameLocationAsync", 999, new RenameLocationRequest("x"), r)); }
+    [Fact] public async Task UpdateLocationAsync_Success() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); var l = await r.CreateAsync("客厅", null); Assert.Equal(200, await InvokeAsync("UpdateLocationAsync", l.Id, new UpdateLocationRequest("卧室"), r)); }
+    [Fact] public async Task UpdateLocationAsync_NotFound() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); Assert.Equal(404, await InvokeAsync("UpdateLocationAsync", 999, new UpdateLocationRequest("x"), r)); }
+    [Fact] public async Task GetLocationByIdAsync_ReturnsOk() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); var l = await r.CreateAsync("客厅", null); Assert.Equal(200, await InvokeAsync("GetLocationByIdAsync", l.Id, r)); }
+    [Fact] public async Task GetLocationByIdAsync_NotFound() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); Assert.Equal(404, await InvokeAsync("GetLocationByIdAsync", 999, r)); }
     [Fact] public async Task GetChildrenAsync_NotFound() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); Assert.Equal(404, await InvokeAsync("GetChildrenAsync", 999, r)); }
-    [Fact] public async Task DeleteLocationAsync_Leaf_ReturnsNoContent() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); var l = await r.CreateAsync("抽屉", null); Assert.Equal(204, await InvokeAsync("DeleteLocationAsync", l.Id, r)); Assert.False(db.Locations.Any(x => x.Id == l.Id)); }
+    [Fact] public async Task DeleteLocationAsync_Leaf_ReturnsNoContent() { using var db = TestDbContextFactory.Create(); var r = new LocationRepository(db); var l = await r.CreateAsync("抽屉", null); var store = CreatePhotoStore(); Assert.Equal(204, await InvokeAsync("DeleteLocationAsync", l.Id, r, store)); Assert.False(db.Locations.Any(x => x.Id == l.Id)); }
 }

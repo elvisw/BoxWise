@@ -7,6 +7,8 @@ public class Location
     public string Path { get; set; } = string.Empty;
     public int? ParentId { get; set; }
     public int SortOrder { get; set; }
+    public string? Description { get; set; }
+    public string? PhotoFileName { get; set; }
 
     public Location? Parent { get; set; }
     public ICollection<Location> Children { get; set; } = new List<Location>();

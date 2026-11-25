@@ -9,7 +9,7 @@
 - **授权:** 全局 `FallbackPolicy = RequireAuthenticatedUser`，匿名端点显式标记 `.AllowAnonymous()`
 - **错误返回:** `TypedResults.Problem()` + `ProblemDetails`
 - **所有端点:** 均需要 `.ProducesProblem(401)` 注解
-- **端点注册顺序（Program.cs）:** Auth → Locations → Images → Items → Tags → WebAuthn → Admin2FA
+- **端点注册顺序（Program.cs）:** Auth → Locations → Location Photos → Images → Items → Tags → WebAuthn → Admin2FA
 
 ---
 
@@ -106,26 +106,86 @@ POST   /api/auth/webauthn/login-complete             → 200 Ok<AuthUserDto> | 4
 ## 3. 位置 (Location) — `/api/locations`
 
 ```
-GET    /api/locations              → 200 List<LocationDto>
-POST   /api/locations              → 201 Created<LocationDto> | 400
-PUT    /api/locations/{id}         → 200 Ok<LocationDto> | 400 | 404
-DELETE /api/locations/{id}         → 204 NoContent | 400 | 404
-GET    /api/locations/{id}/children → 200 List<LocationDto> | 404
+GET    /api/locations                        → 200 List<LocationDto>
+GET    /api/locations/{id}                   → 200 LocationDto | 404
+POST   /api/locations                        → 201 Created<LocationDto> | 400
+PUT    /api/locations/{id}                   → 200 Ok<LocationDto> | 400 | 404
+DELETE /api/locations/{id}                   → 204 NoContent | 200 LocationCleanupWarning | 400 | 404
+GET    /api/locations/{id}/children          → 200 List<LocationDto> | 404
+GET    /api/locations/{id}/photo             → 200 PhysicalFile | 404
+PUT    /api/locations/{id}/photo             → 200 Ok<LocationDto> | 400 | 404
+DELETE /api/locations/{id}/photo             → 204 NoContent | 200 LocationCleanupWarning | 404
 ```
+
+所有端点均需要登录；未认证请求返回 401。
+位置照片的 `PUT`/`DELETE` 是写操作，复用项目 `CsrfValidationFilter`：请求必须带
+`X-Requested-With: XMLHttpRequest`，否则返回 400。
 
 ### POST `/api/locations`
 
-**请求:** `{ "name": "string", "parentId": int?, "sortOrder": 0 }`
+**请求:** `{ "name": "string", "parentId": int?, "sortOrder": 0, "description": "string?" }`
 
-**约束:** 名称 1-100 字符，Trim() 处理
+**约束:** 名称 1-100 字符，Trim() 处理。描述可选，规则见下。
+
+### GET `/api/locations/{id}`
+
+返回单个位置元数据，包括描述、`hasPhoto` 和展示用完整名称路径 `namePath`（如 `"书房 → 抽屉"`）。
+物品详情页用它判断是否显示「查看位置照片」入口，不通过试探图片 URL 判断。
 
 ### PUT `/api/locations/{id}`
 
-**请求:** `{ "name": "string" }`
+**请求:** `{ "name": "string", "description": "string?" }`
+
+| 情形 | 行为 |
+|------|------|
+| `description` 省略 | 保持原描述不变（可用于仅改名） |
+| `description` 为 `""` 或 `null` | 清除描述 |
+| `description` 为文本 | 去除首尾空白后保存；超过 300 个 Unicode 字素簇返回 400 |
+
+描述换行保留在字符串内部；去除首尾空白后全空白视为无描述。服务端不静默截断。
 
 ### DELETE `/api/locations/{id}`
 
-**约束:** 有子节点或有关联物品时返回 400
+**约束:** 有子节点或有关联物品时返回 400，位置、描述和照片均不变。
+服务端使用单条条件 `DELETE ... WHERE Id = @id AND NOT EXISTS (子位置) AND NOT EXISTS (物品)`
+在同一 SQLite 语句内完成检查与删除；并发移入物品时语句不匹配任何行，不会删除位置，也不会经由外键
+`SetNull` 清空物品的位置。
+
+空位置删除成功后，同时清理该位置的描述和照片文件：
+
+- 正常：`204 NoContent`
+- 数据库删除已提交、但照片文件清理失败：`200 OK` + `{ "cleanupWarning": true }`。客户端应显示删除成功与清理警告两条信息，**不要重试删除**。
+
+### GET `/api/locations/{id}/photo`
+
+仅当数据库中的照片指针已提交时读取文件；文件缺失或 MIME 与文件头不一致时返回 404。
+
+**响应头:** `Cache-Control: no-store`（位置照片不进入 PWA 图片缓存，也不使用 `/api/images/`）。
+
+### PUT `/api/locations/{id}/photo`
+
+**请求:** `multipart/form-data`，只允许一个字段名为 `file` 的文件；额外字段或第二个文件返回 400。
+**请求头:** `X-Requested-With: XMLHttpRequest`（CSRF）。
+
+**限制:**
+- 文件本身严格限制 10 MiB（10,485,760 字节）；端点自行设置请求体边界（10 MiB + multipart 开销），不修改全局 `FormOptions`，物品上传仍保持原有 10 MiB 表单限制。
+- 只接受能实际解码的 JPG/PNG/WebP（使用 SkiaSharp 验证像素数据，不仅检查扩展名或声明 MIME）；声明 MIME 不属于白名单时直接拒绝。
+- 像素验证策略：不依赖 `SKCodec.GetScaledDimensions`/子区域接口（并非所有 codec 支持）。JPEG 使用逐行全图 scanline 扫描（每块 ≤64 行、单行 ≤256 KiB），不分配整图缓冲；WebP 使用 512px 缩放解码（仍完整校验像素数据）；PNG 等不支持缩放/scanline 的格式使用受像素数与并发限制的完整解码。
+- 完整解码仅用于兜底，限制为 32 MP / 128 MiB，并在进程内串行执行（同一时刻最多一块完整像素缓冲）。超过该安全边界的图片（典型为 >32 MP 的 PNG）返回 400 `图片尺寸过大，无法安全处理，请换一张照片。`；常见 12 MP/27 MP PNG、48 MP JPEG 和 WebP 仍可处理。该边界是解码炸弹防护，不改变 10 MiB 文件上限或格式白名单。
+- 每个位置最多 1 张；上传成功即替换旧照片，响应为更新后的 `LocationDto`。
+- 写入顺序：暂存 → 发布文件 → 提交数据库指针 → 清理旧文件。发布失败或数据库明确未提交时保留旧照片。
+- 数据库提交结果无法确认时（例如 `SaveChanges` 在提交后失败），服务端用新的数据库连接重新读取已提交指针：仅当新文件确实未被引用时才清理；否则保留。响应仍为错误，不会伪装成回滚；客户端把 5xx 视为 Unknown，提示重新核对而不是自动重提。
+- 请求体超过边界时返回 413；格式/大小/多文件/像素尺寸等验证失败返回 400。
+
+### DELETE `/api/locations/{id}/photo`
+
+**请求头:** `X-Requested-With: XMLHttpRequest`（CSRF）。
+
+移除照片并清空指针；没有照片时仍返回 204（幂等）。
+
+文件清理失败时返回 `200 OK` + `{ "cleanupWarning": true }`，此时指针已清空，照片 GET 返回 404。
+数据库提交结果无法确认时，端点同样用新连接重新读取指针：仅确认文件已不再被引用时才清理；
+否则保留文件并返回错误，客户端按 Unknown 处理，提示重新核对。
 
 ---
 
@@ -307,9 +367,25 @@ POST /api/admin/users/{userId}/two-factor/reset    → 200 Ok | 401 | 403 | 404 
 |------|------|------|
 | `id` | `int` | |
 | `name` | `string` | |
-| `path` | `string` | |
+| `path` | `string` | 内部 ID 链（如 `/1/5/`），客户端用于构建层级 |
 | `parentId` | `int?` | |
 | `sortOrder` | `int` | |
+| `description` | `string?` | 规范化后的位置描述；无描述为 `null` |
+| `hasPhoto` | `bool` | 位置元数据中的照片有无；入口可见性只看此字段 |
+| `namePath` | `string?` | 展示用完整名称路径（`A → B → C`） |
+
+### UpdateLocationRequest
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `name` | `string` | 必填 |
+| `description` | `string?` | 省略 = 不变；`""`/`null` = 清除 |
+
+### LocationCleanupWarning
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `cleanupWarning` | `bool` | 数据库删除/指针清空已提交，但磁盘文件清理失败 |
 
 ### TagDto
 
@@ -354,12 +430,21 @@ POST /api/admin/users/{userId}/two-factor/reset    → 200 Ok | 401 | 403 | 404 
 | `ItemService.DeleteAsync` | DELETE `api/items/{id}` | - |
 | `ItemEntryService.CreateItemAsync` | POST `api/items` | CreateItemRequest |
 | `LocationService.GetAllAsync` | GET `api/locations` | - |
+| `LocationService.GetByIdAsync` | GET `api/locations/{id}` | - |
 | `LocationService.CreateAsync` | POST `api/locations` | CreateLocationRequest |
-| `LocationService.RenameAsync` | PUT `api/locations/{id}` | RenameLocationRequest |
+| `LocationService.UpdateAsync` | PUT `api/locations/{id}` | UpdateLocationRequest |
 | `LocationService.DeleteAsync` | DELETE `api/locations/{id}` | - |
+| `LocationService.UploadPhotoAsync` | PUT `api/locations/{id}/photo` | MultipartFormData |
+| `LocationService.RemovePhotoAsync` | DELETE `api/locations/{id}/photo` | - |
+| `LocationService.GetPhotoAsync` | GET `api/locations/{id}/photo` | -（按需） |
 | `TagService.GetAllAsync` | GET `api/tags` | - |
 | `TagService.CreateAsync` | POST `api/tags` | CreateTagRequest |
 | `TagService.RenameAsync` | PUT `api/tags/{id}` | RenameTagRequest |
 | `TagService.DeleteAsync` | DELETE `api/tags/{id}` | - |
 | Image Upload (ItemEntry) | POST `api/images/upload` | MultipartFormData |
 | Image Serve (ItemCard/ItemDetail) | GET `api/images/{id}?type=thumb\|medium` | - |
+
+**写结果语义:** `2xx` 为成功；`400`（校验/CSRF）、`413`（请求体过大）等确定的业务拒绝为 Rejected；
+`404` 为 NotFound；`5xx` 或响应丢失为 Unknown（服务端可能在提交后失败，客户端不自动重提，
+提示重新核对）。`LocationSaveCoordinator` 负责“先资料、后照片”的编排：资料明确失败或未知时不发送照片操作，
+重试沿用已创建位置的 ID。

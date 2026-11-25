@@ -20,6 +20,12 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
 
         builder.HasIndex(x => x.Path);
 
+        // 描述只按 Unicode 字素簇校验（300 字），不在存储层截断。
+        builder.Property(x => x.Description);
+
+        builder.Property(x => x.PhotoFileName)
+            .HasMaxLength(260);
+
         builder.HasOne(x => x.Parent)
             .WithMany(x => x.Children)
             .HasForeignKey(x => x.ParentId)

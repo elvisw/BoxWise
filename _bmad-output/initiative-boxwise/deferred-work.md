@@ -197,3 +197,9 @@
 - [ ] **管理员重置 2FA 未清 Identity authenticator key 与 Identity 恢复码** — `Endpoints/AdminTwoFactorEndpoints.cs:75-87` 与 `Pages/Admin/ResetTwoFactor.cshtml.cs:65` 只清自定义 `TotpSecretKey` 与 `RecoveryCodes` 表；Identity token store 的 authenticator key 与恢复码仍在。用户重新启用 TOTP 会沿用旧密钥，旧恢复码在重新开启 2FA 后仍有效。修复方向：重置时调用 `ResetAuthenticatorKeyAsync` 与 `GenerateNewTwoFactorRecoveryCodesAsync(user, 0)`，并补测试。
 - [ ] **`Manage/Disable2fa` 关闭 2FA 不清理恢复码、不轮换 SecurityStamp** — `Areas/Identity/Pages/Account/Manage/Disable2fa.cshtml.cs:59-61` 只置 `TwoFactorEnabled=false`、`ConfiguredMethods=None`；自定义恢复码、Identity 恢复码、`TotpSecretKey`、WebAuthn 凭证都保留。重新启用 2FA 后旧恢复码仍有效，已有会话不被失效。修复方向：复用 `RecoveryCodeService.DisableTwoFactorAsync` 或等价清理。
 - [ ] **`DisableTwoFactorAsync` 失败路径会产生 500 且状态已部分落库** — `Services/RecoveryCodeService.cs:100-113`：`UpdateAsync` + `SaveChangesAsync` 已提交 2FA 关闭，随后 `GenerateNewTwoFactorRecoveryCodesAsync(user, 0)` 失败会抛 `InvalidOperationException`，页面 500 但 2FA 实际已关闭。修复方向：改为返回结果对象并在页面提示，或先完成 token store 清理再提交用户状态；补失败路径测试。
+
+## Deferred from: 位置照片实现评审
+
+- source_plan: `_bmad-output/backlog/story-location-photo-and-description-plan.md`
+  summary: 真机核对「拍照」按钮在权限允许、拒绝和取消时的表现（未验证）。
+  evidence: 桌面浏览器无法证明手机原生拍照选择器的行为。在 iOS Safari 和 Android Chrome 检查按钮首次点击可用、取消不报错、可检测的权限错误有提示且仍可从设备选图。

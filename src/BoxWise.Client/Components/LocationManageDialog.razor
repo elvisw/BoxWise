@@ -1,94 +1,238 @@
 @namespace BoxWise.Client.Components
 @using BoxWise.Shared.Dtos
+@using BoxWise.Shared.Text
 @inject LocationService LocationService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">管理位置</MudText>
     </TitleContent>
     <DialogContent>
-        @if (!string.IsNullOrEmpty(_error))
+        <div @ref="_noticeRegion" tabindex="-1" style="outline:none;">
+            @if (_notice is { } notice)
+            {
+                <MudPaper Elevation="0" Class="pa-3 mb-3"
+                          Style="background:#F5F5F5;border-radius:4px;">
+                    <div class="d-flex flex-wrap align-start" style="gap:8px;">
+                        <MudIcon Icon="@GetNoticeIcon(notice.Kind)"
+                                 Color="@GetNoticeColor(notice.Kind)"
+                                 Size="Size.Small" Class="mt-1" />
+                        <div class="flex-grow-1" style="min-width:200px;">
+                            <div role="@(notice.Kind == NoticeKind.Error ? "alert" : "status")">
+                                <MudText Typo="Typo.body2">@notice.Text</MudText>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(notice.Detail))
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Default" Class="mt-1">
+                                    @notice.Detail
+                                </MudText>
+                            }
+                            <div class="d-flex flex-wrap mt-1" style="gap:8px;">
+                                @if (notice.Retry != RetryKind.None && CanRetryPhotoAction)
+                                {
+                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                               OnClick="RetryAsync"
+                                               Style="min-height:44px;"
+                                               Disabled="@_saving">
+                                        @(notice.Retry == RetryKind.UploadPhoto
+                                            ? "重试上传"
+                                            : "重试移除照片")
+                                    </MudButton>
+                                }
+                                @if (notice.Dismissible)
+                                {
+                                    <MudButton Variant="Variant.Text"
+                                               OnClick="DismissNotice"
+                                               Style="min-height:44px;">
+                                        关闭提示
+                                    </MudButton>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </MudPaper>
+            }
+        </div>
+
+        <div class="bw-visually-hidden" role="status" aria-live="polite">@FieldErrorAnnouncement</div>
+
+        @if (_loadError is not null)
         {
-            <MudText Color="Color.Error" Class="mb-2">@_error</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Error" Class="mb-2">@_loadError</MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       OnClick="LoadAsync" Style="min-height:44px;" Class="mb-3">
+                重试
+            </MudButton>
         }
 
-        @if (_mode == Mode.Create)
+        @if (_mode is Mode.Create or Mode.Edit)
         {
-            <MudPaper Class="pa-3 mb-3" Elevation="0" Style="background:#F5F5F5;">
-                <MudText Typo="Typo.subtitle2" Class="mb-2">添加位置</MudText>
-                <MudTextField @bind-Value="_createName" Label="位置名称"
-                              Variant="Variant.Outlined" Immediate="true" Class="mb-2" />
-                <MudSelect T="int?" Label="父节点" Value="_createParentId"
-                           ValueChanged="OnCreateParentChanged"
-                           ToStringFunc="GetParentDisplayName"
-                           Variant="Variant.Outlined" Class="mb-2">
-                    <MudSelectItem Value="default(int?)">根位置（无父节点）</MudSelectItem>
-                    @foreach (var kv in _displayNames)
-                    {
-                        <MudSelectItem Value="kv.Key">@kv.Value</MudSelectItem>
-                    }
-                </MudSelect>
-                <div class="d-flex gap-2">
-                    <MudButton OnClick="SaveCreateAsync" Color="Color.Primary"
-                               Variant="Variant.Filled" Disabled="@(_saving)">保存</MudButton>
-                    <MudButton OnClick="CancelEdit">取消</MudButton>
+            <MudPaper Elevation="0" Class="pa-3 mb-3"
+                      Style="background:#F5F5F5;border-radius:4px;">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">
+                    @(_mode == Mode.Create ? "添加位置" : "编辑位置")
+                </MudText>
+
+                <MudTextField @bind-Value="_formName"
+                              @bind-Value:after="ValidateName"
+                              Label="位置名称（必填）"
+                              Required="true"
+                              Variant="Variant.Outlined"
+                              Immediate="true"
+                              Class="mb-2"
+                              Disabled="@_saving"
+                              Error="@(_nameError is not null)"
+                              ErrorText="@_nameError" />
+
+                @if (_mode == Mode.Create)
+                {
+                    <MudSelect T="int?" Label="上级位置"
+                               Value="_formParentId"
+                               ValueChanged="OnCreateParentChanged"
+                               ToStringFunc="GetParentDisplayName"
+                               Variant="Variant.Outlined"
+                               Class="mb-2"
+                               Disabled="@_saving">
+                        <MudSelectItem T="int?" Value="@((int?)null)">根位置（无父节点）</MudSelectItem>
+                        @foreach (var kv in _displayNames)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)kv.Key)">@kv.Value</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        <strong>上级位置：</strong>@GetParentDisplayName(_formParentId)
+                    </MudText>
+                }
+
+                <MudTextField @bind-Value="_formDescription"
+                              @bind-Value:after="ValidateDescription"
+                              Label="描述（可选）"
+                              Lines="3"
+                              Variant="Variant.Outlined"
+                              Immediate="true"
+                              Class="mb-1"
+                              HelperText="最多 300 字；保存后在浏览页完整显示，换行会保留。"
+                              Disabled="@_saving"
+                              Error="@(_descriptionError is not null)"
+                              ErrorText="@_descriptionError" />
+
+                <LocationPhotoField LocationId="@(_editingId ?? 0)"
+                                    HasSavedPhoto="_existingHasPhoto"
+                                    LocationPath="@FormPath"
+                                    SavedLocationPath="@_editingLocation?.NamePath"
+                                    NewPhoto="_photoSelection"
+                                    NewPhotoChanged="OnPhotoSelectionChanged"
+                                    RemoveRequested="_removePhoto"
+                                    RemoveRequestedChanged="OnRemovePhotoChanged"
+                                    Disabled="@(_saving || _photoBusy)"
+                                    ValidationErrorChanged="OnPhotoValidationChanged"
+                                    ProcessingChanged="OnPhotoProcessingChanged" />
+
+                <div class="d-flex flex-wrap mt-3" style="gap:8px;">
+                    <MudButton OnClick="SaveAsync"
+                               Color="Color.Primary"
+                               Variant="Variant.Filled"
+                               Style="min-height:44px;"
+                               Disabled="@(!CanSave)">
+                        @(_saving ? "保存中..." : "保存")
+                    </MudButton>
+                    <MudButton OnClick="CancelFormAsync"
+                               Variant="Variant.Text"
+                               Style="min-height:44px;"
+                               Disabled="@_saving">
+                        取消
+                    </MudButton>
                 </div>
             </MudPaper>
         }
         else
         {
-            <MudButton OnClick="StartCreate" Variant="Variant.Filled"
-                       Color="Color.Primary" Class="mb-3" StartIcon="@Icons.Material.Filled.Add">
-                添加位置
-            </MudButton>
+            @if (_mode != Mode.Delete)
+            {
+                <MudButton OnClick="StartCreate"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           Class="mb-3"
+                           Style="min-height:44px;"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           Disabled="@(_saving || _loadError is not null)">
+                    添加位置
+                </MudButton>
+            }
         }
 
-        @if (_flatList.Count == 0 && _mode != Mode.Create)
+        @if (_flatList.Count == 0 && _mode != Mode.Create && _loadError is null)
         {
             <MudText Typo="Typo.body2" Color="Color.Default">暂无位置，请添加第一个位置</MudText>
         }
 
         @foreach (var node in _flatList)
         {
-            <div class="d-flex align-center py-1" style="padding-left: @(node.Depth * 24)px;">
-                @if (_renamingId == node.Id)
+            <div class="d-flex align-center py-1" style="padding-left:@(node.Depth * 24)px;gap:4px;">
+                @if (_deletingId == node.Id)
                 {
-                    <MudTextField @bind-Value="_renameName" Label="新名称"
-                                  Variant="Variant.Outlined" Immediate="true"
-                                  Class="flex-grow-1" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small"
-                                   Color="Color.Success" OnClick="() => SaveRenameAsync(node.Id)"
-                                   Disabled="@(_saving)" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
-                                   OnClick="CancelEdit" />
-                }
-                else if (_deletingId == node.Id)
-                {
-                    <MudText Class="flex-grow-1">确认删除 <strong>@node.Name</strong>？</MudText>
-                    <MudButton OnClick="() => ConfirmDeleteAsync(node.Id)"
-                               Color="Color.Error" Variant="Variant.Filled"
-                               Size="Size.Small" Class="mr-2" Disabled="@(_saving)">删除</MudButton>
-                    <MudButton OnClick="CancelEdit" Size="Size.Small">取消</MudButton>
+                    <div @ref="_deleteConfirmRegion" tabindex="-1" class="flex-grow-1"
+                         style="outline:none;"
+                         @onkeydown="OnDeleteKeyDown"
+                         @onkeydown:stopPropagation>
+                        <MudText Typo="Typo.body2">
+                            <strong>@node.Name</strong>
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Default"
+                                 id="@($"delete-location-desc-{node.Id}")">
+                            删除位置会同时移除它的描述和照片；有子位置或物品时无法删除。
+                        </MudText>
+                        <div class="d-flex flex-wrap mt-1" style="gap:8px;">
+                            <MudButton OnClick="() => ConfirmDeleteAsync(node.Id)"
+                                       Color="Color.Error"
+                                       Variant="Variant.Outlined"
+                                       Style="min-height:44px;"
+                                       aria-describedby="@($"delete-location-desc-{node.Id}")"
+                                       Disabled="@_saving">
+                                删除
+                            </MudButton>
+                            <MudButton OnClick="CancelFormAsync"
+                                       Variant="Variant.Text"
+                                       Style="min-height:44px;"
+                                       Disabled="@_saving">
+                                取消
+                            </MudButton>
+                        </div>
+                    </div>
                 }
                 else
                 {
-                    <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" Class="mr-2" Color="Color.Primary" />
-                    <MudText Class="flex-grow-1">@node.Name</MudText>
+                    <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small"
+                             Class="mr-1" Color="Color.Primary" />
+                    <MudText Class="flex-grow-1" Style="overflow-wrap:anywhere;">@node.Name</MudText>
                     @if (_mode == Mode.None)
                     {
                         <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                       Style="min-width:44px;min-height:44px;"
+                                       Disabled="@(_saving || _loadError is not null)"
                                        OnClick="() => StartCreateChild(node.Id)" title="添加子位置" />
                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
-                                       OnClick="() => StartRename(node)" title="重命名" />
+                                       Style="min-width:44px;min-height:44px;"
+                                       Disabled="@(_saving || _loadError is not null)"
+                                       OnClick="() => StartEdit(node)" title="编辑位置" />
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
-                                       OnClick="() => StartDelete(node)" Color="Color.Error" title="删除" />
+                                       id="@($"delete-location-{node.Id}")"
+                                       Style="min-width:44px;min-height:44px;"
+                                       Disabled="@(_saving || _loadError is not null)"
+                                       OnClick="() => StartDeleteAsync(node)" Color="Color.Error" title="删除" />
                     }
                 }
             </div>
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Close">完成</MudButton>
+        <MudButton OnClick="Close" Style="min-height:44px;"
+                   Disabled="@(_saving || _photoBusy)">完成</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -96,25 +240,85 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = null!;
 
-    private enum Mode { None, Create, Rename, Delete }
+    private enum Mode { None, Create, Edit, Delete }
+
+    private enum NoticeKind { Error, Warning, Info }
+
+    private enum RetryKind { None, UploadPhoto, RemovePhoto }
+
+    private sealed record Notice(
+        NoticeKind Kind,
+        string Text,
+        string? Detail = null,
+        RetryKind Retry = RetryKind.None,
+        bool Dismissible = false);
+
+    private sealed record FlatNode(int Id, string Name, int? ParentId, int Depth);
 
     private List<LocationDto> _allLocations = [];
     private List<FlatNode> _flatList = [];
     private Dictionary<int, string> _displayNames = [];
     private Mode _mode;
-    private string? _error;
+    private string? _loadError;
+    private string? _nameError;
+    private string? _descriptionError;
+    private bool _photoError;
+    private bool _photoBusy;
     private bool _saving;
+    private Notice? _notice;
+    private ElementReference _noticeRegion;
+    private ElementReference _deleteConfirmRegion;
 
-    // Create state
-    private string _createName = "";
-    private int? _createParentId;
+    private int? _editingId;
+    private LocationDto? _editingLocation;
+    private string _formName = "";
+    private string _formDescription = "";
+    private int? _formParentId;
+    private bool _existingHasPhoto;
+    private LocationPhotoSelection? _photoSelection;
+    private bool _removePhoto;
+    private bool _metadataSavedInThisAttempt;
+    private bool _createdInCurrentForm;
+    private bool _unknownOutcomePending;
 
-    // Rename state
-    private int? _renamingId;
-    private string _renameName = "";
-
-    // Delete state
     private int? _deletingId;
+    private string? _deleteFocusId;
+
+    private bool CanSave =>
+        !_saving
+        && !_photoBusy
+        && !_unknownOutcomePending
+        && !_photoError
+        && _descriptionError is null
+        && !string.IsNullOrWhiteSpace(_formName);
+
+    private string FieldErrorAnnouncement => _nameError ?? _descriptionError ?? "";
+
+    private bool HasUnsavedMetadataChanges =>
+        _editingLocation is { } saved
+        && (_formName.Trim() != saved.Name
+            || GraphemeRules.NormalizeDescription(_formDescription) != saved.Description
+            || _formParentId != saved.ParentId);
+
+    private bool CanRetryPhotoAction =>
+        !HasUnsavedMetadataChanges
+        && _notice?.Retry switch
+        {
+            RetryKind.UploadPhoto => _photoSelection is not null,
+            RetryKind.RemovePhoto => _removePhoto && _existingHasPhoto,
+            _ => false
+        };
+
+    private string FormPath
+    {
+        get
+        {
+            var name = string.IsNullOrWhiteSpace(_formName) ? "新位置" : _formName.Trim();
+            if (_formParentId is int parentId)
+                return $"{GetParentDisplayName(parentId)} → {name}";
+            return _editingLocation?.NamePath ?? name;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -123,9 +327,17 @@
 
     private async Task LoadAsync()
     {
-        _allLocations = await LocationService.GetAllAsync();
-        _displayNames = BuildDisplayNames();
-        _flatList = BuildFlatList();
+        try
+        {
+            _allLocations = await LocationService.GetAllAsync();
+            _displayNames = BuildDisplayNames();
+            _flatList = BuildFlatList();
+            _loadError = null;
+        }
+        catch
+        {
+            _loadError = "加载位置失败，请重试。";
+        }
     }
 
     private Dictionary<int, string> BuildDisplayNames()
@@ -138,7 +350,20 @@
                 .Select(s => int.TryParse(s, out var id) && idToName.TryGetValue(id, out var n) ? n : "?");
             result[loc.Id] = string.Join(" > ", names);
         }
+
         return result;
+    }
+
+    private void UpdateLocationRow(LocationDto dto)
+    {
+        var index = _allLocations.FindIndex(l => l.Id == dto.Id);
+        if (index >= 0)
+            _allLocations[index] = dto;
+        else
+            _allLocations.Add(dto);
+
+        _displayNames = BuildDisplayNames();
+        _flatList = BuildFlatList();
     }
 
     private List<FlatNode> BuildFlatList()
@@ -162,56 +387,148 @@
         }
     }
 
-    private void StartCreate()
+    private void StartCreate() => StartCreateCore(null);
+
+    private void StartCreateChild(int parentId) => StartCreateCore(parentId);
+
+    private void StartCreateCore(int? parentId)
     {
-        _error = null;
-        _createName = "";
-        _createParentId = null;
+        if (_loadError is not null) return;
+
         _mode = Mode.Create;
+        _editingId = null;
+        _editingLocation = null;
+        _formName = "";
+        _formDescription = "";
+        _formParentId = parentId;
+        _nameError = null;
+        _descriptionError = null;
+        _photoError = false;
+        _photoBusy = false;
+        _existingHasPhoto = false;
+        _photoSelection = null;
+        _removePhoto = false;
+        _notice = null;
+        _createdInCurrentForm = false;
+        _metadataSavedInThisAttempt = false;
+        _unknownOutcomePending = false;
+        _deletingId = null;
     }
 
-    private void StartCreateChild(int parentId)
+    private void StartEdit(FlatNode node)
     {
-        _error = null;
-        _createName = "";
-        _createParentId = parentId;
-        _mode = Mode.Create;
+        if (_loadError is not null) return;
+
+        var dto = _allLocations.FirstOrDefault(l => l.Id == node.Id);
+        if (dto is null) return;
+
+        _mode = Mode.Edit;
+        _editingId = dto.Id;
+        _editingLocation = dto;
+        _formName = dto.Name;
+        _formDescription = dto.Description ?? "";
+        _formParentId = dto.ParentId;
+        _nameError = null;
+        _descriptionError = null;
+        _photoError = false;
+        _photoBusy = false;
+        _existingHasPhoto = dto.HasPhoto;
+        _photoSelection = null;
+        _removePhoto = false;
+        _notice = null;
+        _deletingId = null;
+        _metadataSavedInThisAttempt = false;
+        _createdInCurrentForm = false;
+        _unknownOutcomePending = false;
     }
 
     private void OnCreateParentChanged(int? value)
     {
-        _createParentId = value;
+        _formParentId = value;
     }
 
     private string GetParentDisplayName(int? id) =>
         id.HasValue && _displayNames.TryGetValue(id.Value, out var name) ? name : "根位置";
 
-    private async Task SaveCreateAsync()
+    private void ValidateName()
     {
-        if (string.IsNullOrWhiteSpace(_createName)) return;
+        _nameError = string.IsNullOrWhiteSpace(_formName) ? "位置名称不能为空。" : null;
+    }
 
-        _error = null;
+    private void ValidateDescription()
+    {
+        var normalized = GraphemeRules.NormalizeDescription(_formDescription);
+        _descriptionError = GraphemeRules.IsDescriptionWithinLimit(normalized)
+            ? null
+            : GraphemeRules.DescriptionTooLongMessage;
+    }
+
+    private void OnPhotoSelectionChanged(LocationPhotoSelection? selection)
+    {
+        _photoSelection = selection;
+        if (selection is not null)
+            _removePhoto = false;
+
+        // 照片意图变化后，旧失败提示对应的重试已失效。
+        if (_notice?.Retry != RetryKind.None)
+            _notice = null;
+    }
+
+    private void OnRemovePhotoChanged(bool requested)
+    {
+        _removePhoto = requested;
+        if (requested)
+            _photoSelection = null;
+
+        if (_notice?.Retry != RetryKind.None)
+            _notice = null;
+    }
+
+    private void OnPhotoValidationChanged(bool hasError)
+    {
+        _photoError = hasError;
+    }
+
+    private void OnPhotoProcessingChanged(bool busy)
+    {
+        _photoBusy = busy;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving || _photoBusy) return;
+
+        _notice = null;
+        _metadataSavedInThisAttempt = false;
+        ValidateName();
+        ValidateDescription();
+
+        if (_nameError is not null || _descriptionError is not null || _photoError)
+            return;
+
         _saving = true;
-
+        await InvokeAsync(StateHasChanged);
         try
         {
-            var sortOrder = _allLocations.Count(l => l.ParentId == _createParentId);
-            var request = new CreateLocationRequest(_createName.Trim(), _createParentId, sortOrder);
-            var result = await LocationService.CreateAsync(request);
-            if (result is not null)
+            var request = BuildSaveRequest(isCreate: _mode == Mode.Create);
+            var result = await ExecuteSaveAsync(request);
+            await ApplySaveResultAsync(result, request.IsCreate);
+        }
+        catch (Exception)
+        {
+            if (_metadataSavedInThisAttempt)
             {
-                CancelEdit();
-
-                await LoadAsync();
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error,
+                    "位置资料已保存，但界面更新失败。请关闭后重新打开核对。"));
             }
             else
             {
-                _error = "创建失败，请检查输入";
+                _unknownOutcomePending = true;
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error,
+                    "保存结果暂时无法确认。请关闭表单重新打开核对。"));
             }
-        }
-        catch (Exception ex)
-        {
-            _error = $"创建失败：{ex.Message}";
         }
         finally
         {
@@ -219,38 +536,184 @@
         }
     }
 
-    private void StartRename(FlatNode node)
+    private LocationSaveRequest BuildSaveRequest(
+        bool isCreate, bool forceNoMetadataChange = false)
     {
-        _error = null;
-        _renamingId = node.Id;
-        _renameName = node.Name;
-        _mode = Mode.Rename;
+        var existing = forceNoMetadataChange ? _editingLocation : null;
+        var name = existing?.Name ?? _formName.Trim();
+        var description = existing is not null ? existing.Description : _formDescription;
+        var parentId = existing is not null ? existing.ParentId : _formParentId;
+
+        return new LocationSaveRequest(
+            IsCreate: isCreate,
+            ExistingLocation: _editingLocation,
+            Name: name,
+            Description: description,
+            ParentId: parentId,
+            SortOrder: _allLocations.Count(l => l.ParentId == parentId),
+            HasSavedPhoto: _existingHasPhoto,
+            NewPhotoBytes: _photoSelection?.Bytes,
+            NewPhotoContentType: _photoSelection?.ContentType,
+            NewPhotoFileName: _photoSelection?.FileName,
+            RemovePhoto: _removePhoto);
     }
 
-    private async Task SaveRenameAsync(int id)
+    private async Task<LocationSaveResult> ExecuteSaveAsync(LocationSaveRequest request)
     {
-        if (string.IsNullOrWhiteSpace(_renameName)) return;
+        var operations = new LocationSaveOperations(
+            (createRequest, ct) => LocationService.CreateAsync(createRequest, ct),
+            (id, updateRequest, ct) => LocationService.UpdateAsync(id, updateRequest, ct),
+            (id, bytes, contentType, fileName, ct) =>
+                LocationService.UploadPhotoAsync(id, bytes, contentType, fileName, ct),
+            (id, ct) => LocationService.RemovePhotoAsync(id, ct));
 
-        _error = null;
+        return await LocationSaveCoordinator.SaveAsync(request, operations);
+    }
+
+    private async Task ApplySaveResultAsync(LocationSaveResult result, bool isCreateAttempt)
+    {
+        _metadataSavedInThisAttempt = result.MetadataSaved;
+
+        if (result.Location is not null)
+        {
+            _editingLocation = result.Location;
+            _editingId = result.Location.Id;
+            _formParentId = result.Location.ParentId;
+            _existingHasPhoto = result.Location.HasPhoto;
+            UpdateLocationRow(result.Location);
+
+            if (result.MetadataSaved)
+            {
+                // 字段在保存期间禁用；用服务端规范化后的已确认值同步表单，
+                // 这样仅照片失败时的重试不会被误判为“还有未保存的资料修改”。
+                _formName = result.Location.Name;
+                _formDescription = result.Location.Description ?? "";
+            }
+
+            if (result.Created)
+            {
+                _mode = Mode.Edit;
+                _createdInCurrentForm = true;
+            }
+        }
+
+        switch (result.Status)
+        {
+            case LocationSaveStatus.MetadataUnknown:
+                _unknownOutcomePending = true;
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error,
+                    isCreateAttempt
+                        ? "暂时无法确认是否创建成功。请关闭表单查看位置列表。如果该位置已出现，请编辑它并补传照片，不要再次创建。"
+                        : "保存结果暂时无法确认。请关闭表单重新打开，核对位置资料是否已更新。"));
+                return;
+
+            case LocationSaveStatus.MetadataRejected:
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error,
+                    isCreateAttempt
+                        ? "创建失败，位置没有保存。"
+                        : "保存失败，位置资料没有保存。",
+                    result.Error));
+                return;
+
+            case LocationSaveStatus.MetadataNotFound:
+                await HandleMissingLocationAsync(photoStep: false);
+                return;
+
+            case LocationSaveStatus.PhotoUnknown:
+            case LocationSaveStatus.RemoveUnknown:
+                _unknownOutcomePending = true;
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error,
+                    "位置和描述已保存，照片状态暂时无法确认。请关闭后重新打开核对。"));
+                return;
+
+            case LocationSaveStatus.PhotoNotFound:
+            case LocationSaveStatus.RemoveNotFound:
+                await HandleMissingLocationAsync(photoStep: true);
+                return;
+
+            case LocationSaveStatus.PhotoRejected:
+                var photoText = (result.Created || _createdInCurrentForm)
+                    ? "位置已创建，照片未上传。可重试或稍后补传。"
+                    : !_existingHasPhoto
+                        ? _metadataSavedInThisAttempt
+                            ? "名称和描述已保存，照片上传失败。"
+                            : "照片上传失败。"
+                        : _metadataSavedInThisAttempt
+                            ? "名称和描述已保存，照片替换失败。原照片仍保留。"
+                            : "照片替换失败，原照片仍保留。";
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error, photoText, result.Error, RetryKind.UploadPhoto));
+                return;
+
+            case LocationSaveStatus.RemoveRejected:
+                var removeText = _metadataSavedInThisAttempt
+                    ? "照片移除失败，原照片仍保留。描述已保存。"
+                    : "照片移除失败，原照片仍保留。";
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error, removeText, result.Error, RetryKind.RemovePhoto));
+                return;
+
+            default:
+                if (result.CleanupWarning)
+                {
+                    await ShowNoticeAsync(new Notice(
+                        NoticeKind.Warning,
+                        "照片已移除，但照片文件清理未完成。位置资料已保存。",
+                        Dismissible: true));
+                }
+
+                await FinishFormAsync();
+                Snackbar.Add("位置资料已保存", Severity.Success);
+                return;
+        }
+    }
+
+    private async Task HandleMissingLocationAsync(bool photoStep)
+    {
+        ResetFormState();
+        await LoadAsync();
+        await ShowNoticeAsync(new Notice(
+            NoticeKind.Error,
+            photoStep
+                ? "该位置已不存在，照片操作未完成。位置列表已重新加载。"
+                : "该位置已不存在，资料未保存。位置列表已重新加载。"));
+    }
+
+    private async Task RetryAsync()
+    {
+        if (_saving || _photoBusy || _notice is null || _notice.Retry == RetryKind.None) return;
+        if (!CanRetryPhotoAction) return;
+
+        if (_editingLocation is null) return;
+
+        _notice = null;
+        _metadataSavedInThisAttempt = false;
         _saving = true;
+        await InvokeAsync(StateHasChanged);
         try
         {
-            var request = new RenameLocationRequest(_renameName.Trim());
-            var result = await LocationService.RenameAsync(id, request);
-            if (result is not null)
+            var request = BuildSaveRequest(isCreate: false, forceNoMetadataChange: true);
+            var result = await ExecuteSaveAsync(request);
+            await ApplySaveResultAsync(result, isCreateAttempt: false);
+        }
+        catch (Exception)
+        {
+            if (_metadataSavedInThisAttempt)
             {
-                CancelEdit();
-
-                await LoadAsync();
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error,
+                    "位置资料已保存，但界面更新失败。请关闭后重新打开核对。"));
             }
             else
             {
-                _error = "重命名失败";
+                _unknownOutcomePending = true;
+                await ShowNoticeAsync(new Notice(
+                    NoticeKind.Error,
+                    "位置和描述已保存，照片状态暂时无法确认。请关闭后重新打开核对。"));
             }
-        }
-        catch (Exception ex)
-        {
-            _error = $"重命名失败：{ex.Message}";
         }
         finally
         {
@@ -258,34 +721,154 @@
         }
     }
 
-    private void StartDelete(FlatNode node)
+    private void DismissNotice()
     {
-        _error = null;
+        _notice = null;
+    }
+
+    private async Task FinishFormAsync()
+    {
+        ResetFormState();
+        await LoadAsync();
+    }
+
+    private async Task CancelFormAsync()
+    {
+        if (_saving) return;
+
+        var wasDeleting = _mode == Mode.Delete;
+        var deleteFocusId = _deleteFocusId;
+        var refresh = _createdInCurrentForm || _unknownOutcomePending;
+        ResetFormState();
+        _notice = null;
+        if (refresh)
+            await LoadAsync();
+
+        if (wasDeleting && deleteFocusId is not null)
+        {
+            try
+            {
+                await InvokeAsync(StateHasChanged);
+                await Task.Yield();
+                await JS.InvokeVoidAsync("boxwiseLocationPhoto.focusById", deleteFocusId);
+            }
+            catch (JSException)
+            {
+                // 焦点恢复失败不影响取消。
+            }
+        }
+    }
+
+    private void ResetFormState()
+    {
+        _mode = Mode.None;
+        _editingId = null;
+        _editingLocation = null;
+        _formName = "";
+        _formDescription = "";
+        _formParentId = null;
+        _nameError = null;
+        _descriptionError = null;
+        _photoError = false;
+        _photoBusy = false;
+        _existingHasPhoto = false;
+        _photoSelection = null;
+        _removePhoto = false;
+        _deletingId = null;
+        _deleteFocusId = null;
+        _metadataSavedInThisAttempt = false;
+        _createdInCurrentForm = false;
+        _unknownOutcomePending = false;
+    }
+
+    private async Task StartDeleteAsync(FlatNode node)
+    {
+        if (_loadError is not null) return;
+
         _deletingId = node.Id;
+        _deleteFocusId = $"delete-location-{node.Id}";
         _mode = Mode.Delete;
+        _notice = null;
+
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+
+        try
+        {
+            await _deleteConfirmRegion.FocusAsync();
+        }
+        catch (JSException)
+        {
+            // 元素尚未渲染时保持现有焦点即可。
+        }
+    }
+
+    private void OnDeleteKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            _ = CancelFormAsync();
     }
 
     private async Task ConfirmDeleteAsync(int id)
     {
-        _error = null;
+        if (_saving) return;
+
         _saving = true;
+        _notice = null;
+        await InvokeAsync(StateHasChanged);
         try
         {
-            var ok = await LocationService.DeleteAsync(id);
-            if (ok)
-            {
-                CancelEdit();
+            var outcome = await LocationService.DeleteAsync(id);
 
-                await LoadAsync();
-            }
-            else
+            switch (outcome.Status)
             {
-                _error = "删除失败：该位置下可能还有子位置或物品";
+                case LocationDeleteStatus.Deleted:
+                    ResetFormState();
+                    await LoadAsync();
+                    Snackbar.Add("位置已删除", Severity.Success);
+
+                    if (outcome.CleanupWarning)
+                    {
+                        await ShowNoticeAsync(new Notice(
+                            NoticeKind.Warning,
+                            "位置已删除，但位置照片文件清理失败。请稍后检查存储。",
+                            Dismissible: true));
+                    }
+
+                    break;
+
+                case LocationDeleteStatus.Rejected:
+                    await ShowNoticeAsync(new Notice(
+                        NoticeKind.Error,
+                        string.IsNullOrWhiteSpace(outcome.Error)
+                            ? "删除失败：该位置下还有子位置或物品。"
+                            : outcome.Error));
+                    break;
+
+                case LocationDeleteStatus.NotFound:
+                    ResetFormState();
+                    await LoadAsync();
+                    await ShowNoticeAsync(new Notice(
+                        NoticeKind.Info, "该位置已不存在，位置列表已刷新。"));
+                    break;
+
+                default:
+                    ResetFormState();
+                    await LoadAsync();
+                    await ShowNoticeAsync(new Notice(
+                        NoticeKind.Error,
+                        "暂时无法确认是否删除成功。位置列表已重新加载，请核对。"));
+                    break;
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _error = $"删除失败：{ex.Message}";
+            // 请求可能已在服务端提交；不能把异常当成“删除失败”。
+            ResetFormState();
+            await LoadAsync();
+            await ShowNoticeAsync(new Notice(
+                NoticeKind.Error,
+                "暂时无法确认是否删除成功。位置列表已重新加载，请核对。"));
         }
         finally
         {
@@ -293,19 +876,40 @@
         }
     }
 
-    private void CancelEdit()
+    private async Task ShowNoticeAsync(Notice notice)
     {
-        _mode = Mode.None;
-        _renamingId = null;
-        _deletingId = null;
-        _createName = "";
-        _error = null;
+        _notice = notice;
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+
+        try
+        {
+            await _noticeRegion.FocusAsync();
+        }
+        catch (JSException)
+        {
+            // 焦点不是成功提示的必要条件。
+        }
     }
+
+    private static string GetNoticeIcon(NoticeKind kind) => kind switch
+    {
+        NoticeKind.Error => Icons.Material.Filled.ErrorOutline,
+        NoticeKind.Warning => Icons.Material.Filled.WarningAmber,
+        _ => Icons.Material.Filled.Info
+    };
+
+    private static Color GetNoticeColor(NoticeKind kind) => kind switch
+    {
+        NoticeKind.Error => Color.Error,
+        NoticeKind.Warning => Color.Warning,
+        _ => Color.Info
+    };
 
     private void Close()
     {
+        // 保存/删除进行中禁用关闭；用户可用表单内的取消在非忙碌时退出。
+        if (_saving || _photoBusy) return;
         MudDialog.Close();
     }
-
-    private record FlatNode(int Id, string Name, int? ParentId, int Depth);
 }
