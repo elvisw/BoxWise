@@ -74,6 +74,19 @@ cd src/BoxWise.Client && dotnet run
 
 ## 配置
 
+### 生产部署必查配置
+
+上线前请逐项确认。表中未列出的配置均有可用默认值或功能级降级，不是启动必需。
+
+| 项目 | 必需性 | 说明 | 缺失后果 |
+|------|--------|------|----------|
+| `Admin__Password` | 必需 | 管理员初始密码（首次启动创建管理员） | 不创建管理员，无法登录后台 |
+| `ConnectionStrings__DefaultConnection` | 必需 | SQLite 数据库路径 | 回退到开发相对路径 `Data Source=../../data/boxwise.db`，数据库可能落在发布目录之外 |
+| `DataDirectory` | 必需（持久化） | 数据目录，含 `keys/`、`images/`、`smtp-config.json`；Docker 需挂载卷 | 密钥环丢失会导致已加密数据无法解密 |
+| `WebAuthn__Origin` | 仅启用通行密钥时必需 | 浏览器实际访问的外部 HTTPS origin | 默认 `https://localhost:5001`，通行密钥不可用 |
+
+`WebAuthn__ServerDomain`（RP ID）建议显式固定，但代码在未配置时会从 `WebAuthn:Origin` 主机名推导，因此不是启动必填。SMTP、LLM 均为可选功能，未配置时对应功能降级或不可用。
+
 ### 管理员账户
 
 应用启动时通过配置自动创建管理员。**本地开发已预置，生产环境必须手动设置。**
@@ -144,6 +157,8 @@ SMTP 邮件服务用于发送账户相关邮件（如邮箱修改确认）。登
 
 > **端口选择指南：** 推荐使用 587（STARTTLS）以获得最佳兼容性。465（SSL/TLS）仅用于旧客户端。25 端口通常被云服务商屏蔽，不建议使用。
 
+> **部署检查：** 保存配置后请在 Admin 后台「SMTP 设置」发送一次测试邮件，确认真实 SMTP 的 TLS 与认证均可通过。SMTP 不是全站启动必需项，未配置时仅邮件相关功能不可用。
+
 常见邮箱提供商示例：
 
 | 提供商 | SMTP 服务器 | 端口 | 特殊说明 |
@@ -169,7 +184,11 @@ SMTP 邮件服务用于发送账户相关邮件（如邮箱修改确认）。登
 
 #### 生产环境
 
-**必须配置 `WebAuthn:Origin` 和 `WebAuthn:ServerDomain`**，否则 FIDO2 使用默认值 `localhost` 作为 RP ID，浏览器会因域名不匹配拒绝通行密钥操作。
+生产环境启用通行密钥时，**必须配置 `WebAuthn:Origin`**，值为浏览器地址栏实际使用的**外部 HTTPS origin**（协议 + 域名 + 非默认端口，不含路径），例如 `https://boxwise.example.com`。未配置时默认值是 `https://localhost:5001`，浏览器会因 origin 不匹配拒绝通行密钥操作。
+
+同时建议在发布检查中**显式固定 `WebAuthn:ServerDomain`** 为 RP ID（域名，不含协议、端口或路径）。代码在未配置该项时会从 `WebAuthn:Origin` 的主机名推导 RP ID，因此它不是启动必填；但显式配置可避免 Origin 调整时 RP ID 意外变化。
+
+> **升级注意：** 已部署实例沿用现有 RP ID，不要更换域名或随意改写 `WebAuthn:ServerDomain`，否则已注册的通行密钥会全部失效。不要把内网地址或反向代理地址当作 `WebAuthn:Origin` 填写，必须使用用户浏览器实际访问的公开 origin。
 
 **方式一：配置文件**
 
@@ -203,7 +222,9 @@ WebAuthn__Origin=https://你的域名
 WebAuthn__ServerDomain=你的域名
 ```
 
-> **常见错误：** 生产环境忘记配置 → 报错"浏览器验证失败，请确保设备支持通行密钥功能" → 检查 `WebAuthn:Origin` 和 `WebAuthn:ServerDomain` 是否已配置且与浏览器地址栏一致。
+> **常见错误：** 生产环境忘记配置 `WebAuthn:Origin` → 报错"浏览器验证失败，请确保设备支持通行密钥功能" → 检查 `WebAuthn:Origin` 是否与浏览器地址栏一致（协议、域名、端口均需匹配，且不含路径）。
+
+部署完成后请在真实设备上完成一次通行密钥注册与登录冒烟测试；`localhost` 白名单仅在 Development 环境生效。
 
 详见：[WebAuthn 通行密钥配置指南](docs/webauthn-setup-guide.md)
 

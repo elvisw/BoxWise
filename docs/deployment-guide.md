@@ -48,15 +48,15 @@ Caddy (443→80)
 | `Admin__Password` | 管理员创建密码 |
 | `Admin__Username` | 管理员用户名（默认 admin） |
 | `Admin__Email` | 管理员邮箱 |
-| `WebAuthn__Origin` | WebAuthn 允许的 origin（生产环境必需，如 `https://boxwise.example.com`） |
-| `WebAuthn__ServerDomain` | WebAuthn 服务器域名（默认从 Origin 解析） |
+| `WebAuthn__Origin` | 生产启用通行密钥时必需：浏览器实际访问的外部 HTTPS origin（协议 + 域名 + 非默认端口，不含路径），如 `https://boxwise.example.com` |
+| `WebAuthn__ServerDomain` | RP ID（域名，不含协议、端口或路径）；建议显式固定，未配置时从 `WebAuthn:Origin` 主机名推导 |
 
 **WebAuthn 配置说明：**
 
 | 配置键（JSON） | 环境变量 | 默认值 | 说明 |
 |---------------|---------|--------|------|
-| `WebAuthn:Origin` | `WebAuthn__Origin` | `https://localhost:5001` | WebAuthn 允许的 origin，与浏览器地址栏的协议+域名+端口一致 |
-| `WebAuthn:ServerDomain` | `WebAuthn__ServerDomain` | 从 Origin 解析的 Host | 服务器域名，用于 FIDO2 RP（Relying Party）标识 |
+| `WebAuthn:Origin` | `WebAuthn__Origin` | `https://localhost:5001` | 生产启用通行密钥时必需：浏览器实际访问的外部 HTTPS origin，与地址栏的协议+域名+端口一致，不含路径 |
+| `WebAuthn:ServerDomain` | `WebAuthn__ServerDomain` | 从 Origin 解析的 Host | RP ID（不含协议、端口或路径）；建议显式固定，未配置时代码从 Origin 主机名推导 |
 
 **Docker Compose 配置示例（含 WebAuthn + 2FA 配置）：**
 
@@ -74,7 +74,7 @@ services:
       - Admin__Username=admin
       - Admin__Email=admin@boxwise.local
       - Admin__Password=请替换为强密码
-      # WebAuthn（生产环境必需）
+      # WebAuthn（启用通行密钥时必需 WebAuthn__Origin；建议显式固定 ServerDomain）
       - WebAuthn__Origin=https://boxwise.example.com
       - WebAuthn__ServerDomain=boxwise.example.com
       # TOTP 2FA 配置
@@ -190,8 +190,16 @@ AI 识别功能通过服务端数据库管理，API 密钥在启动时从环境�
 ### 邮箱确认与密码找回
 
 - **SMTP 未配置时**：管理员创建账户后 `EmailConfirmed=false`，`忘记密码` 对未确认邮箱静默不发信；用户需联系管理员在后台重置密码。
-- **配置 SMTP 后**：用户需在「管理账户设置 → 邮箱 → 发送验证邮件」完成邮箱确认，之后才能使用密码找回。
+- **配置 SMTP 后**：用户需在「管理账户设置 → 邮箱 → 发送验证邮件」完成邮箱确认，之后才能使用密码找回。部署后请在 Admin 后台「SMTP 设置」用真实 SMTP 凭据验证 TLS 与认证，并**发送一次测试邮件**确认可达；SMTP 不是全站启动的必需项，未配置时仅影响邮件相关功能。
 - **警告：** 仅通行密钥的账户确认邮箱后，密码登录会被要求验证器码而当前无法完成，只能用恢复码关闭双重验证。在相关问题修复前，不要建议此类账户仅靠邮箱确认来启用找回密码。
+
+### 发布检查（v0.6.0）
+
+1. **通行密钥 origin**：启用通行密钥时，`WebAuthn__Origin` 必须等于浏览器实际访问的外部 HTTPS origin（协议 + 域名 + 非默认端口，不含路径）。不要用内网地址或反向代理地址代替公开 origin。
+2. **RP ID**：建议显式固定 `WebAuthn__ServerDomain` 为 RP ID（不含协议、端口或路径）。未配置时代码会从 `WebAuthn:Origin` 的主机名推导，因此不是启动必填项。
+3. **升级沿用 RP ID**：已有实例必须沿用现有 RP ID 和 origin，改写会导致已注册通行密钥全部失效。
+4. **真实设备冒烟**：部署后在真实设备上完成一次通行密钥注册与登录；`localhost` 白名单仅在 Development 环境生效。
+5. **SMTP**：如启用邮件功能，验证真实 SMTP 的 TLS/认证并发送测试邮件。
 
 ---
 
