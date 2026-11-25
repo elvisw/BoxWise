@@ -15,6 +15,14 @@ updates:
       include: "scope"
     # 安全更新不受 schedule 限制，随时触发
     open-pull-requests-limit: 10
+    # 这些包跟随 .NET LTS；跨主版本由人工评估，不过滤安全更新。
+    ignore:
+      - dependency-name: "Microsoft.AspNetCore.Components.WebAssembly.DevServer"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.EntityFrameworkCore.Tools"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.Http"
+        update-types: ["version-update:semver-major"]
     # Central Package Management 自动兼容，直接更新 Directory.Packages.props
     groups:
       microsoft-dotnet:
