@@ -197,7 +197,7 @@ AI 识别功能通过服务端数据库管理，API 密钥在启动时从环境�
 
 1. **通行密钥 origin**：启用通行密钥时，`WebAuthn__Origin` 必须等于浏览器实际访问的外部 HTTPS origin（协议 + 域名 + 非默认端口，不含路径）。不要用内网地址或反向代理地址代替公开 origin。
 2. **RP ID**：建议显式固定 `WebAuthn__ServerDomain` 为 RP ID（不含协议、端口或路径）。未配置时代码会从 `WebAuthn:Origin` 的主机名推导，因此不是启动必填项。
-3. **升级沿用 RP ID**：已有实例必须沿用现有 RP ID 和 origin，改写会导致已注册通行密钥全部失效。
+3. **升级沿用 RP ID**：已有实例应保留现有 RP ID 和公开 origin；更改 RP ID 会使现有凭据无法在新 RP ID 下使用。若迁移公开地址，另行确认新 origin 与现有 RP ID 兼容。
 4. **真实设备冒烟**：部署后在真实设备上完成一次通行密钥注册与登录；`localhost` 白名单仅在 Development 环境生效。
 5. **SMTP**：如启用邮件功能，验证真实 SMTP 的 TLS/认证并发送测试邮件。
 

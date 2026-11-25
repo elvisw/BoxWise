@@ -76,13 +76,13 @@ cd src/BoxWise.Client && dotnet run
 
 ### 生产部署必查配置
 
-上线前请逐项确认。表中未列出的配置均有可用默认值或功能级降级，不是启动必需。
+上线前请逐项确认。首次部署与已有实例升级的要求不同。
 
 | 项目 | 必需性 | 说明 | 缺失后果 |
 |------|--------|------|----------|
-| `Admin__Password` | 必需 | 管理员初始密码（首次启动创建管理员） | 不创建管理员，无法登录后台 |
-| `ConnectionStrings__DefaultConnection` | 必需 | SQLite 数据库路径 | 回退到开发相对路径 `Data Source=../../data/boxwise.db`，数据库可能落在发布目录之外 |
-| `DataDirectory` | 必需（持久化） | 数据目录，含 `keys/`、`images/`、`smtp-config.json`；Docker 需挂载卷 | 密钥环丢失会导致已加密数据无法解密 |
+| `Admin__Password` | 首次创建管理员时必需 | 设置管理员初始强密码；已有实例不必为升级重新设置 | 没有现有管理员时，不会创建管理员 |
+| `ConnectionStrings__DefaultConnection` | 生产应显式设置 | 指向持久化 SQLite 数据库；升级沿用原路径 | 默认的开发相对路径 `Data Source=../../data/boxwise.db` 可能指向错误位置 |
+| `DataDirectory` | 必须持久化目录；建议显式设置路径 | 包含 `keys/`、`images/`、`smtp-config.json`；Docker 需挂载卷 | 密钥环丢失会导致已加密数据无法解密 |
 | `WebAuthn__Origin` | 仅启用通行密钥时必需 | 浏览器实际访问的外部 HTTPS origin | 默认 `https://localhost:5001`，通行密钥不可用 |
 
 `WebAuthn__ServerDomain`（RP ID）建议显式固定，但代码在未配置时会从 `WebAuthn:Origin` 主机名推导，因此不是启动必填。SMTP、LLM 均为可选功能，未配置时对应功能降级或不可用。

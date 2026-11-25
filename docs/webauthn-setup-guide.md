@@ -4,7 +4,7 @@
 
 BoxWise 支持 WebAuthn（通行密钥）作为无密码登录方式。用户可以使用设备的指纹、面容或硬件密钥（如 YubiKey）登录，无需输入密码或验证码。
 
-WebAuthn 基于 [FIDO2 标准](https://fidoalliance.org/fido2/)，凭证与注册时的 **origin（协议 + 域名 + 端口）** 绑定。
+WebAuthn 基于 [FIDO2 标准](https://fidoalliance.org/fido2/)，凭证绑定到 **RP ID**；服务器另行校验请求的 **origin（协议 + 域名 + 端口）**。
 
 > **定位：** 通行密钥用于无密码登录，**不是密码登录的第二因素（2FA）**。密码登录的第二因素当前仅支持 TOTP，详见[安全模型与已知限制](#安全模型与已知限制)。
 
@@ -139,7 +139,7 @@ environment:
 
 ### 4. 升级与验收
 
-- **沿用现有 RP ID**：已有通行密钥的实例升级时，保持 `WebAuthn:ServerDomain` 与 `WebAuthn:Origin` 不变。更换域名或改写 RP ID 会让已注册凭据全部失效，用户需重新注册。
+- **沿用现有 RP ID**：已有通行密钥的实例升级时，保留现有 RP ID 和公开 origin。更改 RP ID 后，现有凭据不能在新 RP ID 下使用；若迁移公开地址，另行确认新 origin 与原 RP ID 兼容。
 - **localhost 仅在开发生效**：`https://localhost:5000`、`https://localhost:5001` 只在 `Development` 环境加入 `Origins`，生产不要依赖它们验证。
 - **真实设备冒烟**：部署后在真实手机/电脑上完成一次通行密钥注册和一次无密码登录，再尝试删除凭据。仅用 curl 或桌面浏览器无痕窗口不足以确认平台验证器可用。
 
