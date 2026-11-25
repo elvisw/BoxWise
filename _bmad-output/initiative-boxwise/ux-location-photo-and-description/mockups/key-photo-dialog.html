@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key screen — 共用查看弹窗</title>
+<style>
+/*
+  静态布局稿：共用查看弹窗
+  对应：
+  - EXPERIENCE.md · Component Patterns「位置照片弹窗 / 位置照片入口」
+  - EXPERIENCE.md · State Patterns「位置照片弹窗」
+  - EXPERIENCE.md · Interaction Primitives「弹窗」
+  - EXPERIENCE.md · Accessibility Floor「弹窗 / 可见关闭 / 图片替代文本」
+  - DESIGN.md · Layout & Spacing「位置照片弹窗」；Components「位置照片弹窗」
+  仅示意，无 JS、无网络；触控尺寸不按 1:1，实际以 DESIGN.md 的 44×44 规则为准。
+*/
+:root {
+  --primary: #546E7A;
+  --primary-dark: #3E5964;
+  --error: #EF5350;
+  --bg: #FAFAFA;
+  --muted: #F5F5F5;
+  --text: rgba(0, 0, 0, .87);
+  --secondary: rgba(0, 0, 0, .60);
+  --line: rgba(0, 0, 0, .12);
+  --shadow: 0 14px 40px rgba(20, 34, 42, .20);
+}
+* { box-sizing: border-box; }
+html { background: #E9EDF0; }
+body { margin: 0; padding: 36px 20px 64px; color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-size: 14px; line-height: 1.5; }
+.sheet { max-width: 1340px; margin: 0 auto; }
+.sheet-header { max-width: 920px; margin-bottom: 30px; }
+.eyebrow { display: inline-block; margin-bottom: 10px; padding: 3px 9px; border: 1px solid rgba(84,110,122,.35); border-radius: 999px; color: var(--primary-dark); font-size: 12px; letter-spacing: .04em; }
+h1 { margin: 0 0 8px; font-size: 25px; line-height: 1.25; letter-spacing: -.01em; }
+.lede { margin: 0; color: #455A64; font-size: 14px; max-width: 860px; }
+.static-note { margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--primary); background: rgba(255,255,255,.62); color: #455A64; font-size: 13px; }
+.static-note strong { color: var(--text); }
+.frames { display: flex; flex-wrap: wrap; gap: 34px 30px; align-items: flex-start; }
+.frame-block { width: 410px; }
+.frame-title { margin: 0 0 3px; font-size: 15px; font-weight: 650; }
+.frame-caption { margin: 0 0 14px; color: var(--secondary); font-size: 12.5px; min-height: 54px; }
+.phone { width: 410px; padding: 10px; border-radius: 42px; background: #161A1C; box-shadow: var(--shadow); }
+.screen { position: relative; width: 390px; height: 844px; overflow: hidden; border-radius: 32px; background: var(--bg); display: flex; flex-direction: column; }
+.statusbar { height: 28px; flex: 0 0 28px; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; color: #263238; font-size: 11px; font-weight: 650; }
+.status-icons { display: flex; gap: 5px; align-items: center; }
+.status-icons i { display: block; width: 3px; border-radius: 1px; background: #263238; }
+.status-icons i:nth-child(1) { height: 4px; } .status-icons i:nth-child(2) { height: 6px; } .status-icons i:nth-child(3) { height: 8px; }
+.battery { width: 17px; height: 8px; border: 1px solid #263238; border-radius: 2px; position: relative; }
+.battery::after { content: ""; position: absolute; right: -3px; top: 2px; width: 2px; height: 4px; background: #263238; border-radius: 0 1px 1px 0; }
+.battery::before { content: ""; position: absolute; left: 1px; top: 1px; bottom: 1px; width: 11px; background: #263238; border-radius: 1px; }
+.appbar { height: 56px; flex: 0 0 56px; display: flex; align-items: center; gap: 9px; padding: 0 12px; color: #fff; background: var(--primary); }
+.appbar .icon-button { width: 40px; height: 40px; }
+.icon-button { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: inherit; }
+.logo { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.65); border-radius: 6px; font-size: 13px; font-weight: 700; }
+.app-title { flex: 1; font-size: 17px; font-weight: 600; letter-spacing: .01em; }
+.app-user { font-size: 12px; opacity: .88; }
+.page-behind { flex: 1; padding: 14px 16px; opacity: .55; }
+.section-label { margin: 0 0 6px; font-size: 12px; font-weight: 650; }
+.tree-row { min-height: 30px; display: flex; align-items: center; gap: 6px; padding: 3px 6px; font-size: 13px; }
+.tree-row.selected { background: rgba(84,110,122,.14); border-radius: 4px; font-weight: 600; }
+.thumb-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.thumb { height: 120px; border-radius: 4px; background: #ECEFF1; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.scrim { position: absolute; inset: 84px 0 0; background: rgba(15,25,30,.46); }
+.dialog { position: absolute; inset: 96px 10px 12px; z-index: 2; display: flex; flex-direction: column; overflow: hidden; border-radius: 12px; background: #fff; box-shadow: 0 22px 55px rgba(0,0,0,.30); }
+.dialog-head { flex: 0 0 56px; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 16px; border-bottom: 1px solid var(--line); }
+.dialog-head h2 { margin: 0; flex: 1; font-size: 17px; font-weight: 600; }
+/* 正文是唯一纵向滚动容器；标题栏与底部操作区不参与滚动。 */
+.dialog-body { flex: 1 1 auto; min-height: 0; padding: 14px 16px 16px; overflow-y: auto; overscroll-behavior: contain; }
+.path-block { margin-bottom: 10px; }
+.path-label, .desc-label { margin: 0 0 3px; color: var(--secondary); font-size: 11px; letter-spacing: .02em; }
+.path-text { margin: 0; font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.photo-frame { display: flex; align-items: center; justify-content: center; min-height: 232px; padding: 8px; border-radius: 4px; background: var(--muted); }
+.photo-frame svg { display: block; max-width: 100%; max-height: min(60vh, 60dvh); }
+.photo-landscape { width: 100%; height: auto; }
+.photo-portrait { width: min(236px, 100%); height: auto; }
+.photo-square { width: min(300px, 100%); height: auto; }
+.desc-block { margin-top: 12px; }
+.desc-text { margin: 0; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dialog-actions { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); background: #fff; }
+.btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 4px; font-size: 12.5px; line-height: 1.35; text-align: center; white-space: normal; }
+.btn-text { color: var(--primary-dark); padding-left: 10px; padding-right: 10px; }
+.btn-outline { border: 1px solid rgba(84,110,122,.55); color: var(--primary-dark); background: #fff; }
+.error-icon { width: 34px; height: 34px; color: var(--error); }
+.error-title { margin: 0; font-size: 14px; font-weight: 650; color: var(--text); }
+.error-copy { margin: 0; color: var(--secondary); font-size: 12px; line-height: 1.5; max-width: 260px; }
+.failure-copy { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.loading-copy { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-size: 12px; color: var(--secondary); }
+.loading-copy strong { color: var(--text); font-size: 13px; }
+.spinner { width: 30px; height: 30px; border: 3px solid rgba(84,110,122,.25); border-top-color: var(--primary); border-radius: 50%; }
+.annotation { margin-top: 12px; padding-left: 11px; border-left: 2px solid rgba(84,110,122,.35); color: #455A64; font-size: 12px; line-height: 1.55; }
+.annotation strong { color: var(--text); }
+.ratio-note { margin-top: 34px; padding: 16px 18px; background: #fff; border: 1px solid rgba(84,110,122,.16); border-radius: 8px; max-width: 980px; }
+.ratio-note h2 { margin: 0 0 8px; font-size: 15px; }
+.ratio-note table { border-collapse: collapse; width: 100%; }
+.ratio-note th, .ratio-note td { padding: 7px 12px 7px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.ratio-note th { color: var(--secondary); font-weight: 600; width: 140px; }
+.ratio-note p { margin: 10px 0 0; color: #607D8B; font-size: 12px; }
+.sheet-footer { margin-top: 24px; color: #607D8B; font-size: 12px; max-width: 920px; }
+.icon { width: 20px; height: 20px; display: inline-block; vertical-align: middle; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 4.5 7.5 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5v5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16.5" r="1" fill="currentColor"/></symbol>
+</svg>
+
+<main class="sheet">
+  <header class="sheet-header">
+    <span class="eyebrow">STORY #1 · 静态布局稿 · 共用查看弹窗</span>
+    <h1>共用查看弹窗：先给路径和描述，照片按 contain 完整呈现</h1>
+    <p class="lede">「浏览」和「物品详情」打开同一个弹窗。打开时才请求已保存照片；路径和描述不依赖照片加载。标题栏与底部「关闭」固定，正文是唯一纵向滚动区；横图、竖图、方图都完整等比显示，不裁剪、不拉伸、不横向滚动。</p>
+    <p class="static-note"><strong>静态示意，不是可操作应用。</strong>全部离线、无 JS、无网络，照片为自绘 SVG。示意图的触控尺寸不按 1:1；X、关闭、重试按至少 44×44 CSS px 设计。本页不证明真实应用、320px、200% 文本缩放或读屏已经通过。</p>
+  </header>
+
+  <div class="frames">
+    <section class="frame-block">
+      <h2 class="frame-title">1 · 加载成功：横图 4:3</h2>
+      <p class="frame-caption">路径 → 照片 → 描述纵向排列；照片完整显示，标题栏 X 与底部「关闭」同时可见。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">周启</span></div>
+        <div class="page-behind"><p class="section-label">按位置</p><div class="tree-row">书房</div><div class="tree-row" style="padding-left:22px">书桌</div><div class="tree-row selected" style="padding-left:40px">右侧抽屉</div><div class="thumb-strip"><div class="thumb"></div><div class="thumb"></div></div></div>
+        <div class="scrim"></div>
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title-1" aria-describedby="dlg-path-1 dlg-desc-1">
+          <div class="dialog-head"><h2 id="dlg-title-1">位置照片</h2><span class="icon-button" aria-label="关闭位置照片"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></span></div>
+          <div class="dialog-body">
+            <div class="path-block"><p class="path-label">位置路径</p><p class="path-text" id="dlg-path-1">书房 → 书桌 → 右侧抽屉</p></div>
+            <div class="photo-frame"><svg class="photo-landscape" viewBox="0 0 480 360" role="img" aria-label="已保存位置照片：书房 → 书桌 → 右侧抽屉"><rect width="480" height="360" fill="#FAFAFA"/><rect x="30" y="24" width="420" height="312" rx="6" fill="#CFD8DC" stroke="#90A4AE" stroke-width="2"/><rect x="46" y="40" width="388" height="280" fill="#FFF" stroke="#B0BEC5" stroke-width="2"/><line x1="238" y1="40" x2="238" y2="320" stroke="#B0BEC5" stroke-width="3"/><path d="M78 108c28-24 52 28 82 4s50 20 72-4" fill="none" stroke="#546E7A" stroke-width="6" stroke-linecap="round"/><rect x="88" y="156" width="28" height="54" rx="6" fill="#90A4AE"/><rect x="124" y="156" width="28" height="54" rx="6" fill="#B0BEC5"/><rect x="78" y="76" width="34" height="42" rx="3" fill="#fff" stroke="#B0BEC5" stroke-dasharray="5 4"/><path d="M86 90h18M86 100h14M86 110h16" stroke="#CFD8DC" stroke-width="3"/><rect x="286" y="76" width="96" height="104" rx="3" fill="#fff" stroke="#B0BEC5" stroke-dasharray="5 4"/><text x="334" y="132" font-size="12" fill="#90A4AE" text-anchor="middle">空</text><text x="446" y="334" font-size="11" fill="#78909C" text-anchor="end">照片示意</text></svg></div>
+            <div class="desc-block"><p class="desc-label">描述</p><p class="desc-text" id="dlg-desc-1">充电线、备用电池和说明书；
+左侧是空的。</p></div>
+          </div>
+          <div class="dialog-actions"><span class="btn btn-text">关闭</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>加载顺序：</strong>点击入口后才请求照片；路径与描述可先读。横图在照片框内上下留白，照片框底色是 surface-muted。</p>
+    </section>
+
+    <section class="frame-block">
+      <h2 class="frame-title">2 · 加载成功：竖图 3:4</h2>
+      <p class="frame-caption">竖图以高度适配，左右留白；不裁掉抽屉边缘，也不横向滚动。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">周启</span></div>
+        <div class="page-behind"><p class="section-label">按位置</p><div class="tree-row">书房</div><div class="tree-row" style="padding-left:22px">书桌</div><div class="tree-row selected" style="padding-left:40px">右侧抽屉</div><div class="thumb-strip"><div class="thumb"></div><div class="thumb"></div></div></div>
+        <div class="scrim"></div>
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title-2" aria-describedby="dlg-path-2 dlg-desc-2">
+          <div class="dialog-head"><h2 id="dlg-title-2">位置照片</h2><span class="icon-button" aria-label="关闭位置照片"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></span></div>
+          <div class="dialog-body">
+            <div class="path-block"><p class="path-label">位置路径</p><p class="path-text" id="dlg-path-2">书房 → 书桌 → 右侧抽屉</p></div>
+            <div class="photo-frame"><svg class="photo-portrait" viewBox="0 0 360 480" role="img" aria-label="已保存竖版位置照片：书房 → 书桌 → 右侧抽屉"><rect width="360" height="480" fill="#FAFAFA"/><rect x="26" y="22" width="308" height="436" rx="6" fill="#CFD8DC" stroke="#90A4AE" stroke-width="2"/><rect x="40" y="36" width="280" height="408" fill="#FFF" stroke="#B0BEC5" stroke-width="2"/><path d="M68 96c26-20 44 24 70 4s44 18 64-4" fill="none" stroke="#546E7A" stroke-width="6" stroke-linecap="round"/><rect x="76" y="142" width="28" height="56" rx="6" fill="#90A4AE"/><rect x="112" y="142" width="28" height="56" rx="6" fill="#B0BEC5"/><rect x="68" y="64" width="34" height="42" rx="3" fill="#fff" stroke="#B0BEC5" stroke-dasharray="5 4"/><path d="M76 78h18M76 88h14M76 98h16" stroke="#CFD8DC" stroke-width="3"/><line x1="40" y1="250" x2="320" y2="250" stroke="#B0BEC5" stroke-width="3"/><rect x="68" y="282" width="120" height="120" rx="4" fill="#fff" stroke="#B0BEC5" stroke-dasharray="5 4"/><text x="128" y="348" font-size="12" fill="#90A4AE" text-anchor="middle">空</text><rect x="218" y="282" width="70" height="120" rx="4" fill="#F5F5F5" stroke="#CFD8DC"/><text x="330" y="450" font-size="11" fill="#78909C" text-anchor="end">照片示意</text></svg></div>
+            <div class="desc-block"><p class="desc-label">描述</p><p class="desc-text" id="dlg-desc-2">充电线、备用电池和说明书；
+左侧是空的。</p></div>
+          </div>
+          <div class="dialog-actions"><span class="btn btn-text">关闭</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>比例不改变契约：</strong>竖图、方图都用同一套 contain 规则；照片框保留至少 200px 高度，避免加载前后弹窗跳动。</p>
+    </section>
+
+    <section class="frame-block">
+      <h2 class="frame-title">3 · 加载成功：方图 1:1</h2>
+      <p class="frame-caption">方图居中，两侧留白；不放大填满、不裁切，关闭方式保持完整。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">周启</span></div>
+        <div class="page-behind"><p class="section-label">按位置</p><div class="tree-row">厨房</div><div class="tree-row" style="padding-left:22px">吊柜</div><div class="tree-row selected" style="padding-left:40px">保鲜盒</div><div class="thumb-strip"><div class="thumb"></div><div class="thumb"></div></div></div>
+        <div class="scrim"></div>
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title-3" aria-describedby="dlg-path-3 dlg-desc-3">
+          <div class="dialog-head"><h2 id="dlg-title-3">位置照片</h2><span class="icon-button" aria-label="关闭位置照片"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></span></div>
+          <div class="dialog-body">
+            <div class="path-block"><p class="path-label">位置路径</p><p class="path-text" id="dlg-path-3">厨房 → 吊柜 → 保鲜盒</p></div>
+            <div class="photo-frame"><svg class="photo-square" viewBox="0 0 400 400" role="img" aria-label="已保存方版位置照片：厨房 → 吊柜 → 保鲜盒"><rect width="400" height="400" fill="#FAFAFA"/><rect x="28" y="28" width="344" height="344" rx="6" fill="#CFD8DC" stroke="#90A4AE" stroke-width="2"/><rect x="42" y="42" width="316" height="316" fill="#FFF" stroke="#B0BEC5" stroke-width="2"/><line x1="200" y1="42" x2="200" y2="358" stroke="#B0BEC5" stroke-width="3"/><circle cx="120" cy="146" r="46" fill="#fff" stroke="#B0BEC5" stroke-dasharray="5 4"/><circle cx="120" cy="146" r="28" fill="#F5F5F5" stroke="#CFD8DC"/><rect x="222" y="98" width="92" height="96" rx="4" fill="#fff" stroke="#B0BEC5" stroke-dasharray="5 4"/><text x="268" y="152" font-size="12" fill="#90A4AE" text-anchor="middle">空</text><rect x="70" y="246" width="260" height="76" rx="4" fill="#F5F5F5" stroke="#CFD8DC"/><text x="200" y="290" font-size="12" fill="#90A4AE" text-anchor="middle">烘焙模具与量杯示意</text><text x="370" y="382" font-size="11" fill="#78909C" text-anchor="end">照片示意</text></svg></div>
+            <div class="desc-block"><p class="desc-label">描述</p><p class="desc-text" id="dlg-desc-3">烘焙模具和量杯；盖子在上层。</p></div>
+          </div>
+          <div class="dialog-actions"><span class="btn btn-text">关闭</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>长路径/长描述：</strong>路径和描述换行，正文纵向滚动；标题栏与底部操作区固定，关闭始终可见或无需滚动即可见；不出现横向滚动。</p>
+    </section>
+
+    <section class="frame-block">
+      <h2 class="frame-title">4 · 加载中：路径和描述先可读</h2>
+      <p class="frame-caption">照片区域显示进度和「正在加载位置照片…」；不自动重试，关闭始终可用。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">周启</span></div>
+        <div class="page-behind"><p class="section-label">按位置</p><div class="tree-row">书房</div><div class="tree-row" style="padding-left:22px">书桌</div><div class="tree-row selected" style="padding-left:40px">右侧抽屉</div><div class="thumb-strip"><div class="thumb"></div><div class="thumb"></div></div></div>
+        <div class="scrim"></div>
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title-4" aria-describedby="dlg-path-4 dlg-desc-4">
+          <div class="dialog-head"><h2 id="dlg-title-4">位置照片</h2><span class="icon-button" aria-label="关闭位置照片"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></span></div>
+          <div class="dialog-body">
+            <div class="path-block"><p class="path-label">位置路径</p><p class="path-text" id="dlg-path-4">书房 → 书桌 → 右侧抽屉</p></div>
+            <div class="photo-frame"><div class="loading-copy"><span class="spinner" aria-hidden="true"></span><strong role="status">正在加载位置照片…</strong><span>路径和描述已显示，可以先读。</span></div></div>
+            <div class="desc-block"><p class="desc-label">描述</p><p class="desc-text" id="dlg-desc-4">充电线、备用电池和说明书；
+左侧是空的。</p></div>
+          </div>
+          <div class="dialog-actions"><span class="btn btn-text">关闭</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>加载状态：</strong>加载文字用 polite 播报；焦点落在标题/容器或 X，不自动重试。照片框保留高度，路径/描述不因加载而消失。</p>
+    </section>
+
+    <section class="frame-block">
+      <h2 class="frame-title">5 · 加载失败：重试与关闭都在</h2>
+      <p class="frame-caption">错误文本单独播报，「重试」是它的兄弟控件；路径/描述仍在，X 与「关闭」始终可用。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">周启</span></div>
+        <div class="page-behind"><p class="section-label">按位置</p><div class="tree-row">书房</div><div class="tree-row" style="padding-left:22px">书桌</div><div class="tree-row selected" style="padding-left:40px">右侧抽屉</div><div class="thumb-strip"><div class="thumb"></div><div class="thumb"></div></div></div>
+        <div class="scrim"></div>
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title-5" aria-describedby="dlg-path-5 dlg-desc-5">
+          <div class="dialog-head"><h2 id="dlg-title-5">位置照片</h2><span class="icon-button" aria-label="关闭位置照片"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></span></div>
+          <div class="dialog-body">
+            <div class="path-block"><p class="path-label">位置路径</p><p class="path-text" id="dlg-path-5">书房 → 书桌 → 右侧抽屉</p></div>
+            <div class="photo-frame"><div class="failure-copy"><svg class="error-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-alert"></use></svg><p class="error-title" role="alert">位置照片加载失败。</p><p class="error-copy">路径和描述仍可查看。可以重试，或直接关闭。</p><span class="btn btn-outline">重试</span></div></div>
+            <div class="desc-block"><p class="desc-label">描述</p><p class="desc-text" id="dlg-desc-5">充电线、备用电池和说明书；
+左侧是空的。</p></div>
+          </div>
+          <div class="dialog-actions"><span class="btn btn-text">关闭</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>失败不是死路：</strong>失败文案不写「网络错误」作为唯一提示；重试失败仍保留错误与关闭。照片文件缺失同样按加载失败处理，不显示破图图标。系统返回键不被拦截，用可见关闭或 Esc。</p>
+    </section>
+
+    <section class="frame-block">
+      <h2 class="frame-title">6 · 长路径 + 300 字量级描述：正文滚动</h2>
+      <p class="frame-caption">标题栏与底部「关闭」固定，只有正文纵向滚动；长名称/路径换行，不横向裁剪。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">林岚</span></div>
+        <div class="page-behind"><p class="section-label">按位置</p><div class="tree-row">家</div><div class="tree-row" style="padding-left:22px">书房</div><div class="tree-row selected" style="padding-left:40px">右侧抽屉</div><div class="thumb-strip"><div class="thumb"></div><div class="thumb"></div></div></div>
+        <div class="scrim"></div>
+        <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title-6" aria-describedby="dlg-path-6 dlg-desc-6">
+          <div class="dialog-head"><h2 id="dlg-title-6">位置照片</h2><span class="icon-button" aria-label="关闭位置照片"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></span></div>
+          <div class="dialog-body">
+            <div class="path-block"><p class="path-label">位置路径</p><p class="path-text" id="dlg-path-6">家 → 书房 → 书桌 → 右侧抽屉 → 黑色收纳袋 → 备用线材盒</p></div>
+            <div class="photo-frame"><svg class="photo-portrait" style="width:min(300px,100%)" viewBox="0 0 360 480" role="img" aria-label="已保存位置照片：家 → 书房 → 书桌 → 右侧抽屉 → 黑色收纳袋 → 备用线材盒"><rect width="360" height="480" fill="#FAFAFA"/><rect x="26" y="22" width="308" height="436" rx="6" fill="#CFD8DC" stroke="#90A4AE" stroke-width="2"/><rect x="40" y="36" width="280" height="408" fill="#FFF" stroke="#B0BEC5" stroke-width="2"/><path d="M68 96c26-20 44 24 70 4s44 18 64-4" fill="none" stroke="#546E7A" stroke-width="6" stroke-linecap="round"/><rect x="76" y="142" width="28" height="56" rx="6" fill="#90A4AE"/><rect x="112" y="142" width="28" height="56" rx="6" fill="#B0BEC5"/><rect x="68" y="64" width="34" height="42" rx="3" fill="#fff" stroke="#B0BEC5" stroke-dasharray="5 4"/><path d="M76 78h18M76 88h14M76 98h16" stroke="#CFD8DC" stroke-width="3"/><line x1="40" y1="250" x2="320" y2="250" stroke="#B0BEC5" stroke-width="3"/><rect x="68" y="282" width="120" height="120" rx="4" fill="#fff" stroke="#B0BEC5" stroke-dasharray="5 4"/><text x="128" y="348" font-size="12" fill="#90A4AE" text-anchor="middle">空</text><rect x="218" y="282" width="70" height="120" rx="4" fill="#F5F5F5" stroke="#CFD8DC"/><text x="330" y="450" font-size="11" fill="#78909C" text-anchor="end">照片示意</text></svg></div>
+            <div class="desc-block"><p class="desc-label">描述</p><p class="desc-text" id="dlg-desc-6">这个抽屉分成左右两格。左边放常用的充电线、转接头和备用电池；右边放说明书、保修卡和几张标签纸。下层目前是空的，可以临时放插排或小工具。
+
+电池请保持原包装，不要和金属物品混放。若找不到某根线，先检查抽屉最里面的黑色收纳袋，里面还有一根旧线和两个转接头。
+
+标签纸和保修卡按物品类别分开，透明袋上有手写标记；过期的说明书统一放在最下面。取用后请放回原位，方便其他家庭成员下次查找。如果抽屉关不严，先确认右侧的电池盒没有顶住滑轨。</p></div>
+          </div>
+          <div class="dialog-actions"><span class="btn btn-text">关闭</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>滚动容器：</strong>只有正文滚动；标题栏（含 X）和底部「关闭」固定，所以长内容滚到中段时至少一个关闭控件仍在视口内。长路径可换行，不出现横向滚动。</p>
+    </section>
+  </div>
+
+  <section class="ratio-note">
+    <h2>照片比例与弹窗容器</h2>
+    <table>
+      <tbody>
+        <tr><th>4:3 横图</th><td>宽度适配照片框，上下留白；完整显示抽屉左右边界。</td></tr>
+        <tr><th>3:4 竖图</th><td>高度适配照片框，左右留白；不为了填满而裁掉抽屉边缘。</td></tr>
+        <tr><th>1:1 方图</th><td>居中显示，两侧留白；不拉伸、不横向滚动。</td></tr>
+        <tr><th>加载中</th><td>照片区域保留至少 200px 高度，显示进度指示和「正在加载位置照片…」；不自动重试。</td></tr>
+        <tr><th>失败</th><td>错误文本单独用 alert 播报，「重试」是其兄弟控件；路径/描述仍在，X 与「关闭」始终可用。</td></tr>
+        <tr><th>关闭</th><td>X、「关闭」、Esc、背景点击都可关闭；不拦截系统返回键；关闭后不导航、不刷新、不重置筛选/滚动，焦点回到触发入口。</td></tr>
+      </tbody>
+    </table>
+    <p>横/竖/方三帧的照片内容为独立示意，只用于说明 contain 行为，不代表同一位置照片的真实内容。</p>
+  </section>
+
+  <section class="ratio-note">
+    <h2>实现后验收（本静态稿不能证明）</h2>
+    <p>在真实应用中检查 320×640 CSS px、200% 文本缩放、横屏、键盘和读屏：无横向滚动；长路径/300 字量级描述下正文滚动而标题栏和底部关闭固定；X、关闭、重试 44×44 且可达；焦点进入弹窗并在关闭后回到入口；失败文本与重试控件分开播报；系统返回键维持原导航语义。静态稿不能替代浏览器与读屏验证。</p>
+  </section>
+
+  <p class="sheet-footer">示意图中的位置、物品与姓名为 Story 中已有演示内容；照片框内为自绘 SVG 线稿，不代表真实照片。此页只用于确认布局关系，不是可操作应用，也不代表最终设计审核或真实应用验证已完成。</p>
+</main>
+</body>
+</html>

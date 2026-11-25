@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key screen — 物品详情</title>
+<style>
+/*
+  静态布局稿：物品详情
+  对应：
+  - EXPERIENCE.md · Component Patterns「位置照片入口 / 物品照片区」
+  - EXPERIENCE.md · State Patterns「浏览与物品详情」
+  - EXPERIENCE.md · Key Flows 3
+  - DESIGN.md · Layout & Spacing「物品详情」；Components「位置照片入口 / 物品照片区」
+  仅示意，无 JS、无网络；触控尺寸不按 1:1，实际以 DESIGN.md 的 44×44 规则为准。
+*/
+:root {
+  --primary: #546E7A;
+  --primary-dark: #3E5964;
+  --error: #EF5350;
+  --bg: #FAFAFA;
+  --muted: #F5F5F5;
+  --text: rgba(0, 0, 0, .87);
+  --secondary: rgba(0, 0, 0, .60);
+  --line: rgba(0, 0, 0, .12);
+  --shadow: 0 14px 40px rgba(20, 34, 42, .20);
+}
+* { box-sizing: border-box; }
+html { background: #E9EDF0; }
+body { margin: 0; padding: 36px 20px 64px; color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; font-size: 14px; line-height: 1.5; }
+.sheet { max-width: 1000px; margin: 0 auto; }
+.sheet-header { max-width: 900px; margin-bottom: 30px; }
+.eyebrow { display: inline-block; margin-bottom: 10px; padding: 3px 9px; border: 1px solid rgba(84,110,122,.35); border-radius: 999px; color: var(--primary-dark); font-size: 12px; letter-spacing: .04em; }
+h1 { margin: 0 0 8px; font-size: 25px; line-height: 1.25; letter-spacing: -.01em; }
+.lede { margin: 0; color: #455A64; font-size: 14px; max-width: 840px; }
+.static-note { margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--primary); background: rgba(255,255,255,.62); color: #455A64; font-size: 13px; }
+.static-note strong { color: var(--text); }
+.frames { display: flex; flex-wrap: wrap; gap: 34px 30px; align-items: flex-start; }
+.frame-block { width: 410px; }
+.frame-title { margin: 0 0 3px; font-size: 15px; font-weight: 650; }
+.frame-caption { margin: 0 0 14px; color: var(--secondary); font-size: 12.5px; min-height: 54px; }
+.phone { width: 410px; padding: 10px; border-radius: 42px; background: #161A1C; box-shadow: var(--shadow); }
+.screen { position: relative; width: 390px; height: 844px; overflow: hidden; border-radius: 32px; background: var(--bg); display: flex; flex-direction: column; }
+.statusbar { height: 28px; flex: 0 0 28px; padding: 0 18px; display: flex; align-items: center; justify-content: space-between; color: #263238; font-size: 11px; font-weight: 650; }
+.status-icons { display: flex; gap: 5px; align-items: center; }
+.status-icons i { display: block; width: 3px; border-radius: 1px; background: #263238; }
+.status-icons i:nth-child(1) { height: 4px; } .status-icons i:nth-child(2) { height: 6px; } .status-icons i:nth-child(3) { height: 8px; }
+.battery { width: 17px; height: 8px; border: 1px solid #263238; border-radius: 2px; position: relative; }
+.battery::after { content: ""; position: absolute; right: -3px; top: 2px; width: 2px; height: 4px; background: #263238; border-radius: 0 1px 1px 0; }
+.battery::before { content: ""; position: absolute; left: 1px; top: 1px; bottom: 1px; width: 11px; background: #263238; border-radius: 1px; }
+.appbar { height: 56px; flex: 0 0 56px; display: flex; align-items: center; gap: 9px; padding: 0 12px; color: #fff; background: var(--primary); }
+.appbar .icon-button { width: 40px; height: 40px; }
+.icon-button { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: inherit; }
+.logo { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.65); border-radius: 6px; font-size: 13px; font-weight: 700; }
+.app-title { flex: 1; font-size: 17px; font-weight: 600; letter-spacing: .01em; }
+.app-user { font-size: 12px; opacity: .88; }
+.content { flex: 1 1 auto; min-height: 0; padding: 14px 16px 18px; overflow-y: auto; overscroll-behavior: contain; }
+.item-photo { width: 100%; height: 246px; display: block; border-radius: 4px; background: #ECEFF1; }
+.item-photo-placeholder { height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; border-radius: 4px; background: var(--muted); color: var(--secondary); }
+.item-photo-placeholder .icon { width: 30px; height: 30px; }
+.item-photo-placeholder span { font-size: 11.5px; }
+h2.item-name { margin: 12px 0 0; font-size: 22px; line-height: 1.3; font-weight: 650; overflow-wrap: anywhere; }
+.meta { margin-top: 8px; font-size: 13px; line-height: 1.55; }
+.meta .label { font-weight: 650; }
+.path-line { color: var(--text); overflow-wrap: anywhere; }
+/* 新增入口：至少 44×44，跟随文本自然换行。 */
+.photo-entry { min-height: 44px; display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; padding: 8px 0; vertical-align: middle; color: var(--primary-dark); font-size: 13.5px; font-weight: 650; }
+.photo-entry .icon { width: 17px; height: 17px; }
+.tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 7px; font-size: 13px; }
+/* 既有标签，本次不重做尺寸。 */
+.tag { min-height: 26px; display: inline-flex; align-items: center; padding: 2px 9px; border: 1px solid rgba(84,110,122,.55); border-radius: 14px; color: var(--primary-dark); font-size: 11.5px; }
+.note { margin: 7px 0 0; font-size: 13px; }
+.audit { margin-top: 7px; color: var(--secondary); font-size: 11px; line-height: 1.6; }
+.audit strong { color: var(--text); font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+/* 既有物品详情操作按钮，本次不重做尺寸。 */
+.btn { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; padding: 7px 13px; border-radius: 4px; font-size: 12.5px; line-height: 1.3; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-error { background: var(--error); color: #fff; }
+.annotation { margin-top: 12px; padding-left: 11px; border-left: 2px solid rgba(84,110,122,.35); color: #455A64; font-size: 12px; line-height: 1.55; }
+.annotation strong { color: var(--text); }
+.separation-note { margin-top: 34px; padding: 16px 18px; background: #fff; border: 1px solid rgba(84,110,122,.16); border-radius: 8px; max-width: 900px; }
+.separation-note h2 { margin: 0 0 8px; font-size: 15px; }
+.separation-note table { border-collapse: collapse; width: 100%; }
+.separation-note th, .separation-note td { padding: 7px 10px 7px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.separation-note th { color: var(--secondary); font-weight: 600; width: 140px; }
+.sheet-footer { margin-top: 24px; color: #607D8B; font-size: 12px; max-width: 900px; }
+.icon { width: 20px; height: 20px; display: inline-block; vertical-align: middle; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 4.5 7.5 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9" cy="9.5" r="1.4" fill="currentColor"/><path d="m5.5 17 4.3-4.2 3.1 2.8 2.6-2.4 3 3.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></symbol>
+</svg>
+
+<main class="sheet">
+  <header class="sheet-header">
+    <span class="eyebrow">STORY #1 · 静态布局稿 · 物品详情</span>
+    <h1>物品详情：物品照片回答「是什么」，位置照片回答「在哪」</h1>
+    <p class="lede">物品照片区保持现状。位置照片入口只出现在元数据区，紧跟「位置: A → B → C」；空间足够时同行，长路径或窄屏时自然换行到路径下方。它不进入顶部照片区，也不替代物品照片。</p>
+    <p class="static-note"><strong>静态示意，不是可操作应用。</strong>全部离线、无 JS、无网络，照片为自绘 SVG。示意图的触控尺寸不按 1:1；新增的「查看位置照片」入口按 44×44 CSS px 设计，既有物品照片区和操作按钮不重做。本页不证明真实应用、320px、200% 文本缩放或读屏已经通过。</p>
+  </header>
+
+  <div class="frames">
+    <section class="frame-block">
+      <h2 class="frame-title">1 · 有物品照片：入口在收纳路径旁</h2>
+      <p class="frame-caption">顶部仍是现有物品大图；「查看位置照片」与位置路径同一行，与照片区明显分离。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">周启</span></div>
+        <div class="content">
+          <svg class="item-photo" viewBox="0 0 480 300" role="img" aria-label="USB-C 充电线物品照片示意"><rect width="480" height="300" fill="#E8ECEE"/><rect x="0" y="222" width="480" height="78" fill="#D7DEE2"/><path d="M90 172c20-58 62-72 100-30s66 18 92-22 66-10 78 34" fill="none" stroke="#546E7A" stroke-width="12" stroke-linecap="round"/><path d="M90 172c20-58 62-72 100-30s66 18 92-22 66-10 78 34" fill="none" stroke="#78909C" stroke-width="4" stroke-linecap="round" stroke-dasharray="2 16"/><rect x="70" y="156" width="30" height="34" rx="8" fill="#90A4AE" transform="rotate(-12 85 173)"/><rect x="355" y="120" width="38" height="20" rx="7" fill="#78909C" transform="rotate(18 374 130)"/><text x="444" y="282" font-size="12" fill="#78909C" text-anchor="end">物品照片示意</text></svg>
+          <h2 class="item-name">USB-C 充电线</h2>
+          <div class="meta"><span class="path-line"><span class="label">位置:</span> 书房 → 书桌 → 右侧抽屉</span><span class="photo-entry">查看位置照片</span></div>
+          <div class="tags"><span class="label">标签:</span><span class="tag">电子</span><span class="tag">充电</span></div>
+          <p class="note"><strong>备注:</strong> 放在左侧隔层，和备用电池一起。</p>
+          <div class="audit"><strong>录入者:</strong> 周启<br>录入时间: 2026-11-23 10:20</div>
+          <div class="actions"><span class="btn btn-primary">返回浏览</span><span class="btn btn-primary">编辑</span><span class="btn btn-error">删除物品</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>明显分离：</strong>上方大图只属于物品；位置照片入口在「位置」行内，是文字入口，不是第二个主图，也没有缩略图占位。点击前不请求位置照片。</p>
+    </section>
+
+    <section class="frame-block">
+      <h2 class="frame-title">2 · 物品无照片：位置照片入口仍可出现</h2>
+      <p class="frame-caption">保留现有「暂无照片」占位；位置路径与入口仍独立存在，两者互不替代。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">周启</span></div>
+        <div class="content">
+          <div class="item-photo-placeholder"><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg><span>暂无照片</span></div>
+          <h2 class="item-name">备用电池</h2>
+          <div class="meta"><span class="path-line"><span class="label">位置:</span> 书房 → 书桌 → 右侧抽屉</span><span class="photo-entry">查看位置照片</span></div>
+          <div class="tags"><span class="label">标签:</span><span class="tag">电子</span></div>
+          <p class="note"><strong>备注:</strong> 两节 AA，未拆封。</p>
+          <div class="audit"><strong>录入者:</strong> 周启<br>录入时间: 2026-11-23 10:24</div>
+          <div class="actions"><span class="btn btn-primary">返回浏览</span><span class="btn btn-primary">编辑</span><span class="btn btn-error">删除物品</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>互不替代：</strong>物品没有照片时，位置照片入口仍可出现；位置照片也不会填补「暂无照片」占位。编辑模式下入口隐藏，位置选择沿用现有树。</p>
+    </section>
+
+    <section class="frame-block">
+      <h2 class="frame-title">3 · 长路径：整体换行，入口不被截断</h2>
+      <p class="frame-caption">路径名称较长时整体换行（overflow-wrap:anywhere），入口跟随路径文本自然换行，不在路径中间被截断，也不撑出横向滚动。</p>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="status-icons"><i></i><i></i><i></i><span class="battery"></span></span></div>
+        <div class="appbar"><span class="icon-button"><svg class="icon" aria-hidden="true"><use href="#i-back"></use></svg></span><span class="logo">箱</span><span class="app-title">箱知 · BoxWise</span><span class="app-user">林岚</span></div>
+        <div class="content">
+          <div class="item-photo-placeholder"><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg><span>暂无照片</span></div>
+          <h2 class="item-name">USB-C to USB-C 编织充电线（2 米）</h2>
+          <div class="meta"><span class="path-line"><span class="label">位置:</span> 家 → 书房 → 书桌 → 右侧抽屉 → 黑色收纳袋 → 备用线材盒 → 旧配件区</span><span class="photo-entry">查看位置照片</span></div>
+          <div class="tags"><span class="label">标签:</span><span class="tag">电子</span><span class="tag">充电</span><span class="tag">备用</span></div>
+          <p class="note"><strong>备注:</strong> 末端有白色标签，和旧线放在一起。</p>
+          <div class="audit"><strong>录入者:</strong> 林岚<br>录入时间: 2026-11-23 10:40</div>
+          <div class="actions"><span class="btn btn-primary">返回浏览</span><span class="btn btn-primary">编辑</span><span class="btn btn-error">删除物品</span></div>
+        </div>
+      </div></div>
+      <p class="annotation"><strong>窄屏一致性：</strong>入口作为路径文本后的 inline 元素；末行空间足够时同行，空间不足时自然落到下一行。不定义额外断点，也不用 nowrap 锁死。</p>
+    </section>
+  </div>
+
+  <section class="separation-note">
+    <h2>两个照片对象的边界</h2>
+    <table>
+      <tbody>
+        <tr><th>物品照片</th><td>回答「这是什么」。物品卡缩略图与详情大图保持现状；本功能不改其尺寸、裁切或占位。</td></tr>
+        <tr><th>位置照片</th><td>回答「在哪个抽屉/柜子/箱子里」。只在「查看位置照片」点击后，于共用弹窗中按 contain 完整显示。不进入物品卡或详情主图。</td></tr>
+        <tr><th>入口位置</th><td>物品详情元数据区，紧跟「位置: A → B → C」；空间足够时同行，长路径/窄屏时自然换行。编辑模式不显示。</td></tr>
+        <tr><th>加载时机</th><td>入口可见性来自位置元数据；点击前不请求照片文件。图片加载失败不显示破图，弹窗内提供重试与关闭。无法确定照片有无时不显示入口，也不试探图片 URL。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="separation-note">
+    <h2>实现后验收（本静态稿不能证明）</h2>
+    <p style="margin:0;color:#455A64;font-size:12.5px;line-height:1.6">在真实应用中检查 320×640 CSS px、200% 文本缩放、横屏、键盘和读屏：长路径换行且无横向滚动；入口 44×44 可达；物品没有照片时入口仍可出现；关闭弹窗后焦点回到入口；编辑模式不显示入口。静态稿不能替代浏览器与读屏验证。</p>
+  </section>
+
+  <p class="sheet-footer">示意图中的物品、位置与姓名为 Story 中已有演示内容；照片框内为自绘 SVG 线稿，不代表真实照片。此页只用于确认布局关系，不是可操作应用，也不代表最终设计审核或真实应用验证已完成。</p>
+</main>
+</body>
+</html>
