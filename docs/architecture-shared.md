@@ -30,9 +30,10 @@ BoxWise.Shared 是零依赖的 .NET 类库，定义 Client 和 Server 之间共�
 
 | DTO | 类型 | 方向 |
 |-----|------|------|
-| `LocationDto` | `record (int Id, string Name, string Path, int? ParentId, int SortOrder)` | Server → Client |
-| `CreateLocationRequest` | `record (string Name, int? ParentId, int SortOrder = 0)` | Client → Server |
-| `RenameLocationRequest` | `record (string Name)` | Client → Server |
+| `LocationDto` | `record (int Id, string Name, string Path, int? ParentId, int SortOrder, string? Description = null, bool HasPhoto = false, string? NamePath = null)` | Server → Client |
+| `CreateLocationRequest` | `record (string Name, int? ParentId, int SortOrder = 0, string? Description = null)` | Client → Server |
+| `UpdateLocationRequest` | `record (string Name, JsonElement Description = default)` | Client → Server；`Description` 缺失 = 不变，显式 `null`/空串 = 清除 |
+| `LocationCleanupWarning` | `record (bool CleanupWarning)` | Server → Client |
 
 ### 标签
 

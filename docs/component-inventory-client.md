@@ -80,14 +80,36 @@ Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门
 ### LocationTree.razor
 位置树状选择器。从 `LocationDto` 列表构建 `TreeItemData<LocationDto>` 树。包含 `RefreshAsync()` 公共方法。
 
-**参数:** `int? SelectedLocationId` (双向绑定)
+**参数:** `int? SelectedLocationId` (双向绑定)、`EventCallback<LocationDto?> SelectedLocationChanged`
+
 **MudBlazor:** `MudTreeView`, `MudTreeViewItem`, `MudProgressCircular`
 
 ### LocationManageDialog.razor
-位置 CRUD 管理弹窗。三种模式：创建（指定名称 + 父节点）、重命名（内联文本框）、删除（含确认）。
+位置管理弹窗。新建/编辑共用表单（名称、上级位置、描述、位置照片），编辑时上级位置只读；删除空位置沿用行内确认并清理描述/照片。失败、部分成功、清理警告与结果未知分别提示，不自动重试未知写入。
 
+**注入:** `LocationService`, `ISnackbar`
+**MudBlazor:** `MudDialog`, `MudTextField`, `MudSelect`, `MudSelectItem`, `MudButton`, `MudIconButton`, `MudIcon`, `MudPaper`
+
+### LocationPhotoField.razor
+表单内的位置照片字段。拍照/设备选图、本机预览、已保存照片按需展开（加载/失败/重试/收起）、待移除状态；不打开第二个弹窗。
+拍照/选图使用原生同步按钮触发隐藏 `InputFile`，不运行会打断用户激活的相机探测。相机可用性通过
+`permissions.query({ name: 'camera' })` + `enumerateDevices()` 被动采样；平台不支持 camera 权限名或在授权前隐藏
+`videoinput`（`prompt` + 空设备列表）时返回 `unknown`，不显示“无法使用相机”，也不把取消选择当作失败。
+仅在 `unsupported`、`denied` 或明确的 `no-device` 时显示 polite 内联提示；设备选图始终可用。
+
+**参数:** `LocationId`, `HasSavedPhoto`, `LocationPath`, `SavedLocationPath`, `NewPhoto`, `RemoveRequested`, `Disabled`
+**注入:** `LocationService`, `IJSRuntime`
+
+### LocationPhotoDialog.razor
+浏览页与物品详情共用的位置照片弹窗。打开时才请求照片，展示完整路径、照片（contain）和描述；失败可重试，关闭不改变页面状态。
+
+**参数:** `LocationDto Location`
 **注入:** `LocationService`
-**MudBlazor:** `MudDialog`, `MudTextField`, `MudSelect`, `MudSelectItem`, `MudButton`, `MudIconButton`, `MudIcon`
+
+### LocationSaveCoordinator.cs
+`BoxWise.Client/Services` 下的纯逻辑（无 DI）：按“资料 → 照片”顺序调用注入的委托，返回明确的
+`MetadataRejected/MetadataUnknown/PhotoRejected/PhotoNotFound/PhotoUnknown/Remove*` 状态。
+资料失败或未知时不会调用照片操作；创建部分成功后的重试使用同一位置 ID，不重复创建。
 
 ### TagManageDialog.razor
 标签 CRUD 管理弹窗。创建、重命名、删除（含确认），显示每标签 `ItemCount`。
@@ -139,7 +161,8 @@ Cookie 认证登录表单。去掉了 Password 复杂度要求以降低使用门
 | `CookieHandler` | Scoped | `HttpClientHandler`，设置 `BrowserRequestCredentials.Include` |
 | `ItemService` | Scoped | 物品 CRUD + 搜索 |
 | `ItemEntryService` | Scoped | 物品创建 |
-| `LocationService` | Scoped | 位置 CRUD |
+| `LocationService` | Scoped | 位置 CRUD + 描述/照片；写结果分为 Success/Rejected/NotFound/Unknown |
+| `LocationSaveCoordinator` | 静态 | 先资料、后照片的纯编排；资料失败/未知不触发照片，重试沿用已创建 ID |
 | `TagService` | Scoped | 标签 CRUD |
 | `AiService` | Scoped | AI 识别（客户端直调火山 ARK API，30s 超时，静默降级） |
 

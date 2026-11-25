@@ -1,0 +1,467 @@
+@using BoxWise.Shared.Validation
+@implements IDisposable
+@inject LocationService LocationService
+@inject IJSRuntime JS
+
+<div role="group"
+     aria-labelledby="@_labelId"
+     aria-describedby="@GroupDescribedBy">
+    <MudText Typo="Typo.body2" id="@_labelId"><strong>位置照片（可选）</strong></MudText>
+    <MudText Typo="Typo.caption" Color="Color.Default" Class="mb-2" id="@_helpId">
+        支持 JPG、PNG、WebP，单张不超过 10 MB；可拍照或从设备选择。
+    </MudText>
+
+    @if (HasSavedPhoto)
+    {
+        <div class="d-flex flex-wrap align-center" style="gap:4px 8px;">
+            <MudText Typo="Typo.body2">已保存位置照片</MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary"
+                       OnClick="ToggleSavedPreviewAsync"
+                       Style="min-height:44px;"
+                       aria-expanded="@(_savedExpanded ? "true" : "false")"
+                       aria-controls="@_previewId"
+                       aria-label="@(_savedExpanded ? "收起位置照片" : "查看位置照片")">
+                @(_savedExpanded ? "收起" : "查看位置照片")
+            </MudButton>
+            @if (!RemoveRequested)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Primary"
+                           OnClick="StartReplacementAsync"
+                           Style="min-height:44px;"
+                           Disabled="@Disabled">
+                    更换照片
+                </MudButton>
+                <MudButton Variant="Variant.Text" Color="Color.Error"
+                           OnClick="RequestRemoveAsync"
+                           Style="min-height:44px;"
+                           Disabled="@Disabled">
+                    移除照片
+                </MudButton>
+            }
+        </div>
+    }
+
+    @if (RemoveRequested)
+    {
+        <div class="d-flex flex-wrap align-center mt-1" style="gap:4px 8px;">
+            <MudText Typo="Typo.caption" Color="Color.Default">照片将在保存后移除</MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary"
+                       OnClick="UndoRemoveAsync"
+                       Style="min-height:44px;"
+                       Disabled="@Disabled">
+                撤销移除
+            </MudButton>
+        </div>
+    }
+
+    @if (_savedExpanded)
+    {
+        <MudPaper id="@_previewId" Elevation="0" Class="pa-2 mt-2"
+                  Style="background:#F5F5F5;border-radius:4px;">
+            <div @ref="_savedFocusRegion" tabindex="-1" style="outline:none;">
+            @if (_savedLoading)
+            {
+                <div class="d-flex align-center" style="gap:8px;" role="status" aria-live="polite">
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                    <MudText Typo="Typo.body2">正在加载位置照片…</MudText>
+                </div>
+            }
+            else if (_savedError)
+            {
+                <div>
+                    <div role="alert">
+                        <MudText Typo="Typo.body2">位置照片加载失败。</MudText>
+                    </div>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               OnClick="RetrySavedAsync"
+                               Style="min-height:44px;" Class="mt-1">
+                        重试
+                    </MudButton>
+                </div>
+            }
+            else if (_savedDataUri is not null)
+            {
+                <img src="@_savedDataUri"
+                     alt="@($"已保存位置照片：{SavedPath}")"
+                     style="max-width:100%;max-height:200px;object-fit:contain;border-radius:4px;display:block;" />
+            }
+            </div>
+        </MudPaper>
+    }
+
+    @if (NewPhoto is not null)
+    {
+        <MudPaper Elevation="1" Class="pa-2 mt-2"
+                  Style="background:#F5F5F5;border-radius:4px;">
+            <img src="@GetNewPhotoDataUri()"
+                 alt="@($"新选位置照片预览（未保存）：{LocationPath}")"
+                 style="max-width:100%;max-height:200px;object-fit:contain;border-radius:4px;display:block;" />
+            <MudText Typo="Typo.body2" Class="mt-1">新选照片（未保存）</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Default">@NewPhoto.FileName</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Default">
+                仅本机预览，保存后才会写入位置照片。
+                @if (HasSavedPhoto)
+                {
+                    <text>保存后替换现有照片。</text>
+                }
+            </MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary"
+                       OnClick="ClearSelectionAsync"
+                       Style="min-height:44px;"
+                       Disabled="@Disabled">
+                取消选择
+            </MudButton>
+        </MudPaper>
+    }
+
+    @if (ShowSourceButtons)
+    {
+        <div class="d-flex flex-wrap align-center mt-2" style="gap:8px;">
+            <button type="button"
+                    class="mud-button-root mud-button mud-button-outlined mud-button-primary mud-button-size-medium"
+                    style="min-height:44px;display:inline-flex;align-items:center;gap:8px;"
+                    disabled="@Disabled"
+                    onclick="document.getElementById('@_cameraInputId').click()">
+                <MudIcon Icon="@Icons.Material.Filled.PhotoCamera" Size="Size.Small" />
+                <span>拍照</span>
+            </button>
+            <button type="button"
+                    class="mud-button-root mud-button mud-button-outlined mud-button-primary mud-button-size-medium"
+                    style="min-height:44px;display:inline-flex;align-items:center;gap:8px;"
+                    disabled="@Disabled"
+                    onclick="document.getElementById('@_deviceInputId').click()">
+                <MudIcon Icon="@Icons.Material.Filled.PhotoLibrary" Size="Size.Small" />
+                <span>从设备选择</span>
+            </button>
+        </div>
+
+        @if (_cameraUnavailable)
+        {
+            <div class="d-flex align-center mt-1" style="gap:4px;"
+                 role="status" aria-live="polite">
+                <MudIcon Icon="@Icons.Material.Filled.WarningAmber"
+                         Color="Color.Warning" Size="Size.Small" />
+                <MudText Typo="Typo.caption">@LocationPhotoRules.CameraUnavailableMessage</MudText>
+            </div>
+        }
+    }
+
+    @if (_processing)
+    {
+        <div class="d-flex align-center mt-1" style="gap:8px;" role="status" aria-live="polite">
+            <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.caption">正在读取照片…</MudText>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_fileError))
+    {
+        <div class="d-flex align-center mt-1" style="gap:4px;" role="alert" id="@_errorId">
+            <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Color="Color.Error" Size="Size.Small" />
+            <MudText Typo="Typo.caption">@_fileError</MudText>
+        </div>
+    }
+
+    <InputFile id="@_cameraInputId" class="d-none"
+               accept="image/jpeg,image/png,image/webp"
+               capture="environment"
+               OnChange="OnFileSelectedAsync"
+               @key="@($"camera-{_inputKey}")" />
+    <InputFile id="@_deviceInputId" class="d-none"
+               accept="image/jpeg,image/png,image/webp"
+               OnChange="OnFileSelectedAsync"
+               @key="@($"device-{_inputKey}")" />
+</div>
+
+@code {
+    [Parameter] public int LocationId { get; set; }
+    [Parameter] public bool HasSavedPhoto { get; set; }
+    [Parameter] public string LocationPath { get; set; } = "";
+    [Parameter] public string? SavedLocationPath { get; set; }
+    [Parameter] public LocationPhotoSelection? NewPhoto { get; set; }
+    [Parameter] public EventCallback<LocationPhotoSelection?> NewPhotoChanged { get; set; }
+    [Parameter] public bool RemoveRequested { get; set; }
+    [Parameter] public EventCallback<bool> RemoveRequestedChanged { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<bool> ValidationErrorChanged { get; set; }
+    [Parameter] public EventCallback<bool> ProcessingChanged { get; set; }
+
+    private readonly string _labelId = $"location-photo-label-{Guid.NewGuid():N}";
+    private readonly string _helpId = $"location-photo-help-{Guid.NewGuid():N}";
+    private readonly string _errorId = $"location-photo-error-{Guid.NewGuid():N}";
+    private readonly string _previewId = $"location-photo-preview-{Guid.NewGuid():N}";
+    private readonly string _cameraInputId = $"location-photo-camera-{Guid.NewGuid():N}";
+    private readonly string _deviceInputId = $"location-photo-device-{Guid.NewGuid():N}";
+
+    private bool _replacementMode;
+    private bool _savedExpanded;
+    private bool _savedLoading;
+    private bool _savedError;
+    private string? _savedDataUri;
+    private string? _fileError;
+    private bool _processing;
+    private bool _cameraUnavailable;
+    private ElementReference _savedFocusRegion;
+    private int _inputKey;
+    private int _previewGeneration;
+    private int _lastLocationId = -1;
+    private bool _disposed;
+    private LocationPhotoSelection? _cachedSelection;
+    private string? _cachedSelectionDataUri;
+
+    private string GroupDescribedBy =>
+        string.IsNullOrEmpty(_fileError) ? _helpId : $"{_helpId} {_errorId}";
+
+    private string SavedPath =>
+        string.IsNullOrWhiteSpace(SavedLocationPath) ? LocationPath : SavedLocationPath!;
+
+    private bool ShowSourceButtons =>
+        !HasSavedPhoto || _replacementMode || NewPhoto is not null;
+
+    protected override void OnParametersSet()
+    {
+        if (LocationId != _lastLocationId)
+        {
+            _lastLocationId = LocationId;
+            _replacementMode = false;
+            var hadFileError = _fileError is not null;
+            _fileError = null;
+            CollapseSavedPreview();
+
+            if (hadFileError)
+                _ = ValidationErrorChanged.InvokeAsync(false);
+        }
+
+        if (!HasSavedPhoto)
+            CollapseSavedPreview();
+    }
+
+    private async Task ToggleSavedPreviewAsync()
+    {
+        if (_savedExpanded)
+        {
+            CollapseSavedPreview();
+            return;
+        }
+
+        _savedExpanded = true;
+        await LoadSavedAsync();
+    }
+
+    private async Task RetrySavedAsync() => await LoadSavedAsync(fromRetry: true);
+
+    private async Task LoadSavedAsync(bool fromRetry = false)
+    {
+        if (LocationId <= 0)
+        {
+            _savedError = true;
+            return;
+        }
+
+        var generation = ++_previewGeneration;
+        _savedLoading = true;
+        _savedError = false;
+        _savedDataUri = null;
+        await InvokeAsync(StateHasChanged);
+
+        if (fromRetry)
+            await FocusSavedRegionAsync();
+
+        LocationPhotoContent? photo;
+        try
+        {
+            photo = await LocationService.GetPhotoAsync(LocationId, DateTime.UtcNow.Ticks);
+        }
+        catch (Exception)
+        {
+            if (generation != _previewGeneration) return;
+            _savedLoading = false;
+            if (_disposed) return;
+            _savedError = true;
+            return;
+        }
+
+        if (generation != _previewGeneration) return;
+        if (_disposed) return;
+
+        _savedLoading = false;
+        if (photo is null)
+        {
+            _savedError = true;
+            return;
+        }
+
+        _savedDataUri = ToDataUri(photo.Bytes, photo.ContentType);
+    }
+
+    private async Task FocusSavedRegionAsync()
+    {
+        try
+        {
+            // 重试会移除重试按钮；焦点移到仍在渲染的预览区域，保持键盘/读屏位置。
+            await _savedFocusRegion.FocusAsync(preventScroll: true);
+        }
+        catch (JSException)
+        {
+            // 组件已脱离页面时无需报错。
+        }
+        catch (InvalidOperationException)
+        {
+            // 元素未渲染时保持现有焦点。
+        }
+    }
+
+    private void CollapseSavedPreview()
+    {
+        _previewGeneration++;
+        _savedExpanded = false;
+        _savedLoading = false;
+        _savedError = false;
+        _savedDataUri = null;
+    }
+
+    private async Task StartReplacementAsync()
+    {
+        await SetFileErrorAsync(null);
+        _replacementMode = true;
+    }
+
+    private async Task RequestRemoveAsync()
+    {
+        await SetFileErrorAsync(null);
+        _replacementMode = false;
+        CollapseSavedPreview();
+        await NewPhotoChanged.InvokeAsync(null);
+        await RemoveRequestedChanged.InvokeAsync(true);
+    }
+
+    private async Task UndoRemoveAsync()
+    {
+        await RemoveRequestedChanged.InvokeAsync(false);
+    }
+
+    private async Task ClearSelectionAsync()
+    {
+        await SetFileErrorAsync(null);
+        _replacementMode = false;
+        await NewPhotoChanged.InvokeAsync(null);
+    }
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        // 用户取消原生文件选择时 FileList 为空；保持现有照片/选择，不报错也不进入加载态。
+        if (e.FileCount == 0) return;
+
+        await SetFileErrorAsync(null);
+
+        var file = e.File;
+        if (file.Size <= 0)
+        {
+            await SetFileErrorAsync("所选文件为空，请重新选择。");
+            return;
+        }
+
+        if (file.Size > LocationPhotoRules.MaxBytes)
+        {
+            await SetFileErrorAsync(LocationPhotoRules.TooLargeMessage);
+            return;
+        }
+
+        _processing = true;
+        await ProcessingChanged.InvokeAsync(true);
+
+        try
+        {
+            using var stream = file.OpenReadStream(LocationPhotoRules.MaxBytes);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            var bytes = buffer.ToArray();
+
+            var contentType = LocationPhotoRules.DetectContentType(bytes);
+            if (contentType is null)
+            {
+                await SetFileErrorAsync(LocationPhotoRules.UnsupportedFormatMessage);
+                return;
+            }
+
+            _inputKey++;
+            _replacementMode = false;
+            CollapseSavedPreview();
+
+            if (_disposed) return;
+
+            await RemoveRequestedChanged.InvokeAsync(false);
+            await NewPhotoChanged.InvokeAsync(
+                new LocationPhotoSelection(bytes, contentType, file.Name));
+        }
+        catch (IOException)
+        {
+            await SetFileErrorAsync(LocationPhotoRules.TooLargeMessage);
+        }
+        catch (Exception)
+        {
+            await SetFileErrorAsync("无法读取所选照片，请重试。");
+        }
+        finally
+        {
+            _processing = false;
+            if (!_disposed)
+                await ProcessingChanged.InvokeAsync(false);
+        }
+    }
+
+    private async Task SetFileErrorAsync(string? error)
+    {
+        if (_fileError == error) return;
+
+        _fileError = error;
+        if (!_disposed)
+            await ValidationErrorChanged.InvokeAsync(!string.IsNullOrEmpty(error));
+    }
+
+    private string GetNewPhotoDataUri()
+    {
+        if (NewPhoto is null) return string.Empty;
+
+        if (!ReferenceEquals(_cachedSelection, NewPhoto) || _cachedSelectionDataUri is null)
+        {
+            _cachedSelection = NewPhoto;
+            _cachedSelectionDataUri = ToDataUri(NewPhoto.Bytes, NewPhoto.ContentType);
+        }
+
+        return _cachedSelectionDataUri;
+    }
+
+    private static string ToDataUri(byte[] bytes, string contentType) =>
+        $"data:{contentType};base64,{Convert.ToBase64String(bytes)}";
+
+    public void Dispose()
+    {
+        _disposed = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _disposed) return;
+
+        try
+        {
+            var state = await JS.InvokeAsync<string>(
+                "boxwiseLocationPhoto.getCameraAvailability");
+
+            if (_disposed) return;
+
+            // 仅在明确不可用时提示；unknown 表示平台无法可靠判定，不推断拒绝。
+            var unavailable = state is "unsupported" or "denied" or "no-device";
+            if (unavailable != _cameraUnavailable)
+            {
+                _cameraUnavailable = unavailable;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (JSException)
+        {
+            // 无法观测相机状态时保持静默，设备选择始终可用。
+        }
+    }
+}

@@ -1,0 +1,232 @@
+@using BoxWise.Shared.Dtos
+@implements IDisposable
+@inject LocationService LocationService
+@inject IJSRuntime JS
+
+@* MudDialog 9.x 没有 AriaDescribedBy 属性；未匹配属性会落到 .mud-dialog-content。
+   这里在渲染后从本组件唯一内容根找到最近的 .mud-dialog[role=dialog] 并设置描述引用。 *@
+<MudDialog AriaLabelledBy="@_titleId">
+    <TitleContent>
+        <div class="d-flex align-center justify-space-between" style="gap:8px;">
+            <MudText Typo="Typo.h6" id="@_titleId">位置照片</MudText>
+            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                           OnClick="CloseAsync"
+                           aria-label="关闭位置照片"
+                           Style="min-width:44px;min-height:44px;" />
+        </div>
+    </TitleContent>
+    <DialogContent>
+        <div @ref="_dialogFocusRegion" tabindex="-1"
+             style="max-height:min(70vh, 70dvh);overflow-y:auto;overscroll-behavior:contain;outline:none;">
+            <span id="@_pathDescriptionId" class="bw-visually-hidden">位置路径：@AccessiblePath</span>
+            <div class="mb-3" aria-hidden="true">
+                <MudText Typo="Typo.caption" Color="Color.Default">位置路径</MudText>
+                <MudText Typo="Typo.body2" Style="overflow-wrap:anywhere;">@DisplayPath</MudText>
+            </div>
+
+            <MudPaper Elevation="0" Class="pa-2 mb-3"
+                      Style="background:#F5F5F5;border-radius:4px;min-height:200px;display:flex;align-items:center;justify-content:center;">
+                @if (_loading)
+                {
+                    <div class="d-flex align-center" style="gap:8px;" role="status" aria-live="polite">
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Color="Color.Primary" />
+                        <MudText Typo="Typo.body2">正在加载位置照片…</MudText>
+                    </div>
+                }
+                else if (_error)
+                {
+                    <div class="d-flex flex-column align-center" style="gap:8px;">
+                        <div role="alert">
+                            <MudText Typo="Typo.body2">位置照片加载失败。</MudText>
+                        </div>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                   OnClick="RetryAsync"
+                                   Style="min-height:44px;">
+                            重试
+                        </MudButton>
+                    </div>
+                }
+                else if (_dataUri is not null)
+                {
+                    <img src="@_dataUri"
+                         alt="@($"已保存位置照片：{AccessiblePath}")"
+                         style="display:block;max-width:100%;max-height:min(60vh, 60dvh);object-fit:contain;border-radius:4px;" />
+                }
+            </MudPaper>
+
+            @if (!string.IsNullOrEmpty(Location.Description))
+            {
+                <div>
+                    <MudText Typo="Typo.caption" Color="Color.Default">描述</MudText>
+                    <MudText Typo="Typo.body2"
+                             Style="white-space:pre-wrap;overflow-wrap:anywhere;">@Location.Description</MudText>
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseAsync" Variant="Variant.Text" Style="min-height:44px;">关闭</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public LocationDto Location { get; set; } = null!;
+
+    private readonly CancellationTokenSource _cts = new();
+    private readonly string _titleId = $"location-photo-title-{Guid.NewGuid():N}";
+    private readonly string _pathDescriptionId = $"location-photo-path-{Guid.NewGuid():N}";
+    private bool _loading = true;
+    private bool _error;
+    private string? _dataUri;
+    private int _generation;
+    private ElementReference _dialogFocusRegion;
+    private bool _closing;
+    private bool _disposed;
+
+    private string DisplayPath =>
+        string.IsNullOrWhiteSpace(Location.NamePath) ? Location.Name : Location.NamePath;
+
+    private string AccessiblePath =>
+        DisplayPath.Replace(" → ", "，").Replace("→", "，");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync(bool fromRetry = false)
+    {
+        if (!Location.HasPhoto)
+        {
+            _loading = false;
+            _error = true;
+            return;
+        }
+
+        var generation = ++_generation;
+        _loading = true;
+        _error = false;
+        _dataUri = null;
+        await InvokeAsync(StateHasChanged);
+
+        if (fromRetry)
+            await FocusStableRegionAsync();
+
+        LocationPhotoContent? photo;
+        try
+        {
+            photo = await LocationService.GetPhotoAsync(
+                Location.Id, DateTime.UtcNow.Ticks, _cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (generation != _generation || _cts.IsCancellationRequested) return;
+        _loading = false;
+        if (photo is null)
+        {
+            _error = true;
+            return;
+        }
+
+        _dataUri = $"data:{photo.ContentType};base64,{Convert.ToBase64String(photo.Bytes)}";
+    }
+
+    private Task RetryAsync() => LoadAsync(fromRetry: true);
+
+    private async Task FocusStableRegionAsync()
+    {
+        try
+        {
+            // 重试会移除原按钮；把焦点放到仍在渲染的内容区域，保留 Esc 等对话框键盘行为。
+            await _dialogFocusRegion.FocusAsync(preventScroll: true);
+        }
+        catch (JSException)
+        {
+            // 区域尚未连接时由对话框自身保持焦点。
+        }
+        catch (InvalidOperationException)
+        {
+            // 元素未渲染时保持现有焦点。
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_disposed || _closing) return;
+        await SetDialogDescribedByAsync();
+    }
+
+    private async Task SetDialogDescribedByAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "boxwiseLocationPhoto.setDialogDescribedBy",
+                _dialogFocusRegion,
+                _pathDescriptionId);
+
+            // 设置期间若已开始关闭，清理可能随后写入的属性。
+            if (_closing || _disposed)
+                await ClearDialogDescribedByAsync();
+        }
+        catch (JSException)
+        {
+            // 对话框尚未挂载时保持现有 aria 属性。
+        }
+        catch (InvalidOperationException)
+        {
+            // 元素已脱离页面时保持现有 aria 属性。
+        }
+        catch (Exception)
+        {
+            // JS 运行时不可用时保持现有 aria 属性。
+        }
+    }
+
+    private async Task ClearDialogDescribedByAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync(
+                "boxwiseLocationPhoto.clearDialogDescribedBy",
+                _pathDescriptionId);
+        }
+        catch (JSException)
+        {
+            // 页面卸载时清理失败不影响关闭。
+        }
+        catch (InvalidOperationException)
+        {
+            // JS 运行时不可用时不影响关闭。
+        }
+        catch (Exception)
+        {
+            // 清理失败不影响关闭。
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        if (_closing) return;
+        _closing = true;
+        _cts.Cancel();
+        await ClearDialogDescribedByAsync();
+        MudDialog.Close();
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _closing = true;
+        _cts.Cancel();
+        _ = ClearDialogDescribedByAsync();
+        _cts.Dispose();
+    }
+}

@@ -149,6 +149,7 @@ builder.Services.AddScoped<LocationRepository>();
 builder.Services.AddScoped<TagRepository>();
 builder.Services.AddScoped<ItemRepository>();
 builder.Services.AddSingleton<ImageStorageService>();
+builder.Services.AddSingleton<LocationPhotoStore>();
 builder.Services.AddSingleton<ThumbnailService>();
 builder.Services.AddSingleton<ThumbnailBackgroundService>();
 builder.Services.AddHostedService<ThumbnailBackgroundService>(sp => sp.GetRequiredService<ThumbnailBackgroundService>());
@@ -452,6 +453,7 @@ app.UseAuthorization();
 
 app.MapAuthEndpoints();
 app.MapLocationEndpoints();
+app.MapLocationPhotoEndpoints();
 app.MapImageEndpoints();
 app.MapItemEndpoints();
 app.MapTagEndpoints();

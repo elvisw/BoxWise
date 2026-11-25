@@ -4,9 +4,11 @@
 @using BoxWise.Shared.Dtos
 @inject ItemService ItemService
 @inject TagService TagService
+@inject LocationService LocationService
 @inject IDialogService DialogService
 @inject NavigationManager Navigation
 @inject HttpClient Http
+@inject IJSRuntime JS
 
 @if (_loading)
 {
@@ -76,12 +78,24 @@ else if (_item is not null)
     }
     else
     {
+        <div id="@_detailFallbackId" tabindex="-1" style="outline:none;">
         @* === 展示模式 === *@
         <MudText Typo="Typo.h5" Class="mt-3">@_item.Name</MudText>
 
-        <MudText Typo="Typo.body2" Color="Color.Default" Class="mt-2">
-            <strong>位置:</strong> @FormatLocationPath(_item.LocationPath, _item.LocationName, _item.LocationId)
-        </MudText>
+        <div class="mt-2 d-flex flex-wrap align-center" style="gap:0 12px;">
+            <MudText Typo="Typo.body2" Color="Color.Default">
+                <strong>位置:</strong> @FormatLocationPath(_item.LocationPath, _item.LocationName, _item.LocationId)
+            </MudText>
+            @if (HasLocationPhoto)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Primary"
+                           id="@_photoEntryId"
+                           OnClick="OpenLocationPhotoDialogAsync"
+                           Style="min-height:44px;padding-left:0;text-transform:none;">
+                    查看位置照片
+                </MudButton>
+            }
+        </div>
 
         @if (_item.TagNames is { Count: > 0 })
         {
@@ -132,11 +146,15 @@ else if (_item is not null)
                 @(_isDeleting ? "删除中..." : "删除物品")
             </MudButton>
         </div>
+        </div>
     }
 }
 
 @code {
     private ItemDto? _item;
+    private LocationDto? _locationMeta;
+    private readonly string _photoEntryId = $"item-location-photo-{Guid.NewGuid():N}";
+    private readonly string _detailFallbackId = $"item-detail-fallback-{Guid.NewGuid():N}";
     private bool _loading = true;
     private bool _notFound;
     private bool _isDeleting;
@@ -151,12 +169,20 @@ else if (_item is not null)
 
     [Parameter] public int Id { get; set; }
 
+    private bool HasLocationPhoto =>
+        !_editing
+        && _item?.LocationId is int locationId
+        && _locationMeta is { HasPhoto: true } meta
+        && meta.Id == locationId;
+
     protected override async Task OnInitializedAsync()
     {
         try
         {
             _item = await ItemService.GetByIdAsync(Id);
             _notFound = _item is null;
+            if (_item is not null)
+                await LoadLocationMetaAsync(_item.LocationId);
         }
         catch
         {
@@ -165,6 +191,24 @@ else if (_item is not null)
         finally
         {
             _loading = false;
+        }
+    }
+
+    private async Task LoadLocationMetaAsync(int? locationId)
+    {
+        _locationMeta = null;
+        if (locationId is null) return;
+
+        try
+        {
+            var meta = await LocationService.GetByIdAsync(locationId.Value);
+            if (meta is not null && _item?.LocationId == locationId)
+                _locationMeta = meta;
+        }
+        catch
+        {
+            // 元数据暂时不可用时隐藏入口，不通过图片 URL 探测。
+            _locationMeta = null;
         }
     }
 
@@ -228,6 +272,7 @@ else if (_item is not null)
             {
                 _item = result;
                 _editing = false;
+                await LoadLocationMetaAsync(result.LocationId);
             }
             else
             {
@@ -255,6 +300,44 @@ else if (_item is not null)
         if (!string.IsNullOrWhiteSpace(locationName))
             return locationName;
         return locationId?.ToString() ?? "未分配";
+    }
+
+    private async Task OpenLocationPhotoDialogAsync()
+    {
+        if (_locationMeta is not { HasPhoto: true } location) return;
+
+        var parameters = new DialogParameters
+        {
+            { "Location", location }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = false,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            BackdropClick = true
+        };
+
+        var dialog = await DialogService.ShowAsync<LocationPhotoDialog>(
+            "位置照片", parameters, options);
+        await dialog.Result;
+
+        try
+        {
+            var focused = await JS.InvokeAsync<bool>(
+                "boxwiseLocationPhoto.focusById", _photoEntryId);
+            if (!focused)
+            {
+                await JS.InvokeAsync<bool>(
+                    "boxwiseLocationPhoto.focusById", _detailFallbackId);
+            }
+        }
+        catch (JSException)
+        {
+            // 焦点恢复失败不影响关闭结果。
+        }
     }
 
     private async Task OpenDeleteDialogAsync()

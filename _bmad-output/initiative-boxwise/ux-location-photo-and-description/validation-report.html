@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UX 设计验证报告：收纳位置照片与描述（Story #1）</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --text: #1c1917;
+    --muted: #78716c;
+
+    --verdict-strong: #16a34a;
+    --verdict-adequate: #65a30d;
+    --verdict-thin: #d97706;
+    --verdict-broken: #dc2626;
+
+    --sev-low: #64748b;
+    --sev-medium: #ca8a04;
+    --sev-high: #ea580c;
+    --sev-critical: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    font-size: 15px;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  a { color: var(--text); text-decoration-color: var(--muted); text-underline-offset: 2px; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    background: rgba(28, 25, 23, 0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  header.report-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .title h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .title .subtitle { color: var(--muted); font-size: 13px; margin-top: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .synthesis {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--muted);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    font-size: 15.5px;
+  }
+  .synthesis p { margin: 0 0 10px; }
+  .synthesis p:last-child { margin-bottom: 0; }
+
+  .dimension-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .dim-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .dim-card .dim-name { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .dim-card .dim-verdict { font-size: 14px; font-weight: 600; }
+
+  section.dimension, section.reviewer-section { margin-bottom: 14px; }
+  section.dimension details, section.reviewer-section details {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  section summary {
+    padding: 14px 20px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section summary::-webkit-details-marker { display: none; }
+  section summary::before {
+    content: "▸";
+    display: inline-block;
+    color: var(--muted);
+    transition: transform 0.15s ease;
+  }
+  section details[open] summary::before { transform: rotate(90deg); }
+  section summary h2 {
+    display: inline;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    flex: 1;
+  }
+  .verdict-pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: white;
+  }
+  .verdict-strong { background: var(--verdict-strong); }
+  .verdict-adequate { background: var(--verdict-adequate); }
+  .verdict-thin { background: var(--verdict-thin); }
+  .verdict-broken { background: var(--verdict-broken); }
+
+  .dim-body { padding: 4px 20px 18px; }
+  .dim-judgment { color: var(--text); font-size: 14.5px; }
+  .dim-judgment p { margin: 0 0 10px; }
+
+  .findings-list { padding: 0 20px 4px; }
+  article.finding {
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  article.finding:first-child { border-top: none; }
+  article.finding header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+  .badge {
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+  }
+  .badge-sev-low { background: rgba(100, 116, 139, 0.12); color: var(--sev-low); }
+  .badge-sev-medium { background: rgba(202, 138, 4, 0.14); color: var(--sev-medium); }
+  .badge-sev-high { background: rgba(234, 88, 12, 0.14); color: var(--sev-high); }
+  .badge-sev-critical { background: rgba(220, 38, 38, 0.14); color: var(--sev-critical); }
+  .finding-title { margin: 0; font-size: 15px; font-weight: 500; flex: 1; min-width: 200px; }
+  .finding-location { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; color: var(--muted); }
+  .finding-note, .finding-fix { margin-top: 6px; font-size: 14px; }
+  .finding-fix strong { color: var(--muted); font-weight: 500; }
+
+  .reviewer-source {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .mechanical {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: 24px;
+    font-size: 14px;
+  }
+  .mechanical h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .mechanical ul { margin: 0; padding-left: 20px; }
+  .mechanical li { margin-bottom: 4px; color: var(--text); }
+  .mechanical ol { margin: 0; padding-left: 20px; }
+  .mechanical ol li { margin-bottom: 6px; }
+
+  footer.report-footer {
+    margin-top: 40px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  footer .meta { display: flex; gap: 24px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="report-header">
+      <div class="title">
+        <h1>收纳位置照片与描述（Story #1）— UX 设计验证报告</h1>
+        <div class="subtitle">_bmad-output/initiative-boxwise/ux-location-photo-and-description/ · DESIGN.md + EXPERIENCE.md</div>
+      </div>
+    </header>
+
+    <div class="mechanical">
+      <h3>审阅范围与证据边界</h3>
+      <ul>
+        <li><strong>审阅对象是设计稿</strong>：Story #1、<a href="./DESIGN.md">DESIGN.md</a>、<a href="./EXPERIENCE.md">EXPERIENCE.md</a>、<a href="./.memlog.md">.memlog.md</a> 与 <code>.working/</code> 下四张低保真稿。未启动应用、未连接业务数据库、未在真实浏览器或读屏中操作、未做安全测试。</li>
+        <li>四张 <code>.working/*.html</code> 是无 JS 的静态低保真稿，固定 390×844 画框，<strong>不能</strong>作为键盘、焦点、读屏、相机、滚动或 320px/200% 行为的证据。</li>
+        <li>本报告是<strong>整改前快照</strong>：记录两份原件交回时的状态；之后并行的设计修订未纳入，也不依赖其输出。</li>
+        <li>两份原件都只做文档层判断。无障碍原件把 gate 标为「有条件通过」，条件是先修正 H1–H3；这是对<strong>设计文档</strong>的 gate 判断，<strong>不表示设计已定稿，更不表示应用已通过验收</strong>。本报告不给出「通过」结论。</li>
+      </ul>
+    </div>
+
+    <div class="synthesis">
+      <p>这份 spine pair 的覆盖度很高：Story #1 的五条 Requirements 全部有同名 Key Flow，状态表也把部分成功、明确失败和结果未知分开了。但它还不是一份干净的实现契约：4 个高严重度问题集中在「已确认的布局仍被标成待定」「Story 尚未写回已确认的 UX 决策」「描述是否截断两份 spine 说法相反」「表单内已保存照片预览没有失败状态」。其余问题多为精确性、重复约束和验收边界，不是范围冲突。</p>
+      <p>无障碍与窄屏评审在文档层另加 3 项高严重度：管理对话框与照片弹窗缺少明确的滚动容器、保存失败/部分成功提示可能落在视口外、44×44 触控承诺没有落到组件规格。它同时确认布局方向与无障碍意图是成熟的——按需加载、不叠第二层模态、失败可重试/可关闭、不靠颜色单独表达状态——并把已确认布局列为<strong>本轮不重开</strong>项：修正不需要重做布局。综合优先级是：先补正文滚动容器、失败/部分成功的可见反馈、触控区规格；再补焦点返回、live region、alt、表单校验与表单内预览失败态；其余留给真实应用验证。</p>
+      <p>以上都只是对设计文稿的判断，真实应用行为一律未验证。本报告不把任何真实应用项计为已通过，也不把静态稿的占位表现当作缺陷。</p>
+    </div>
+
+    <div class="dimension-summary">
+      <div class="dim-card">
+        <div class="dim-name">流程覆盖</div>
+        <div class="dim-verdict" style="color: var(--verdict-strong)">强</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">Token 完整性</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">合格</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">组件覆盖</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">合格</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">状态覆盖</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">合格</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">视觉参考覆盖</div>
+        <div class="dim-verdict" style="color: var(--verdict-strong)">强</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">精简与过度规格</div>
+        <div class="dim-verdict" style="color: var(--verdict-adequate)">合格</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">继承纪律</div>
+        <div class="dim-verdict" style="color: var(--verdict-thin)">薄弱</div>
+      </div>
+      <div class="dim-card">
+        <div class="dim-name">结构契合</div>
+        <div class="dim-verdict" style="color: var(--verdict-strong)">强</div>
+      </div>
+    </div>
+
+    <section class="dimension" id="flow-coverage">
+      <details>
+        <summary>
+          <h2>1. 流程覆盖</h2>
+          <span class="verdict-pill verdict-strong">强</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>Story Requirements 1–5（<code>story-location-photo-and-description.md:19-38</code>）与 EXPERIENCE Key Flows 1–5（<code>EXPERIENCE.md:246-298</code>）五个名称逐字对应，均有具名主角、编号步骤、Climax 与失败/未知路径。Flow 6 补删除、Flow 7 补相机权限失败后改选设备图，对应 memlog 已确认的决策，未越界。</p>
+            <p>无发现（0）。</p>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="dimension" id="token-completeness">
+      <details>
+        <summary>
+          <h2>2. Token 完整性</h2>
+          <span class="verdict-pill verdict-adequate">合格</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>DESIGN frontmatter 的全部 token 与正文/组件中的 15 个唯一 <code>{path.to.token}</code> 引用全部可解析；颜色均为 hex；单浅色主题不需要 light/dark 对；typography 的 <code>note</code> 继承 MudBlazor 属于 spec 允许的平台约定；primary/error/success/text 的关键组合对比度均有说明。缺口是一处控件边界的对比度说明。</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title"><code>line-default</code> 作为输入边框时对比度不足</h3>
+              <span class="finding-location">DESIGN.md:103, 166</span>
+            </header>
+            <div class="finding-note"><code>line-default</code> 同时被定义为「分隔线与输入边框」，又被声明「不作为唯一的状态或控件边界」；<code>#0000001F</code> 合成到白底约为 <code>#E0E0E0</code>，对比度约 1.3:1。若它是输入框唯一可见边界，达不到 3:1 的控件边界目标。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 为输入框单列满足 3:1 的 <code>border-control</code> token；或明确输入框由 MudBlazor 的标签/填充承担识别、<code>line-default</code> 只用于分隔线，并补该例外的对比度说明。</div>
+          </article>
+        </div>
+      </details>
+    </section>
+
+    <section class="dimension" id="component-coverage">
+      <details>
+        <summary>
+          <h2>3. 组件覆盖</h2>
+          <span class="verdict-pill verdict-adequate">合格</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>DESIGN 正文有 12 个组件行，EXPERIENCE Component Patterns 有 11 行；<code>位置资料表单</code>、<code>位置描述字段</code>、<code>位置照片字段</code>、<code>本地照片预览</code>、<code>浏览位置信息面板</code>、<code>位置照片入口</code>、<code>位置照片弹窗</code>、<code>位置删除确认</code>、<code>状态提示条</code>、<code>物品照片区</code>、<code>位置树</code> 均有双边规格。缺口是 <code>字段错误</code> 只有视觉行。</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title"><code>字段错误</code> 缺行为侧组件行</h3>
+              <span class="finding-location">DESIGN.md:162；EXPERIENCE.md:88-89, 145</span>
+            </header>
+            <div class="finding-note"><code>字段错误</code> 在 DESIGN 有独立视觉行，但 EXPERIENCE Component Patterns 没有对应行，行为散落在描述字段/照片字段行和 <code>字段校验失败</code> 状态里。下游无法从组件表直接读出错误的放置、字段关联、播报和消失规则。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 在 Component Patterns 增加一行「字段错误」，或明确把它折叠进两个字段行并删除 DESIGN 的独立组件名。</div>
+          </article>
+        </div>
+      </details>
+    </section>
+
+    <section class="dimension" id="state-coverage">
+      <details>
+        <summary>
+          <h2>4. 状态覆盖</h2>
+          <span class="verdict-pill verdict-adequate">合格</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>已走 IA 的四个 surface：位置管理、浏览、物品详情、位置照片弹窗。冷加载、空、保存中、完整成功、部分成功、明确失败、结果未知、字段校验、相机不可用、编辑各阶段、删除各阶段、弹窗加载/成功/失败/重试/关闭/长内容/文件缺失/离线均有覆盖。缺口集中在表单内预览、移除失败的组合状态、结果未知文案与系统返回键。</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">高</span>
+              <h3 class="finding-title">管理表单内已保存照片预览没有加载中/失败/重试状态（无障碍 M4 重复项，合并）</h3>
+              <span class="finding-location">EXPERIENCE.md:89, 147-148, 200；DESIGN.md:155；review-accessibility.md M4</span>
+            </header>
+            <div class="finding-note">契约只写「图片只在展开时加载」，而共享弹窗已有加载中、失败、重试、文件缺失的完整状态。慢网络或 404 时，表单内可能只显示空白框或破图，用户无法区分「没有照片」「还在加载」「加载失败」，实现者只能自行发明行为。严重度分歧：rubric 定为 high，无障碍评审定为 medium（M4）；本报告按 high 合并列示，不重复计数。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 复用弹窗三态——加载中显示进度与「正在加载位置照片…」，失败显示「位置照片加载失败。」+「重试」，不显示破图；「收起」始终可用；失败不自动收起、不清除「已保存位置照片」状态；重试成功后替换图片，失败保留错误与收起；加载/失败用 aria-live 播报但避免与弹窗重复；明确收起后再展开是否重新请求。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">移除照片失败的组合状态未定义</h3>
+              <span class="finding-location">EXPERIENCE.md:112-119, 153, 156</span>
+            </header>
+            <div class="finding-note">「移除照片失败」只写「旧照片保留；提示失败；可重试」，没有说明同一次保存里已修改的描述是否已保存、表单是否留在编辑态。<code>资料独立性</code> 表与 <code>编辑部分成功</code> 只覆盖「替换失败」。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 明确「描述已保存 + 移除失败」：表单不关闭、旧照片仍可查看、描述以服务端状态为准，并给出下一步文案。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">照片上传结果未知缺已承诺的微文案</h3>
+              <span class="finding-location">EXPERIENCE.md:76, 142, 156</span>
+            </header>
+            <div class="finding-note">唯一的结果未知文案是新建场景的「暂时无法确认是否保存成功。请关闭表单查看位置列表；若已出现该位置……」，但此时位置和描述已保存、位置一定存在，这句话不适用；<code>EXPERIENCE.md:142</code> 只描述行为没有给文案，移除照片失败也没有独立文案。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 为「位置/描述已保存、照片状态未知」和「移除照片失败」各加一条固定文案，放进 Voice and Tone 与状态表。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">弹窗的系统/浏览器返回键行为未定义（无障碍 L8 重复项，合并）</h3>
+              <span class="finding-location">EXPERIENCE.md:44, 93, 187, 197；.working/key-photo-dialog.html:460；review-accessibility.md L8</span>
+            </header>
+            <div class="finding-note">设计承诺不改 URL、关闭后保留筛选，但关闭方式只列了 X、「关闭」、Esc 和背景点击。手机 PWA 上按返回键可能直接离开浏览页，违背「关闭不导航、不重置筛选」。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 明确 Back 是关闭弹窗还是离开页面；若要关闭，push 一个历史条目并在 <code>popstate</code> 中关闭，且不改 URL/不重置筛选；在 Android Chrome 验证返回键与手势返回；若不支持关闭，明确写出并纳入验收。</div>
+          </article>
+        </div>
+      </details>
+    </section>
+
+    <section class="dimension" id="visual-reference-coverage">
+      <details>
+        <summary>
+          <h2>5. 视觉参考覆盖</h2>
+          <span class="verdict-pill verdict-strong">强</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p><code>.working/</code> 下四张 HTML 全部存在，均在 DESIGN 的「低保真稿」段和 EXPERIENCE 的 Key Screens 表中被内联链接并说明示意内容（<code>DESIGN.md:84-89</code>、<code>EXPERIENCE.md:50-59</code>）；<code>imports/</code> 为空且已说明；没有 <code>mockups/</code>/<code>wireframes/</code>，不存在孤儿文件。四张稿的定位是待定稿而非遗失的 mockups，与任务前提一致。</p>
+            <p>参考稿状态与 memlog 的冲突计入「继承纪律」，不重复计。无发现（0）。</p>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="dimension" id="bloat-overspecification">
+      <details>
+        <summary>
+          <h2>6. 精简与过度规格</h2>
+          <span class="verdict-pill verdict-adequate">合格</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>已对照 token 表检查组件行中的像素值，并检查同一约束在 Requirements、Voice、Component、State、Data Contracts、Assumptions 之间的重复。结构本身合理，问题是 px 复述 token 和限制条款多处重述。</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">组件行用原始 px 复述 token</h3>
+              <span class="finding-location">DESIGN.md:153, 155, 157, 159-163</span>
+            </header>
+            <div class="finding-note"><code>12px</code> 对应 <code>{spacing.3}</code>、<code>8px</code> 对应 <code>{spacing.2}</code>、<code>4px</code> 对应 <code>{spacing.1}</code>、<code>4px 圆角</code> 对应 <code>{rounded.sm}</code>。改 token 时这些行不会跟着变。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 组件行改用 token 引用，或只写一次「下列数值是当前解析结果，实际以 token 为准」。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">300 字与照片限制被反复重述</h3>
+              <span class="finding-location">DESIGN.md:154, 155, 183, 184；EXPERIENCE.md:88, 89, 105, 106, 138, 145, 198, 213, 330, 334, 336, 337</span>
+            </header>
+            <div class="finding-note">300 字与照片格式/大小在 Requirements、Voice、Component、State、Data Contracts、Assumptions 之间多次出现；约束一旦调整，容易只改一处。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 以 Data Contracts 表为唯一 canon，其余位置只保留状态特有的行为，用交叉引用代替复述。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title"><code>物品照片区</code> 复述现有实现的尺寸</h3>
+              <span class="finding-location">DESIGN.md:163</span>
+            </header>
+            <div class="finding-note">150px/400px 是既有代码细节，不是本功能的视觉契约，会随现有物品照片样式变化而漂移。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 只保留「位置照片不进入该区域、不替代物品照片」的分离规则，尺寸引用现有组件行为即可。</div>
+          </article>
+        </div>
+      </details>
+    </section>
+
+    <section class="dimension" id="inheritance-discipline">
+      <details open>
+        <summary>
+          <h2>7. 继承纪律</h2>
+          <span class="verdict-pill verdict-thin">薄弱</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p><code>sources</code> 中的 Story 和 <code>.memlog.md</code> 均可解析；五个 Flow 名称逐字对应 Requirements；组件名在两边一致。但「已确认」与「待确认」的状态没有随 memlog 更新，Story 未写回已确认决策，描述展示契约两边相反——这是本 pair 最实质的契约问题。</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">高</span>
+              <h3 class="finding-title">已确认布局仍被写成草案/待确认</h3>
+              <span class="finding-location">DESIGN.md:4, 80, 84；EXPERIENCE.md:3, 12, 50, 52, 320-335；.memlog.md:13</span>
+            </header>
+            <div class="finding-note">用户已在 memlog 明确「布局确认」，但两份 spine 仍把布局写成草案：<code>DESIGN.md:80</code> 甚至写「评审确认后才能作为实现契约」，两份 <code>status</code> 仍为 <code>draft</code>。下游会把已确认布局继续当假设，定稿边界不清。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 定稿时清除已确认布局的 <code>[ASSUMPTION]</code>，把「待确认」标题改为「已确认」并注明日期，只保留真正未决条目（A4/A5/A6/A8/A10/A11），再设 <code>status: final</code> 并更新 <code>updated</code>。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">高</span>
+              <h3 class="finding-title">Story #1 尚未写回已确认的 UX 决策</h3>
+              <span class="finding-location">story-location-photo-and-description.md:19-38, 54-55；EXPERIENCE.md:105-106, 334-337；.memlog.md:11, 13</span>
+            </header>
+            <div class="finding-note">300 字/保留换行、1 张 JPG/PNG/WebP/≤10 MB、拍照或设备选图、相机不可用仍可选图、四张布局确认、删除空位置清理照片、部分成功不重复创建，均只存在于 EXPERIENCE/memlog。另：设计用共享表单替代现有行内重命名（<code>LocationManageDialog.razor:54-63</code>、<code>:222-259</code>），这一行为变化也未写进 Story。若只按 Story 验收，会漏掉这些约束。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 定稿前把上述决策补进 Story 的 Notes/Requirements，或明确声明两 spine 是该 Story 的约束来源；同时记录行内重命名被共享表单替代。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">高</span>
+              <h3 class="finding-title">描述展示契约自相矛盾</h3>
+              <span class="finding-location">DESIGN.md:118；EXPERIENCE.md:91, 188, 330</span>
+            </header>
+            <div class="finding-note">DESIGN 写「描述不截断」，EXPERIENCE A7 却写「浏览/弹窗中完整显示、保留换行、不折叠仍是待确认的展示假设」；浏览面板没有长描述的容器规则，长内容状态只写在弹窗里。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 确认浏览页与弹窗都完整显示、保留换行；为浏览面板补一条 300 字/多行描述的 max-height 或滚动规则（不改变面板位置）；删除 A7 的「待确认」，让两份 spine 对齐。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">物品详情的 <code>hasPhoto</code> 来源未定义</h3>
+              <span class="finding-location">EXPERIENCE.md:46, 92, 173-174</span>
+            </header>
+            <div class="finding-note">入口可见性来自「位置元数据中的 hasPhoto 标记」，描述和是否有照片随位置数据加载；但物品详情只列了有/无照片状态，没有说物品详情 DTO 是否带 <code>locationHasPhoto</code>，还是需要额外取位置元数据。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 明确数据来源（随物品 DTO 返回，或加载位置元数据），并写进「点击前不请求照片文件」的验收。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">「300 字」的计数单位与空白描述语义未定义</h3>
+              <span class="finding-location">DESIGN.md:154；EXPERIENCE.md:88, 105, 330</span>
+            </header>
+            <div class="finding-note">没有说按 Unicode 码点、字素簇还是 UTF-16 单元计数，换行是否计入；「空值即无描述」也没有说全空白是否按空处理。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 定义计数单位、换行是否计入，以及 <code>Trim()</code> 后为空是否即无描述；客户端与服务端使用同一规则并纳入验收。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">术语表「唯一」与表单对比入口文案不一致</h3>
+              <span class="finding-location">EXPERIENCE.md:29, 89；DESIGN.md:155</span>
+            </header>
+            <div class="finding-note">术语表说「查看位置照片」是「唯一的已保存照片查看入口文案」，但表单的新选照片状态使用「查看现有位置照片」。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 把「唯一」限定为浏览/物品详情入口，或统一表单里的对比入口文案，并说明表单内是 disclosure、不是弹窗。</div>
+          </article>
+        </div>
+      </details>
+    </section>
+
+    <section class="dimension" id="shape-fit">
+      <details>
+        <summary>
+          <h2>8. 结构契合</h2>
+          <span class="verdict-pill verdict-strong">强</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>DESIGN 按 Brand &amp; Style → Colors → Typography → Layout &amp; Spacing → Elevation &amp; Depth → Shapes → Components → Do's and Don'ts 的 canonical 顺序排列；EXPERIENCE 具备全部 required defaults：Foundation、Information Architecture、Voice and Tone、Component Patterns、State Patterns、Interaction Primitives、Accessibility Floor、Key Flows。<code>Data Contracts</code> 承担独立性/删除隔离的实质内容，<code>Responsive &amp; Platform</code> 与 <code>Inspiration &amp; Anti-patterns</code> 的触发均成立。</p>
+            <p>无发现（0）。</p>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="reviewer-section" id="accessibility-review">
+      <details>
+        <summary>
+          <h2>无障碍与窄屏评审</h2>
+          <span class="reviewer-source">review-accessibility.md</span>
+        </summary>
+        <div class="dim-body">
+          <div class="dim-judgment">
+            <p>只读文件审阅，评审日期 2026-11-25；未启动应用、未使用真实浏览器或读屏、未接触业务数据、未做安全测试。原件把 gate 标为「有条件通过」，条件是先修正 H1–H3；这是<strong>文档层</strong>的 gate 判断，不表示设计已定稿或应用已验收。</p>
+            <p>正向前提：不把位置照片混入物品缩略图/详情主图；入口可见性来自 <code>hasPhoto</code> 而非试探图片 URL；点击前不请求照片；失败时路径与描述仍在、可重试可关闭；表单内用 disclosure 不叠第二层模态；不用红/绿小字号单独表达状态；描述上限用静态说明和字段错误而非实时计数器；Esc、焦点困在弹窗内、关闭后焦点回入口、44×44 意图均已写明；删除空位置只清理该位置自己的描述和照片。</p>
+            <p>本节不重复两个已合并到 rubric 分类的条目：M4（表单内预览三态）并入「4. 状态覆盖」的 high；L8（Android 返回键）并入「4. 状态覆盖」的 low。下文按原件 H/M/L 编号列示其余 19 条。</p>
+          </div>
+        </div>
+        <div class="findings-list">
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">高</span>
+              <h3 class="finding-title">H1 — 管理对话框与照片弹窗缺少明确的滚动容器</h3>
+              <span class="finding-location">EXPERIENCE.md:188, 215；DESIGN.md:130, 159；.working/key-photo-dialog.html:148, 161-179；.working/key-manage-location.html:171, 381-418, 507-556</span>
+            </header>
+            <div class="finding-note">只有照片弹窗写了「内容纵向滚动」；管理对话框新增提示条、名称、上级位置、三行以上描述、照片字段、展开预览与操作按钮后高度显著增加，但两张草图的 <code>.dialog-body</code> 都是 <code>overflow: hidden</code>。200% 文本或 320px 宽下，300 字描述 + 展开预览 + 提示条可能超出对话框，保存/取消、路径/描述/重试落在裁剪区，键盘焦点还可能移到被裁剪控件上。静态稿固定 390×844，不能证明滚动行为，但对话框内容区的 <code>overflow:hidden</code> 不是画框装饰，容易被照抄。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 在两条组件规格写明对话框正文是唯一纵向滚动容器（<code>min-height:0; overflow-y:auto; overscroll-behavior:contain</code>），标题栏与底部操作区在滚动容器之外；明确「关闭控件保持可见/可达」是无需滚动可见还是可滚动到达，建议至少 X 或底部「关闭」之一始终在视口；保证 200% 下保存/取消可达；不要用嵌套滚动作为唯一方案；补一帧「长路径 + 300 字 + 200%/320px」验证，并在真实浏览器检查 320×640、200% 和横屏。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">高</span>
+              <h3 class="finding-title">H2 — 保存失败/部分成功提示可能出现在视口外</h3>
+              <span class="finding-location">DESIGN.md:161；EXPERIENCE.md:95, 141-144；.working/key-manage-location.html:507-513, 553-556</span>
+            </header>
+            <div class="finding-note">提示条固定在表单上方，保存按钮在表单底部。用户在窄屏或 200% 下滚到底点击保存时，失败/部分成功/结果未知的常驻提示可能完全在视口之外；部分成功还会把表单从「新建」切换为「编辑该新位置」，这是一次较大的重渲染，却未规定切换后的焦点与滚动位置。读屏用户可能通过 live region 听到提示，低视力键盘用户仍可能看不到，像「什么都没发生」。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 失败/部分成功/结果未知时，将焦点移到提示条（<code>tabindex="-1"</code>）或其中的「重试」按钮并滚入视口；不要在保存按钮旁复制一套不一致文案，若要加摘要必须与顶部同源；部分成功切换时保留滚动位置或聚焦表单标题/提示条，并播报「位置已创建，照片未上传」；提示条保持常驻，仅由用户主动关闭，关闭后仍能从字段状态看出照片未保存。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-high">高</span>
+              <h3 class="finding-title">H3 — 44×44 触控契约没有落到各组件规格</h3>
+              <span class="finding-location">EXPERIENCE.md:195, 215；DESIGN.md:54, 158；.working/key-manage-location.html:114, 222, 238, 263, 308；.working/key-browse-location.html:118-129, 140；.working/key-item-detail.html:141；.working/key-photo-dialog.html:113, 181</span>
+            </header>
+            <div class="finding-note">契约要求入口、关闭、重试、保存/取消至少 44×44，但 DESIGN 只给「位置照片入口」标了 <code>min-target: 44px</code>。X、底部「关闭」、重试、拍照、从设备选择、查看现有照片、撤销移除、重试上传、关闭提示等新控件没有逐项落规格；草图实际尺寸为 28–40px（按钮 34/36/38px、链接 30px、提示条动作 28px、图标按钮与入口 40px、树行 32px）。WCAG 2.2 AA 的 2.5.8 最低是 24×24，28–40px 不一定构成 AA 失败，但本设计自己承诺了 44×44，契约与视觉稿不一致会让实现者和验收者各按一套标准；MudBlazor 默认按钮也可能低于 44px。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 在 <code>DESIGN.md.Components</code> 逐项写明 44×44 最小点击区域（含 padding，而非只看文字高度），覆盖 X、关闭、重试、保存、取消、拍照、从设备选择、查看位置照片、收起、查看现有位置照片、撤销移除、重试上传、关闭提示、行内删除/取消；实现用 <code>min-height:44px</code> + <code>min-width:44px</code> 并检查相邻间距；或更新草图尺寸，或在每张草图顶部标注「示意图不按 1:1 表达触控尺寸，以 DESIGN.md 为准」；验收用浏览器 computed box 实测，不用「CSS 写了 min-height」代替。树节点是既有控件，本次不要求重做，但新入口不要继承 32px 树行高度。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M1 — 焦点返回只有意图，没有实现机制</h3>
+              <span class="finding-location">EXPERIENCE.md:187, 207；DESIGN.md:178</span>
+            </header>
+            <div class="finding-note">契约要求关闭弹窗后焦点回到触发入口，入口不存在时回到位置树当前节点或物品详情标题。但没有说明 Blazor/MudBlazor 中如何实现：触发入口可能在重渲染中被替换，保存的 <code>ElementReference</code> 可能失效；<code>MudDialog</code> 默认焦点恢复不一定回到业务按钮；普通标题没有 <code>tabindex="-1"</code> 不能通过程序化 <code>FocusAsync()</code> 接收焦点；树节点也需要可聚焦引用。若依赖浏览器默认行为，焦点可能回到 body。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 打开前保存触发元素引用，关闭后在 <code>OnAfterRenderAsync</code> 中聚焦；元素不存在时聚焦带 <code>tabindex="-1"</code> 的标题/容器；为物品详情标题与位置树当前节点明确可聚焦回退；把鼠标、键盘 Enter/Space、Esc、背景点击、失败后关闭各测一次焦点列入验收。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M2 — 选择位置的 live region 位置矛盾</h3>
+              <span class="finding-location">EXPERIENCE.md:91, 169, 210, 212</span>
+            </header>
+            <div class="finding-note">契约要求选择变化后信息面板以 <code>aria-live="polite"</code> 播报「已选择 &lt;位置名称&gt;」，但面板只在「有描述或有照片」时出现，两者都无时不渲染。如果 live region 就是面板：无内容时不播报；面板每次切换被移除/重新插入，播报可能丢失；若 live region 包住整个面板，会把 300 字描述一次读完，与「不强制一次朗读长文」矛盾；快速方向键切换还可能排队播报每个节点。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 在浏览页放一个持久的、视觉隐藏的状态节点，只播报简短状态（如「已选择右侧抽屉。有描述，有位置照片。」），面板本身不是 live region；快速切换做去抖或稳定后播报，初次加载/默认选中不播报；描述保持普通可导航文本；表单状态条同原则，避免 <code>role="alert"</code> 与 <code>aria-live</code> 同时挂在同一节点造成双播报。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M3 — 已保存照片与新选照片可能使用相同 alt</h3>
+              <span class="finding-location">EXPERIENCE.md:89, 209, 211；DESIGN.md:155</span>
+            </header>
+            <div class="finding-note">已保存照片 alt 为「位置照片：&lt;完整位置路径&gt;」，管理表单内展开的预览又称「使用同样的 alt」。编辑已有照片并选择新文件后，界面可同时显示新选本地预览和展开的旧照片，两张不同图片同名，读屏用户无法区分哪张已保存、哪张未保存；也让「替换失败后原照片仍保留」难以用读屏确认。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 已保存照片用「已保存位置照片：&lt;路径&gt;」，新选照片用「新选位置照片预览（未保存）：&lt;路径&gt;」（可含文件名）；每张预览与其可见状态文字放在同一带标签的组里；加载失败时不要保留旧 alt 或破图。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M5 — 表单必填、上限、静态说明与动态错误的读屏信息不完整</h3>
+              <span class="finding-location">DESIGN.md:153-155；EXPERIENCE.md:87-88, 138, 213；.working/key-manage-location.html:386-389</span>
+            </header>
+            <div class="finding-note">只写「名称必填」，组件规格和草图都没有可见的「必填」标记；视力正常用户也要等到「保存」不可用才知道。禁用按钮通常不可聚焦，读屏用户可能听不到它，也听不到禁用原因。静态 helper「最多 300 字」「1 张，JPG/PNG/WebP，≤10 MB」没有纳入 <code>aria-describedby</code>；动态错误只写「字段下方显示」和 <code>aria-describedby</code>，没有明确插入时如何播报。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 名称标签加可见「（必填）」并提供 <code>aria-required="true"</code>；静态 helper 与动态错误都纳入字段 <code>aria-describedby</code>，错误时设 <code>aria-invalid="true"</code>；动态错误用持久 polite/alert 区域去抖播报一次，修正后清除 invalid 但不必反复播报；若保留禁用保存，给按钮关联原因说明或附近摘要，或改为提交时聚焦第一个错误字段；照片格式/大小错误同样播报。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M6 — 「位置照片（可选）」不是程序化字段组</h3>
+              <span class="finding-location">DESIGN.md:155；.working/key-manage-location.html:401-406</span>
+            </header>
+            <div class="finding-note">组件规格称其为「带标签『位置照片（可选）』的字段组」，草图却用 <code>&lt;p class="photo-label"&gt;</code>，「拍照」「从设备选择」没有 <code>fieldset</code>/<code>legend</code>/<code>role="group"</code>/<code>aria-labelledby</code>。读屏用户按 Tab 只听到两个按钮，不知道它们属于位置照片、可选、限一张与格式大小。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 用 <code>fieldset</code> + <code>legend</code>（或 <code>role="group"</code> + <code>aria-labelledby</code>）包住来源按钮和状态文字；限制作为组的 <code>aria-describedby</code>；错误/相机失败提示与组关联。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M7 — 弹窗失败态把重试按钮包在 role="alert" 内</h3>
+              <span class="finding-location">.working/key-photo-dialog.html:432-437；EXPERIENCE.md:185, 210</span>
+            </header>
+            <div class="finding-note"><code>role="alert"</code> 放在整个 <code>.photo-frame.failure</code> 上，里面同时有错误标题、说明文字和「重试」按钮。alert 是给文本的 live region；把交互控件放进去，读屏可能把按钮名称当作整段警报朗读，或在重试时重复朗读整块，跨读屏/浏览器行为不一致。契约要求失败用 alert 播报并显示重试，但没有规定两者的 DOM 关系。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 只把错误文本设为 <code>role="alert"</code>（或放进持久的 <code>aria-live="assertive"</code> 区域），「重试」按钮作为兄弟节点放在 live region 外；重试时更新同一错误节点，不重新插入整块；失败态下路径、描述、X 和「关闭」仍可用。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M8 — 信息面板位于整棵树之后，长树 + 长描述会拉远选中节点</h3>
+              <span class="finding-location">DESIGN.md:128；EXPERIENCE.md:91, 223；.working/key-browse-location.html:235-246</span>
+            </header>
+            <div class="finding-note">已确认布局是「信息面板在位置树下方、同一列内」，本报告不要求移动。但草图只有 4 个节点，真实家庭可能有几十个位置；选中靠近树顶的节点后，面板和「查看位置照片」入口可能在整棵树之后，200% 下要滚动几个视口，低视力用户可能不知道下方出现了描述。若 <code>MudTreeView</code> 不是单一 Tab 停靠点，键盘用户按 Tab 还要穿过每个节点；300 字不截断会进一步推远「按标签」与物品结果。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 保持面板在树下；明确 <code>MudTreeView</code> 使用 roving tabindex/单一 Tab 停靠点，Tab 从树直接进入面板入口；指针选中后将面板滚入视口（不移动焦点），或在树旁提供「已选择 X · 查看信息」链接；用 30 个节点 + 300 字在 200%/320px 下验证；不要单方面改「不截断」。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M9 — 声称 WCAG 2.2 AA，但只覆盖 200%</h3>
+              <span class="finding-location">EXPERIENCE.md:205, 215, 221-225</span>
+            </header>
+            <div class="finding-note">WCAG 2.2 AA 的 1.4.10 Reflow 要求 320 CSS px 宽（1280px 下 400% 缩放），1.4.4 要求 200% 文本缩放，1.4.12 要求文本间距调整后不丢内容。当前 Responsive 表只定义 xs &lt;600、sm–md、lg+，没有 320px/400%/文本间距/横屏的验收条件；草图 <code>.btn { white-space: nowrap; line-height: 1 }</code> 和固定高度在 200% 文本/1.4.12 间距下可能裁剪。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 在 Responsive &amp; Platform 或 Accessibility Floor 增加验收矩阵：320×640、200% 文本、1.4.12 文本间距、横屏手机；标准为无横向滚动、所有操作可达、焦点不被遮挡、文本不被裁剪；允许按钮标签换行，固定高度改 <code>min-height</code>，长路径/名称加 <code>overflow-wrap:anywhere</code>；若本轮只做到 200%，就不要把 WCAG 2.2 AA 写成无条件目标。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-medium">中</span>
+              <h3 class="finding-title">M10 — 相机权限回退的判定路径未定义</h3>
+              <span class="finding-location">EXPERIENCE.md:146, 199, 214；Flow 7:309-316；DESIGN.md:155</span>
+            </header>
+            <div class="finding-note">文案、焦点保持、<code>aria-live</code> 播报都写得很清楚：相机不可用/权限拒绝时显示「无法使用相机，请从设备选择照片。」，「从设备选择」保持可用。但没有定义应用如何知道相机不可用/权限被拒绝。移动浏览器上文件输入被拒绝或取消时，常见结果是「没有文件」；把用户取消误判为相机失败会错误提示；真实拒绝若没有触发事件，承诺的提示可能永不出现。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 明确检测路径（<code>navigator.mediaDevices.getUserMedia</code>/<code>MediaDevices</code> 错误，还是文件输入的 <code>change</code>/<code>cancel</code> 事件），只对真实可观测的权限/设备错误显示相机专用文案；用户取消时不显示「无法使用相机」，保持原照片状态，焦点回到来源按钮组；「从设备选择」始终可用；在 iOS Safari、Android Chrome 上测允许/拒绝/取消/无设备四种情况；浏览器无法可靠区分拒绝与取消时，保留两个按钮和静态提示，不要断言未观察到的失败。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">L1 — 弹窗可访问名称使用视觉箭头「→」</h3>
+              <span class="finding-location">EXPERIENCE.md:212；.working/key-photo-dialog.html:258, 314, 371, 425</span>
+            </header>
+            <div class="finding-note">契约要求路径的可访问文本是「位置路径：A，B，C」，但草图 <code>aria-label</code> 直接使用「书房 → 书桌 → 右侧抽屉」。若实现用视觉字符串拼 <code>aria-label</code>/<code>alt</code>，读屏可能读「向右箭头」或产生不自然停顿。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 用独立的可访问路径格式化函数生成「A，B，C」；视觉箭头用 CSS <code>::before</code> 或 <code>aria-hidden</code> 包裹；确保路径不会在名称、正文、alt 中被重复朗读三次。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">L2 — 「收起」失去对象上下文，disclosure 与弹窗触发易混淆</h3>
+              <span class="finding-location">EXPERIENCE.md:209；DESIGN.md:155；.working/key-manage-location.html:469</span>
+            </header>
+            <div class="finding-note">展开后按钮名变为「收起」，用户导航到别处再回来只听到「收起」不知道收的是什么；同一文案「查看位置照片」在浏览/物品详情是打开弹窗，在管理表单是 disclosure，实现时容易给错误的一方加 <code>aria-expanded</code>。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 可见文字保留「收起」，提供 <code>aria-label="收起位置照片"</code>；<code>aria-expanded</code>/<code>aria-controls</code> 仅用于管理表单的 disclosure；浏览/物品详情的触发按钮保持普通 button 语义。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">L3 — 行内删除确认缺少焦点/播报/Esc 契约</h3>
+              <span class="finding-location">EXPERIENCE.md:94, 157；DESIGN.md:160</span>
+            </header>
+            <div class="finding-note">新增了「该位置的描述和照片也会移除；有子位置或物品时无法删除」的后果说明，但没有写确认出现后焦点去哪、读屏如何知道、Esc 是否取消、取消后焦点回到哪。键盘用户可能仍停在删除图标上。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 确认出现时把焦点移到确认容器（<code>tabindex="-1"</code>）或第一个按钮；用 <code>aria-describedby</code> 关联后果说明；Esc 取消并把焦点还给删除图标；「删除」与「取消」保持 44px 和足够间距。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">L4 — 60vh、nowrap、长不可断字符串的窄屏风险</h3>
+              <span class="finding-location">DESIGN.md:130, 159；.working/key-photo-dialog.html:161-191；.working/key-manage-location.html:232</span>
+            </header>
+            <div class="finding-note">移动浏览器动态工具栏下 <code>vh</code> 可能大于可见视口，60vh 照片 + 固定头尾会挤压路径/描述；<code>white-space:nowrap</code> 和固定 <code>line-height:1</code> 在 200% 文本/1.4.12 间距下可能裁剪；长位置名或长路径没有 <code>overflow-wrap</code> 可能撑出横向滚动。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 用 <code>max-height: min(60vh, 60dvh)</code> 或 <code>60svh</code>；新按钮允许换行，不锁 <code>nowrap</code>；长路径/名称用 <code>overflow-wrap:anywhere</code> 和 <code>min-width:0</code>；照片区用 <code>min-height</code> 而非固定高度。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">L5 — 物品详情「同行/换行」缺少明确断点</h3>
+              <span class="finding-location">DESIGN.md:129；EXPERIENCE.md:326；.working/key-item-detail.html:243-246</span>
+            </header>
+            <div class="finding-note">设计写「空间足够时同行，空间不足时换行到路径下方，上边距 8px」；草图里路径是 <code>display:block</code>，入口始终在下一行。实现者不知道「空间足够」的判定条件，可能出现两种不一致行为。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 定义入口为路径行内的 inline-flex、随文本自然换行，换行时 <code>margin-top: 8px</code>；或给出明确断点；在草图中同时展示同行和换行两种状态。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">L6 — 成功提示可能只靠 MudSnackbar</h3>
+              <span class="finding-location">EXPERIENCE.md:95, 210</span>
+            </header>
+            <div class="finding-note">完整成功可以用现有 MudSnackbar 短暂提示，无障碍要求成功用 <code>aria-live="polite"</code> 播报。如果 MudSnackbar 本身没有被读屏播报，或 3 秒内消失，读屏用户会错过「已保存」。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 验证 MudSnackbar 在当前 MudBlazor 版本中的 live-region 行为；不可靠时增加持久 polite 状态节点，或让成功消息保留到下一次操作；不要只依赖短暂 snackbar。</div>
+          </article>
+
+          <article class="finding">
+            <header>
+              <span class="badge badge-sev-low">低</span>
+              <h3 class="finding-title">L7 — 弹窗打开后的焦点落点未指定</h3>
+              <span class="finding-location">EXPERIENCE.md:207</span>
+            </header>
+            <div class="finding-note">只写「打开后焦点进入弹窗」，没有说进入标题、正文还是 X。若默认聚焦 X，读屏会先听到「关闭」；若聚焦 body，键盘用户要再 Tab 才能关闭。两种都能用，但行为不确定，验收无法一致。</div>
+            <div class="finding-fix"><strong>Fix:</strong> 指定焦点落点为对话框标题/容器（<code>tabindex="-1"</code>）或 X；若落在 X，确保对话框的可访问名称（含「位置照片」和路径）在进入时先被播报，X 本身仍叫「关闭」；保证 Esc 在打开后立即可用，Tab 焦点循环。</div>
+          </article>
+        </div>
+      </details>
+    </section>
+
+    <div class="mechanical">
+      <h3>已确认布局（本轮不重做）</h3>
+      <ul>
+        <li>新建/编辑位置使用现有「管理位置」对话框内的同一表单；已保存照片在字段内按需展开，不叠加第二个对话框。</li>
+        <li>浏览页的位置信息放在位置树下方、同一列内。</li>
+        <li>物品详情入口紧跟收纳路径；物品照片区保持现状。</li>
+        <li>浏览与物品详情共用一个弹窗，内容按「完整路径 → 照片 → 描述」排列；加载失败可重试、可关闭。</li>
+        <li>以上为 <code>.memlog.md:13</code> 与用户已确认内容；两份评审均未重开这些决定，修正应在其内部进行。</li>
+      </ul>
+    </div>
+
+    <div class="mechanical">
+      <h3>优先修正与验收边界</h3>
+      <p><strong>1. 定稿前文档修正（优先）</strong></p>
+      <ol>
+        <li><strong>正文滚动容器</strong>（<a href="#accessibility-review">H1</a>）：为管理对话框与照片弹窗写明唯一纵向滚动容器与固定头尾；明确关闭控件是「无需滚动可见」还是「可滚动到达」。这是窄屏/200% 的第一道可用性缺口，且不改变已确认布局。</li>
+        <li><strong>失败与部分成功的可见反馈</strong>（<a href="#accessibility-review">H2</a>）：提示条在表单顶部、保存按钮在底部，滚到底保存时提示可能不在视口；需焦点/滚动策略或保存按钮附近摘要，部分成功切换新建→编辑后也要有焦点与播报。</li>
+        <li><strong>触控区落规格</strong>（<a href="#accessibility-review">H3</a>）：44×44 逐项写进 X、关闭、重试、保存/取消、拍照、选图、查看现有照片、收起、撤销移除、重试上传、关闭提示、行内删除/取消；明确测量的是点击区域（含 padding）。</li>
+        <li><strong>表单内预览失败态</strong>（<a href="#state-coverage">状态覆盖</a>，无障碍 M4 同题）：补加载中/失败/重试、aria-live 与「收起」规则。</li>
+        <li><strong>组合状态与文案</strong>（<a href="#state-coverage">状态覆盖</a>）：移除照片失败时描述是否已保存、表单是否留在编辑态；「位置/描述已保存、照片状态未知」与「移除照片失败」的固定文案。</li>
+        <li><strong>继承类 3 项高严重度</strong>（<a href="#inheritance-discipline">继承纪律</a>）：清除已确认布局的 <code>[ASSUMPTION]</code> 并改 <code>status: final</code>；把已确认 UX 决策写回 Story（或声明两 spine 为约束来源）；统一「描述不截断、保留换行」并给浏览面板补长描述容器规则。</li>
+      </ol>
+      <p><strong>2. 同批补齐的读屏/键盘细节</strong></p>
+      <p>M1 焦点返回机制、M2 持久 live region、M3 已保存/新选照片 alt 区分、M5 必填与上限的读屏信息、M6 照片字段组、M7 失败态 alert 与重试按钮分离；以及 L1 路径可访问文本、L2「收起」上下文、L3 行内删除确认、L7 弹窗初始焦点。</p>
+      <p><strong>3. 真实应用验收（本轮未做，不能由文档替代）</strong></p>
+      <ol>
+        <li>缩放与重排：320×640 CSS px（400% / 1280px）、200% 文本、1.4.12 文本间距、横屏；无横向滚动，保存/取消/X/关闭/重试/入口均可达。</li>
+        <li>长内容：5 层以上长路径、300 字带换行描述、旧照片展开 + 新选预览 + 提示条同时存在。</li>
+        <li>键盘：Enter/Space 打开、弹窗内 Tab 循环、Esc 关闭、关闭后焦点回触发入口、disclosure 展开/收起、行内删除确认。</li>
+        <li>读屏：NVDA + Chrome / VoiceOver + Safari / TalkBack + Chrome，覆盖弹窗名称与路径、加载中、失败重试、选择位置播报、表单错误、两种照片 alt。</li>
+        <li>触控：computed 点击区域 ≥44×44，相邻按钮不重叠，底部导航/安全区不遮挡，200% 下不裁剪。</li>
+        <li>相机：iOS Safari / Android Chrome 的允许、拒绝、取消、无设备；只在真实失败时显示相机文案，「从设备选择」始终可用。</li>
+        <li>网络：慢速、404/文件缺失、重试；弹窗与表单内预览都不出现破图，路径/描述不因照片失败消失。</li>
+        <li>Blazor 重渲染：关闭后焦点、条件渲染后的 live region、部分成功切换时的焦点/滚动/提示。</li>
+        <li>MudBlazor 默认行为：<code>MudDialog</code> 的 role/aria-modal/focus trap/scroll lock/焦点恢复，<code>MudSnackbar</code> 播报，按钮实际高度，<code>MudTreeView</code> 的 roving tabindex。</li>
+        <li>平台返回：Android 返回键/手势关闭弹窗而非离开页面，关闭后筛选、滚动、焦点保留。</li>
+      </ol>
+    </div>
+
+    <div class="mechanical">
+      <h3>静态稿边界（不记为缺陷）</h3>
+      <ul>
+        <li>所有操作看起来都是 <code>&lt;span&gt;</code>：保存/取消、X、底部「关闭」、「重试」、「查看位置照片」、「拍照」、「从设备选择」等。静态稿没有 JS，不能测试键盘、焦点、文件选择或相机。</li>
+        <li>静态稿没有 <code>aria-expanded</code>、<code>aria-live</code>、<code>aria-invalid</code>、focus-visible 样式、disabled 语义；这些缺失是「静态视觉稿不表达行为」，不是契约缺口。</li>
+        <li>固定 390×844 的 <code>.screen</code>/<code>.phone</code> 外框和 <code>overflow:hidden</code> 是示意手机的画框，不能用来判断真实页面滚动；但 <code>.dialog-body { overflow:hidden }</code> 是对话框内容区本身，与 H1 的滚动契约冲突，不能照抄。</li>
+        <li><code>key-photo-dialog.html</code> 只有第 1 帧有 <code>aria-describedby</code>（<code>:258</code>），第 2–4 帧没有（<code>:314</code>、<code>:371</code>、<code>:425</code>）；这是静态稿内部不一致，实现时应统一为「标题 <code>aria-labelledby</code> + 描述/路径 <code>aria-describedby</code>」。</li>
+        <li>草图中的图标大多没有 <code>aria-hidden="true"</code>；真实实现中纯装饰图标应隐藏，带文字的按钮不要让图标产生额外可访问名称。</li>
+        <li>草图的颜色/对比度是 token 声明，不是渲染测量；静态稿不能替代真实对比度测量。</li>
+      </ul>
+    </div>
+
+    <div class="mechanical">
+      <h3>Mechanical notes</h3>
+      <ul>
+        <li>两份 spine 的 <code>status</code> 仍为 <code>draft</code>（<code>DESIGN.md:4</code>、<code>EXPERIENCE.md:3</code>）；定稿时需改为 <code>final</code> 并更新 <code>updated</code>。</li>
+        <li><code>DESIGN.md</code> frontmatter 的 <code>components</code> 未覆盖 <code>位置删除确认</code> 和 <code>字段错误</code>；<code>inline-notice</code> 只对应 <code>状态提示条</code>。若下游按组件 key 解析，需要补 key 或声明这两个组件只用正文规格。</li>
+        <li>EXPERIENCE 没有任何 <code>{path.to.token}</code> 引用，只有「视觉规格见 DESIGN.md」的 section 级引用。若这是有意的分层，建议写一句说明；否则至少把 44×44、对比度和圆角相关规则按 token 名引用一次。</li>
+        <li>「spines win on conflict」在 <code>DESIGN.md:80</code>、<code>84</code>，<code>EXPERIENCE.md:12</code>、<code>48</code>、<code>52</code> 与索引页 <code>ux-location-photo-and-description.md:14</code> 多处重复；按 validate 要求应只陈述一次。</li>
+        <li><code>sources</code> 中的 Story 与 <code>.memlog.md</code> 均可解析；四张 <code>.working/</code> 链接均存在，无孤儿；<code>imports/</code> 为空且已说明，无 Mermaid。</li>
+        <li>真正未决、但不构成冲突的条目：A4（弹窗内是否保留「位置路径」「描述」小节标签）、A5（部分成功后切换为编辑的交互模式）、A6（待移除状态）、A8（入口是否加图标）、A10（删除按钮用 error 描边而非现有 filled Error）、A11（复用现有 ImageUploader 的相机能力）。定稿时应逐条 commit 或写进 memlog，不要继续留在 <code>[ASSUMPTION]</code>。</li>
+      </ul>
+    </div>
+
+    <div class="mechanical">
+      <h3>文件与链接</h3>
+      <ul>
+        <li>设计稿：<a href="./DESIGN.md">DESIGN.md</a> · <a href="./EXPERIENCE.md">EXPERIENCE.md</a> · <a href="./ux-location-photo-and-description.md">索引</a> · <a href="./.memlog.md">.memlog.md</a></li>
+        <li>Story：<a href="../../backlog/story-location-photo-and-description.md">story-location-photo-and-description.md</a></li>
+        <li>评审原件：<a href="./review-rubric.md">review-rubric.md</a> · <a href="./review-accessibility.md">review-accessibility.md</a></li>
+        <li>定稿附图（评审原件中的 .working/ 路径和行号指当时草稿）：<a href="./mockups/key-manage-location.html">管理位置</a> · <a href="./mockups/key-browse-location.html">浏览位置</a> · <a href="./mockups/key-item-detail.html">物品详情</a> · <a href="./mockups/key-photo-dialog.html">照片弹窗</a></li>
+        <li>Markdown 版本：<a href="./validation-report.md">validation-report.md</a></li>
+      </ul>
+    </div>
+
+    <footer class="report-footer">
+      <div class="meta">
+        <span>Rubric: _bmad-output/initiative-boxwise/ux-location-photo-and-description/review-rubric.md</span>
+        <span>Generated: 2026-11-25T15:14:24+08:00</span>
+      </div>
+      <div class="meta" style="margin-top: 6px;">
+        <span>整改前快照 · 只审阅设计稿 · 真实应用未验证 · 不构成通过结论</span>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

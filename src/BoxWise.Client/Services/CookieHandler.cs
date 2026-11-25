@@ -8,7 +8,14 @@ public class CookieHandler : HttpClientHandler
     {
         ArgumentNullException.ThrowIfNull(request);
         request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
-        request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+
+        // 调用方（例如位置照片写操作）可能已经显式设置；避免重复值让
+        // CsrfValidationFilter 读到 "XMLHttpRequest, XMLHttpRequest"。
+        if (!request.Headers.Contains("X-Requested-With"))
+        {
+            request.Headers.TryAddWithoutValidation("X-Requested-With", "XMLHttpRequest");
+        }
+
         return base.SendAsync(request, cancellationToken);
     }
 }

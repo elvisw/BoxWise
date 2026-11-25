@@ -137,7 +137,15 @@
 
     private async Task OpenLocationManageDialog()
     {
-        var options = new DialogOptions { CloseButton = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        // 该对话框在保存/删除中有自己的关闭守卫，禁用 MudDialog 自带的关闭入口。
+        var options = new DialogOptions
+        {
+            CloseButton = false,
+            BackdropClick = false,
+            CloseOnEscapeKey = false,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
         await DialogService.ShowAsync<LocationManageDialog>("管理位置", options);
     }
 

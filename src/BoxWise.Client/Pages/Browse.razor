@@ -1,15 +1,46 @@
 @page "/browse"
 @attribute [Authorize]
 @using Microsoft.AspNetCore.Authorization
+@implements IDisposable
 
 @inject ItemService ItemService
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+
+<div class="bw-visually-hidden" role="status" aria-live="polite">@_selectionAnnouncement</div>
 
 <!-- 筛选控件 -->
 <MudGrid Class="mb-2">
     <MudItem xs="12" sm="6">
+        <div id="@_browseFallbackId" tabindex="-1" style="outline:none;">
         <MudText Typo="Typo.subtitle2" Class="mb-1">按位置</MudText>
         <LocationTree SelectedLocationId="_locationId"
-                      SelectedLocationIdChanged="OnLocationChanged" />
+                      SelectedLocationIdChanged="OnLocationChanged"
+                      SelectedLocationChanged="OnLocationMetadataChanged" />
+
+        @if (_selectedLocation is { } location
+             && (!string.IsNullOrWhiteSpace(location.Description) || location.HasPhoto))
+        {
+            <MudPaper Elevation="0" Class="pa-3 mt-2"
+                      Style="background:#F5F5F5;border-radius:4px;">
+                @if (!string.IsNullOrWhiteSpace(location.Description))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Default">描述</MudText>
+                    <MudText Typo="Typo.body2"
+                             Style="white-space:pre-wrap;overflow-wrap:anywhere;">@location.Description</MudText>
+                }
+                @if (location.HasPhoto)
+                {
+                    <MudButton Variant="Variant.Text" Color="Color.Primary"
+                               id="@_photoEntryId"
+                               OnClick="OpenLocationPhotoDialogAsync"
+                               Style="min-height:44px;padding-left:0;text-transform:none;">
+                        查看位置照片
+                    </MudButton>
+                }
+            </MudPaper>
+        }
+        </div>
     </MudItem>
     <MudItem xs="12" sm="6">
         <MudText Typo="Typo.subtitle2" Class="mb-1">按标签</MudText>
@@ -66,7 +97,13 @@ else if (_items is not null)
     private bool _error;
 
     private int? _locationId;
+    private LocationDto? _selectedLocation;
     private IReadOnlyCollection<int> _tagIds = Array.Empty<int>();
+    private string _selectionAnnouncement = "";
+    private CancellationTokenSource? _announceCts;
+    private bool _disposed;
+    private readonly string _photoEntryId = $"browse-location-photo-{Guid.NewGuid():N}";
+    private readonly string _browseFallbackId = $"browse-location-fallback-{Guid.NewGuid():N}";
 
     private bool _hasFilter => _locationId.HasValue || _tagIds.Count > 0;
 
@@ -78,7 +115,53 @@ else if (_items is not null)
     private async Task OnLocationChanged(int? value)
     {
         _locationId = value;
+        if (!value.HasValue)
+            _selectedLocation = null;
+
         await LoadAsync();
+    }
+
+    private void OnLocationMetadataChanged(LocationDto? location)
+    {
+        _selectedLocation = location;
+        _ = AnnounceSelectionAsync(location);
+    }
+
+    private async Task AnnounceSelectionAsync(LocationDto? location)
+    {
+        _announceCts?.Cancel();
+        _announceCts?.Dispose();
+        _announceCts = null;
+
+        if (location is null)
+        {
+            _selectionAnnouncement = "";
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        _announceCts = cts;
+
+        try
+        {
+            // 快速切换位置时只播报最后一次选择。
+            await Task.Delay(400, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (_disposed) return;
+
+        var summary = $"已选择 {location.Name}。";
+        if (!string.IsNullOrWhiteSpace(location.Description))
+            summary += "有描述。";
+        if (location.HasPhoto)
+            summary += "有位置照片。";
+
+        _selectionAnnouncement = summary;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task OnTagsChanged(IReadOnlyCollection<int> values)
@@ -110,5 +193,56 @@ else if (_items is not null)
     private async Task ReloadAsync()
     {
         await LoadAsync();
+    }
+
+    private async Task OpenLocationPhotoDialogAsync()
+    {
+        if (_selectedLocation is not { HasPhoto: true } location) return;
+
+        _announceCts?.Cancel();
+
+        var parameters = new DialogParameters
+        {
+            { "Location", location }
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = false,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseOnEscapeKey = true,
+            BackdropClick = true
+        };
+
+        var dialog = await DialogService.ShowAsync<LocationPhotoDialog>(
+            "位置照片", parameters, options);
+        await dialog.Result;
+        await RestoreFocusAsync();
+    }
+
+    private async Task RestoreFocusAsync()
+    {
+        try
+        {
+            var focused = await JS.InvokeAsync<bool>(
+                "boxwiseLocationPhoto.focusById", _photoEntryId);
+            if (!focused)
+            {
+                await JS.InvokeAsync<bool>(
+                    "boxwiseLocationPhoto.focusById", _browseFallbackId);
+            }
+        }
+        catch (JSException)
+        {
+            // 焦点恢复失败不影响关闭结果。
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _announceCts?.Cancel();
+        _announceCts?.Dispose();
     }
 }

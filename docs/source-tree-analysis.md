@@ -138,7 +138,8 @@ BoxWise/                              # 解决方案根目录
 │   │       ├── ReAuthenticateRequest.cs
 │   │       ├── LocationDto.cs
 │   │       ├── CreateLocationRequest.cs
-│   │       ├── RenameLocationRequest.cs
+│   │       ├── UpdateLocationRequest.cs
+│   │       ├── LocationCleanupWarning.cs
 │   │       ├── TagDto.cs
 │   │       ├── CreateTagRequest.cs
 │   │       ├── RenameTagRequest.cs
