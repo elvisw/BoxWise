@@ -4,7 +4,9 @@
 
 BoxWise 支持 WebAuthn（通行密钥）作为无密码登录方式。用户可以使用设备的指纹、面容或硬件密钥（如 YubiKey）登录，无需输入密码或验证码。
 
-WebAuthn 基于 [FIDO2 标准](https://fidoalliance.org/fido2/)，凭证与注册时的 **origin（协议 + 域名 + 端口）** 绑定。
+WebAuthn 基于 [FIDO2 标准](https://fidoalliance.org/fido2/)，凭证绑定到 **RP ID**；服务器另行校验请求的 **origin（协议 + 域名 + 端口）**。
+
+> **定位：** 通行密钥用于无密码登录，**不是密码登录的第二因素（2FA）**。密码登录的第二因素当前仅支持 TOTP，详见[安全模型与已知限制](#安全模型与已知限制)。
 
 ---
 
@@ -71,7 +73,7 @@ var fido2Config = new Fido2Configuration
 }
 ```
 
-**注意：** 生产环境的 `Origins` 只包含 `WebAuthn:Origin` 配置的 origin；`https://localhost:5000` 和 `https://localhost:5001` 仅在开发环境（`builder.Environment.IsDevelopment()`）自动加入。`WebAuthn:Origin` 同时用于解析 `RPID` 的 fallback 值。
+**注意：** 生产环境的 `Origins` 只包含 `WebAuthn:Origin` 配置的 origin；`https://localhost:5000` 和 `https://localhost:5001` 仅在开发环境（`builder.Environment.IsDevelopment()`）自动加入，不要依赖这两项做生产验证。`WebAuthn:Origin` 同时用于解析 `RPID` 的 fallback 值。
 
 ---
 
@@ -80,6 +82,8 @@ var fido2Config = new Fido2Configuration
 ### 1. HTTPS 域名
 
 生产环境必须使用 HTTPS 域名。WebAuthn 在非 `localhost` 环境下强制要求 TLS。
+
+`WebAuthn:Origin` 必须填写**用户浏览器实际访问的外部 origin**：协议 + 域名 + 非默认端口（如 `https://boxwise.example.com` 或 `https://boxwise.example.com:8443`），**不能包含路径、查询串或末尾斜杠**。不要用内网主机名、容器名或反向代理监听地址替代公开 origin——浏览器只认地址栏里的地址。
 
 使用 Caddy 的反向代理配置示例（`Caddyfile`）：
 
@@ -121,14 +125,23 @@ environment:
 
 | 配置项 | 说明 | 示例 |
 |--------|------|------|
-| `WebAuthn:Origin` | 用户访问网站的完整 origin（协议 + 域名 + 端口） | `https://boxwise.example.com` |
-| `WebAuthn:ServerDomain` | RP ID 的域名部分（不含协议和端口） | `boxwise.example.com`
+| `WebAuthn:Origin` | 生产启用通行密钥时**必需**。用户访问网站的完整外部 origin（协议 + 域名 + 非默认端口，无路径） | `https://boxwise.example.com` |
+| `WebAuthn:ServerDomain` | RP ID（不含协议、端口或路径）；**建议显式固定**。未配置时代码从 `WebAuthn:Origin` 的主机名推导 | `boxwise.example.com` |
+
+> **RP ID 说明：** `WebAuthn:ServerDomain` 未配置时，代码执行 `new Uri(webAuthnOrigin).Host` 推导 RP ID，因此它不是无条件启动必填项。但升级或调整 Origin 时主机名可能变化，显式固定可避免已注册凭据因 RP ID 改变而失效。已部署实例必须**沿用现有 RP ID**，不要换域名或改写该项。
 
 ### 3. 反向代理注意事项
 
 - **不要修改 Host 头**：确保反向代理将原始请求的 Host 头传递给后端
 - **TLS 终止**：WebAuthn 的 origin 检查依赖浏览器感知的协议。如果使用 Cloudflare 等 CDN 做 TLS 终止，确保 `Origin` 配置与浏览器地址栏一致
 - **端口**：如果使用非标准端口（如 8443），origin 必须包含端口号
+- **不要用内网反代地址**：`WebAuthn:Origin` 要写公开访问地址，不能写 `http://boxwise:5000`、`http://127.0.0.1:5000` 这类反向代理内部地址
+
+### 4. 升级与验收
+
+- **沿用现有 RP ID**：已有通行密钥的实例升级时，保留现有 RP ID 和公开 origin。更改 RP ID 后，现有凭据不能在新 RP ID 下使用；若迁移公开地址，另行确认新 origin 与原 RP ID 兼容。
+- **localhost 仅在开发生效**：`https://localhost:5000`、`https://localhost:5001` 只在 `Development` 环境加入 `Origins`，生产不要依赖它们验证。
+- **真实设备冒烟**：部署后在真实手机/电脑上完成一次通行密钥注册和一次无密码登录，再尝试删除凭据。仅用 curl 或桌面浏览器无痕窗口不足以确认平台验证器可用。
 
 ---
 
