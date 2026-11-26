@@ -61,6 +61,9 @@
 | 50 | `Account/LoginWithRecoveryCode.cshtml` | 说明改为"每个恢复码只能使用一次；验证成功会关闭双重验证并作废该账户的全部恢复码（自定义与 Identity 两套），随后用密码重新登录" | 明确恢复码只用于关闭 2FA，不建立登录会话 | 恢复码双来源兼容 (2026-11-23) | 保留 |
 | 51 | `Manage/TwoFactorAuthentication.cshtml` | "使用恢复码登录" → "使用恢复码关闭双重验证" | 恢复码不再是登录凭据 | 恢复码双来源兼容 (2026-11-23) | 保留 |
 | 52 | `Manage/GenerateRecoveryCodes.cshtml` | 增加说明"恢复码用于在无法完成双重验证时关闭双重验证，不能直接登录" | 校正恢复码用途文案 | 恢复码双来源兼容 (2026-11-23) | 保留 |
+| 53 | `Account/Manage/Disable2fa.cshtml.cs` | 委托 `RecoveryCodeService.DisableTwoFactorAsync`（单事务）；成功后 `SignInManager.RefreshSignInAsync`，失败时按结果状态显示"未做任何更改"或"结果未确认" | 原实现只改两个字段，遗留两套恢复码、TOTP 密钥与旧 `SecurityStamp`；且无失败提示 | 2FA 原子清理 (2026-11-26) | 保留 |
+| 54 | `Account/Manage/Disable2fa.cshtml` | 补充说明：恢复码立即作废、宽限期不变、验证器密钥与通行密钥保留、其他设备会话在安全戳校验时失效；添加验证摘要区 | 让用户明确保留项与失效项 | 2FA 原子清理 (2026-11-26) | 保留 |
+| 55 | `Account/LoginWithRecoveryCode.cshtml.cs` | 删除"先自定义码、再 `RedeemTwoFactorRecoveryCodeAsync`、再 `DisableTwoFactorAsync`"的三段式调用，改为单次 `RecoveryCodeService.DisableWithRecoveryCodeAsync`；按 `InvalidCode` / `Conflict` / `StorageFailure`（含未确认）分别提示 | 原实现先消耗 Identity 码再清理，清理失败会留下已消耗的码与部分落库状态；错误信息无法区分冲突与存储失败 | 2FA 原子清理 (2026-11-26) | 保留 |
 
 ## 脚手架排除的文件
 

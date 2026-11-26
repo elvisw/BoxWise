@@ -558,7 +558,7 @@ static async Task ResetTwoFactorCli(WebApplication app, string username)
     try
     {
         var userManager = services.GetRequiredService<UserManager<AppUser>>();
-        var db = services.GetRequiredService<AppDbContext>();
+        var recoveryCodeService = services.GetRequiredService<RecoveryCodeService>();
         var logger = services.GetRequiredService<ILogger<Program>>();
 
         var user = await userManager.FindByNameAsync(username);
@@ -569,29 +569,23 @@ static async Task ResetTwoFactorCli(WebApplication app, string username)
             return;
         }
 
-        // 清除 2FA 设置
-        user.ConfiguredMethods = TwoFactorMethod.None;
-        user.TotpSecretKey = null;
-        user.TwoFactorEnabled = false;
-        user.TwoFactorSetupCompletedAt = null;
-        user.TwoFactorGracePeriodUntil = null;
-        user.EmailForTwoFactor = null;
-
-        // 删除恢复码
-        var recoveryCodes = db.RecoveryCodes.Where(rc => rc.UserId == user.Id);
-        db.RecoveryCodes.RemoveRange(recoveryCodes);
-
-        // 删除 WebAuthn 凭证
-        var webAuthnCreds = db.WebAuthnCredentials.Where(wc => wc.UserId == user.Id);
-        db.WebAuthnCredentials.RemoveRange(webAuthnCreds);
-
-        await userManager.UpdateAsync(user);
+        // 与 API / Admin 页面共用同一事务化清理路径（A1）
+        var result = await recoveryCodeService.ResetForAdminAsync(user, userManager);
+        if (!result.Succeeded)
+        {
+            var confirmed = result.OutcomeConfirmed
+                ? "no changes were committed"
+                : "the commit outcome is unknown; verify the account state before retrying";
+            Console.Error.WriteLine($"Error: 2FA reset failed ({result.Status}); {confirmed}.");
+            Environment.Exit(1);
+            return;
+        }
 
         // 审计日志
         logger.LogWarning("CLI 2FA reset by {Operator} for user {Username} (Id={UserId}) at {Timestamp}",
             Environment.UserName, username, user.Id, DateTime.UtcNow);
-        var result = System.Text.Json.JsonSerializer.Serialize(new { success = true, username });
-        Console.WriteLine(result);
+        var output = System.Text.Json.JsonSerializer.Serialize(new { success = true, username });
+        Console.WriteLine(output);
     }
     catch (Exception ex)
     {

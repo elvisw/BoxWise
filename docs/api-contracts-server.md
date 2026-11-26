@@ -327,11 +327,15 @@ POST /api/admin/users/{userId}/two-factor/reset    → 200 Ok | 401 | 403 | 404 
 
 ### POST `/api/admin/users/{userId}/two-factor/reset` [Admin, CSRF, 限流]
 
-重置目标用户的 2FA。清除所有：
-- 2FA 设置（`TotpSecretKey`, `ConfiguredMethods`, `TwoFactorEnabled` 等）
-- 恢复码（`RecoveryCodes` 表）
-- WebAuthn 凭证（`WebAuthnCredentials` 表）
-- 更新安全戳记（使已登录会话失效）
+重置目标用户的 2FA。在单个 SQLite 事务内清除：
+
+- 2FA 设置（`TotpSecretKey`、`PendingTotpSecretKey`、`ConfiguredMethods`、`TwoFactorEnabled`、`EmailForTwoFactor`、`TwoFactorSetupCompletedAt`、`TwoFactorGracePeriodUntil`）
+- 自定义恢复码（`RecoveryCodes` 表）与 Identity token store 恢复码
+- WebAuthn 通行密钥（`WebAuthnCredentials` 表）——注册过的免密码登录方式全部吊销
+- Identity authenticator key 仅在该用户存在时轮换；不存在的不会被创建
+- 轮换安全戳记（使已登录会话在下一次校验时失效）
+
+任一写入失败则整体回滚并返回 `500`（`ProblemDetails`，不包含用户数据）。响应 `detail` 区分两种结果：`2FA reset failed; no changes were committed.`（已确认回滚）与 `2FA reset outcome is unconfirmed; verify the account state before retrying.`（提交状态未知）；HTTP 状态码对两者都是 `500`。`Pages/Admin/ResetTwoFactor` 与 `dotnet run -- admin reset-2fa --user <name>` 共用该实现；CLI 仅在提交后输出 `{"success":true,"username":"..."}` 并以 `0` 退出，失败以非零退出。
 
 **速率限制:** `login-per-account` 策略
 

@@ -161,8 +161,9 @@ sequenceDiagram
 - **存储:** SHA-256 哈希存储到 `RecoveryCode` 表（明文仅在注册成功后一次性展示）
 - **用途:** 恢复码**不是登录凭据**。用户在密码登录的第二步（2FA 页面）输入恢复码后，服务端立即关闭该账户的双重验证，然后要求用户用密码重新登录。
 - **两种来源:** WebAuthn 注册生成 8 个自定义恢复码（`RecoveryCodes` 表）；TOTP 用户在 Manage 页生成 10 个 Identity 恢复码（Identity token store）。恢复码页同时接受两种来源。
-- **消耗语义:** 自定义码命中时 `VerifyRecoveryCodeAsync()` 验证成功后关闭 2FA；Identity 码命中时先用 `RedeemTwoFactorRecoveryCodeAsync()` 按原生语义消耗本次使用的码，再由 `RecoveryCodeService.DisableTwoFactorAsync()` 清空剩余 Identity 码。两条路径最终都会清除 2FA 设置（`TwoFactorEnabled=false`、`ConfiguredMethods=None`、TOTP 密钥、Email 地址、`TwoFactorSetupCompletedAt`），写入 24 小时宽限期（`TwoFactorGracePeriodUntil`），并轮换 `SecurityStamp`。
-- **两套码全部作废:** 关闭 2FA 时，自定义码与 Identity token store 的剩余恢复码全部清除；重新启用 2FA 时会重新生成恢复码。
+- **消耗语义:** 恢复码页先按哈希检查自定义码（`RecoveryCodes` 表），未命中时才用 `RedeemTwoFactorRecoveryCodeAsync()` 检查并消耗 Identity token store 的码。两条路径都在**同一个 SQLite 事务**内完成：验证/消耗 → 清除两套恢复码 → 清除 2FA 设置（`TwoFactorEnabled=false`、`ConfiguredMethods=None`、TOTP 密钥、Email 地址、`TwoFactorSetupCompletedAt`）→ 写入 24 小时宽限期（`TwoFactorGracePeriodUntil`）→ 轮换 `SecurityStamp`，任一步失败整体回滚。Identity 验证器密钥与通行密钥保留。
+- **结果区分:** `RecoveryCodeService.DisableWithRecoveryCodeAsync` 区分无效恢复码、并发冲突和其他存储失败。只有确认没有提交变更时，页面才可以提示恢复码未被消耗；无法确认提交或回滚结果时，提示「结果未确认」。
+- **两套码全部作废:** 关闭 2FA 时，自定义码与 Identity token store 的剩余恢复码全部清除；清除结果以 `GenerateNewTwoFactorRecoveryCodesAsync(user, 0)` 的返回值为准（返回 null 即 Identity 更新失败并回滚），不使用同上下文内的内存计数。重新启用 2FA 时会重新生成恢复码。
 - **失败语义:** 两种来源都未命中时不修改用户状态、不消耗任何码。
 - **重新生成:** 每次成功注册通行密钥都会重新生成 8 个自定义恢复码，旧码全部失效；TOTP 用户可在 Manage 页重新生成 10 个 Identity 恢复码。
 - **非消耗性验证:** `ValidateRecoveryCodeAsync()` 仅做非消耗校验，当前没有生产调用方，仅由单元测试覆盖；如需恢复使用，需要重新接入端点。
@@ -173,19 +174,30 @@ sequenceDiagram
 
 1. 用户输入密码登录，进入 2FA 验证页。
 2. 点击"使用恢复码关闭双重验证"，输入一个恢复码。
-3. 验证成功：清除 2FA 设置与两套恢复码（自定义表全部清除；Identity 码先消耗本次使用的码，再清空剩余码），更新 `SecurityStamp`（使已有会话失效），清除 2FA 会话 Cookie，重定向到登录页并显示一次性提示。
+3. 验证成功：在单个事务内清除 2FA 设置与两套恢复码，更新 `SecurityStamp`。提交后清除 2FA 会话 Cookie，重定向到登录页并显示一次性提示。如果事务确认回滚，原恢复码仍可使用。
 4. 用户用密码重新登录；此时 2FA 已关闭，可在设置页重新注册通行密钥或配置 TOTP。
 
 成功后进入 24 小时宽限期（`TwoFactorGracePeriodUntil`），期间用户可以重新设置新的 2FA 方法。`OnPostAsync` 使用 `login-per-ip` 速率限制策略。
 
+### 自助关闭 2FA（Manage 页）
+
+登录用户在 `Areas/Identity/Pages/Account/Manage/Disable2fa` 关闭双重验证时（A2）：
+
+- **清除:** 两套恢复码、`TwoFactorEnabled`、`ConfiguredMethods`、`TotpSecretKey`、`PendingTotpSecretKey`、`EmailForTwoFactor`、`TwoFactorSetupCompletedAt`。
+- **保留:** Identity authenticator key、通行密钥、以及**现有**宽限期值（不重置、不清空）。
+- **轮换:** `SecurityStamp`，其他设备的会话在下一次安全戳校验时失效；当前请求在提交成功后调用 `RefreshSignInAsync` 刷新自身 Cookie，失败时不刷新。
+- 以上全部在一个事务内完成，失败时提示"未做任何更改"或"结果未确认"。
+
 ### 管理员 2FA 重置
 
-管理后台提供 `/api/admin/users/{userId}/two-factor/reset` 端点（受 `AdminOnly` 策略保护）：
-- 清除目标用户的全部 2FA 设置（TOTP 密钥、WebAuthn 凭证、恢复码）
+管理员重置 API `/api/admin/users/{userId}/two-factor/reset` 检查调用方的 `Admin` 角色；Razor 页面由 `AdminOnly` 策略保护。两者与维护 CLI（`dotnet run -- admin reset-2fa --user <name>`）共用同一清理实现：
+
+- 在单个事务内清除目标用户的全部 2FA 设置（TOTP 密钥、恢复码）并**吊销全部通行密钥**
 - 重置 `ConfiguredMethods` 为 `None`
 - 清除 `TwoFactorEnabled`、`TwoFactorSetupCompletedAt`、`TwoFactorGracePeriodUntil`
-- 使用速率限制 `login-per-account` 策略
-- CSRF 保护通过 `CsrfValidationFilter` 验证
+- Identity authenticator key **仅在存在时**轮换（`ResetAuthenticatorKeyAsync`），缺失时不创建
+- 轮换 `SecurityStamp`；使用速率限制 `login-per-account` 策略；CSRF 保护通过 `CsrfValidationFilter` 验证
+- CLI 仅在事务提交后输出成功 JSON 并以 `0` 退出；失败输出错误并以非零退出
 
 ---
 

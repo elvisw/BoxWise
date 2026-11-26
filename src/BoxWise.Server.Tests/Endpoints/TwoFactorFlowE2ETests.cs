@@ -19,6 +19,7 @@ namespace BoxWise.Server.Tests.Endpoints;
 /// </summary>
 public class TwoFactorFlowE2ETests : IAsyncLifetime
 {
+    private SqliteTestDatabase _database = null!;
     private TestIdentityContext _ctx = null!;
     private UserManager<AppUser> _userManager = null!;
     private TwoFactorService _twoFactorService = null!;
@@ -29,7 +30,9 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _ctx = await TestIdentityFactory.CreateAsync();
+        // 恢复码路径依赖事务语义，必须使用真实 SQLite。
+        _database = await SqliteTestDatabase.CreateAsync();
+        _ctx = await TestIdentityFactory.CreateAsync(_database);
         _userManager = _ctx.UserManager;
 
         _smtpConfigMock = new Mock<ISmtpConfigurationService>();
@@ -48,7 +51,11 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
             _userManager, dataProtection, _emailTwoFactorService, _recoveryCodeService, cache);
     }
 
-    public async Task DisposeAsync() => await _ctx.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await _ctx.DisposeAsync();
+        await _database.DisposeAsync();
+    }
 
     // ────────────── Helpers ──────────────
 
@@ -168,8 +175,11 @@ public class TwoFactorFlowE2ETests : IAsyncLifetime
         Assert.Equal(8, codes.Count);
         Assert.True(await _recoveryCodeService.HasRecoveryCodesAsync(user));
 
-        Assert.True(await _recoveryCodeService.VerifyRecoveryCodeAsync(user, codes[0], _userManager));
-        Assert.False(await _recoveryCodeService.VerifyRecoveryCodeAsync(user, codes[0], _userManager));
+        Assert.True((await _recoveryCodeService.DisableWithRecoveryCodeAsync(
+            user, codes[0], _userManager)).Succeeded);
+        Assert.Equal(TwoFactorCleanupStatus.InvalidCode,
+            (await _recoveryCodeService.DisableWithRecoveryCodeAsync(
+                user, codes[0], _userManager)).Status);
 
         user = (await _userManager.FindByNameAsync("recovery-svc"))!;
         Assert.False(user.TwoFactorEnabled);
