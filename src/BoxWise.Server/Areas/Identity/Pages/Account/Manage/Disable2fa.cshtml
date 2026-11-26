@@ -10,15 +10,22 @@
 
 <div class="alert alert-warning" role="alert">
     <p>
-        <strong>此操作仅禁用 2FA。</strong>
+        <strong>此操作仅禁用双重验证。</strong>
     </p>
     <p>
-        禁用 2FA 不会更改验证器应用中使用的密钥。如果您想更改验证器应用中使用的密钥，应<a asp-page="./ResetAuthenticator">重置您的验证器密钥。</a>
+        禁用双重验证不会更改验证器应用中使用的密钥，也不会删除已注册的通行密钥。如果您想更改验证器应用中使用的密钥，应<a asp-page="./ResetAuthenticator">重置您的验证器密钥。</a>
+    </p>
+    <p>
+        所有恢复码（自定义恢复码与验证器恢复码）会立即作废，无法再用于关闭双重验证。当前正在使用的宽限期截止时间保持不变。
+    </p>
+    <p>
+        其他设备上已有的登录会话会在下一次安全戳校验时失效，需要重新登录。
     </p>
 </div>
 
 <div>
     <form method="post">
+        <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
         <button class="btn btn-danger" type="submit">禁用 2FA</button>
     </form>
 </div>

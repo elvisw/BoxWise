@@ -11,6 +11,7 @@ using BoxWise.Server.Services;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using OtpNet;
 
 namespace BoxWise.Server.Tests.Endpoints;
 
@@ -364,6 +365,178 @@ public class TwoFactorLoginE2ETests : IDisposable
             Assert.Equal(stampBefore, unchanged.SecurityStamp);
             Assert.Equal(8, await db.RecoveryCodes.CountAsync(rc => rc.UserId == user.Id));
         }
+    }
+
+    /// <summary>
+    /// A2：登录态下自助关闭 2FA 保留 Identity 验证器密钥、通行密钥和既有宽限期，
+    /// 清空两套恢复码并轮换安全戳。
+    /// </summary>
+    [Fact]
+    public async Task Disable2fa_Post_PreservesKeyPasskeysAndGrace_AndRotatesStamp()
+    {
+        var user = await CreateTwoFactorUserAsync("self-disable-e2e");
+        var grace = DateTime.UtcNow.AddHours(12);
+        string? keyBefore;
+        string? stampBefore;
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var fresh = await userManager.FindByIdAsync(user.Id);
+            Assert.NotNull(fresh);
+
+            // 认证器密钥来自 Identity token store；同时补一套自定义恢复码和通行密钥。
+            keyBefore = await userManager.GetAuthenticatorKeyAsync(fresh!);
+            Assert.False(string.IsNullOrEmpty(keyBefore));
+            await userManager.GenerateNewTwoFactorRecoveryCodesAsync(fresh!, 10);
+
+            var service = new RecoveryCodeService(db);
+            await service.StoreRecoveryCodesAsync(fresh!, RecoveryCodeService.GenerateRecoveryCodes());
+
+            db.WebAuthnCredentials.Add(new WebAuthnCredential
+            {
+                UserId = fresh!.Id,
+                CredentialId = Convert.ToBase64String(Guid.NewGuid().ToByteArray()),
+                PublicKey = Convert.ToBase64String(Guid.NewGuid().ToByteArray()),
+                DeviceName = "测试通行密钥"
+            });
+
+            fresh.TwoFactorGracePeriodUntil = grace;
+            await userManager.UpdateAsync(fresh);
+            stampBefore = fresh.SecurityStamp;
+        }
+
+        var client = CreateClient();
+        var loginResponse = await PostLoginAsync(client, user.UserName!, "TestPass123!");
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        Assert.Contains("LoginWith2fa", loginResponse.Headers.Location?.OriginalString ?? "");
+
+        // 用真实 TOTP 完成第二步登录，才能以登录态访问 Manage 页面。
+        var totp = new Totp(Base32Encoding.ToBytes(keyBefore!));
+        var twoFactorResponse = await client.PostAsync(
+            loginResponse.Headers.Location!.OriginalString,
+            new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("Input.TwoFactorCode", totp.ComputeTotp()),
+                new KeyValuePair<string, string>("Input.RememberMachine", "false")
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, twoFactorResponse.StatusCode);
+
+        var disable = await client.PostAsync("/Identity/Account/Manage/Disable2fa", content: null);
+        Assert.Equal(HttpStatusCode.Redirect, disable.StatusCode);
+        Assert.Contains("TwoFactorAuthentication", disable.Headers.Location?.OriginalString ?? "");
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var updated = await userManager.FindByIdAsync(user.Id);
+
+            Assert.NotNull(updated);
+            Assert.False(updated!.TwoFactorEnabled);
+            Assert.Equal(TwoFactorMethod.None, updated.ConfiguredMethods);
+            Assert.Null(updated.TotpSecretKey);
+            Assert.Equal(grace, updated.TwoFactorGracePeriodUntil);
+            Assert.NotEqual(stampBefore, updated.SecurityStamp);
+
+            Assert.Equal(keyBefore, await userManager.GetAuthenticatorKeyAsync(updated));
+            Assert.Equal(1, await db.WebAuthnCredentials.CountAsync(c => c.UserId == user.Id));
+            Assert.Equal(0, await db.RecoveryCodes.CountAsync(rc => rc.UserId == user.Id));
+            Assert.Equal(0, await userManager.CountRecoveryCodesAsync(updated));
+        }
+    }
+
+    /// <summary>
+    /// 验收标准：A2 关闭后重新设置 TOTP，用户会拿到新的恢复码，旧恢复码不可再用。
+    /// 走真实 EnableAuthenticator 路由，不另建夹具。
+    /// </summary>
+    [Fact]
+    public async Task EnableAuthenticator_AfterDisable_IssuesNewCodes_AndOldCodesFail()
+    {
+        var user = await CreateTwoFactorUserAsync("re-setup-e2e");
+        string keyBefore;
+        string oldIdentityCode;
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var fresh = await userManager.FindByIdAsync(user.Id);
+            Assert.NotNull(fresh);
+
+            keyBefore = (await userManager.GetAuthenticatorKeyAsync(fresh!))!;
+            Assert.False(string.IsNullOrEmpty(keyBefore));
+
+            // 两套旧恢复码都在。
+            oldIdentityCode = (await userManager.GenerateNewTwoFactorRecoveryCodesAsync(fresh!, 10))!.First();
+            await new RecoveryCodeService(db)
+                .StoreRecoveryCodesAsync(fresh!, ["CUSTOMCODE1", "CUSTOMCODE2"]);
+        }
+
+        var client = CreateClient();
+        await CompleteTwoFactorLoginAsync(client, keyBefore);
+
+        var disable = await client.PostAsync("/Identity/Account/Manage/Disable2fa", content: null);
+        Assert.Equal(HttpStatusCode.Redirect, disable.StatusCode);
+
+        // 真实 EnableAuthenticator POST：沿用保留的验证器密钥验证成功。
+        var totp = new Totp(Base32Encoding.ToBytes(keyBefore));
+        var enable = await client.PostAsync(
+            "/Identity/Account/Manage/EnableAuthenticator",
+            new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("Input.Code", totp.ComputeTotp())
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, enable.StatusCode);
+        Assert.Contains(
+            "GenerateRecoveryCodes",
+            enable.Headers.Location?.OriginalString ?? "");
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+            var updated = await userManager.FindByIdAsync(user.Id);
+
+            Assert.NotNull(updated);
+            Assert.True(updated!.TwoFactorEnabled);
+            Assert.True(updated.ConfiguredMethods.HasFlag(TwoFactorMethod.TOTP));
+
+            // 关闭 2FA 已把计数清零，因此重新启用会发新的 10 个 Identity 码。
+            Assert.Equal(10, await userManager.CountRecoveryCodesAsync(updated));
+
+            // 旧 Identity 码与旧自定义码都不可再用。
+            var oldIdentity = await userManager.RedeemTwoFactorRecoveryCodeAsync(updated, oldIdentityCode);
+            Assert.False(oldIdentity.Succeeded);
+            var service = new RecoveryCodeService(db);
+            Assert.False(await service.ValidateRecoveryCodeAsync(updated, "CUSTOMCODE1"));
+        }
+    }
+
+    private static async Task CompleteTwoFactorLoginAsync(HttpClient client, string authenticatorKey)
+    {
+        var loginResponse = await PostLoginAsync(client, "re-setup-e2e", "TestPass123!");
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        Assert.Contains("LoginWith2fa", loginResponse.Headers.Location?.OriginalString ?? "");
+
+        var totp = new Totp(Base32Encoding.ToBytes(authenticatorKey));
+        var twoFactorResponse = await client.PostAsync(
+            loginResponse.Headers.Location!.OriginalString,
+            new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("Input.TwoFactorCode", totp.ComputeTotp()),
+                new KeyValuePair<string, string>("Input.RememberMachine", "false")
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, twoFactorResponse.StatusCode);
+    }
+
+    private static async Task PasswordLoginAsync(HttpClient client, string username, string password)
+    {
+        var loginResponse = await PostLoginAsync(client, username, password);
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        Assert.Equal("/", loginResponse.Headers.Location?.OriginalString);
     }
 }
 

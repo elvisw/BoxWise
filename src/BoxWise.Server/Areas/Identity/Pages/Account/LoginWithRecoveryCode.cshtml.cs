@@ -91,32 +91,12 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
             if (user is null)
                 return RedirectToPage("./Login");
 
-            // 恢复码为 base32 大写字符；容忍用户输入空格和小写。
-            var recoveryCode = Input.RecoveryCode
-                .Replace(" ", string.Empty)
-                .Trim()
-                .ToUpperInvariant();
+            // 恢复码为 base32 大写字符（Identity 码含连字符）；容忍用户输入空格和前后空白。
+            // 规范化在 RecoveryCodeService 内统一完成，与自定义码和 Identity 码两条路径一致。
+            var result = await _recoveryCodeService.DisableWithRecoveryCodeAsync(
+                user, Input.RecoveryCode, _userManager);
 
-            var success = await _recoveryCodeService.VerifyRecoveryCodeAsync(user, recoveryCode, _userManager);
-
-            if (!success)
-            {
-                // 兼容 TOTP 用户在 Identity 管理页生成的恢复码（10 个，存于 token store）。
-                // 先按 Identity 原生语义消耗本次使用的码，再由 DisableTwoFactorAsync 清空剩余码。
-                var identityResult = await _userManager.RedeemTwoFactorRecoveryCodeAsync(user, recoveryCode);
-                if (identityResult.Succeeded)
-                {
-                    success = await _recoveryCodeService.DisableTwoFactorAsync(user, _userManager);
-                    if (!success)
-                    {
-                        _logger.LogWarning(
-                            "Identity recovery code was consumed for user with ID '{UserId}', but disabling 2FA did not complete.",
-                            user.Id);
-                    }
-                }
-            }
-
-            if (success)
+            if (result.Succeeded)
             {
                 _logger.LogInformation(
                     "User with ID '{UserId}' disabled two-factor authentication with a recovery code.", user.Id);
@@ -127,8 +107,38 @@ namespace BoxWise.Server.Areas.Identity.Pages.Account
                 return RedirectToPage("./Login");
             }
 
-            _logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}'.", user.Id);
-            ModelState.AddModelError(string.Empty, "恢复码无效。");
+            // 无法确认回滚/提交状态时必须优先提示，不能断言恢复码未被使用。
+            if (!result.OutcomeConfirmed)
+            {
+                _logger.LogError(
+                    "2FA cleanup outcome is unconfirmed for user with ID '{UserId}' (status {Status}).",
+                    user.Id, result.Status);
+                ModelState.AddModelError(string.Empty,
+                    "关闭双重验证的结果未确认。请用密码重新登录并核对双重验证状态后再重试。");
+                return Page();
+            }
+
+            switch (result.Status)
+            {
+                case TwoFactorCleanupStatus.InvalidCode:
+                    _logger.LogWarning("Invalid recovery code entered for user with ID '{UserId}'.", user.Id);
+                    ModelState.AddModelError(string.Empty, "恢复码无效。");
+                    break;
+
+                case TwoFactorCleanupStatus.Conflict:
+                    _logger.LogWarning(
+                        "Concurrent change prevented recovery-code 2FA cleanup for user with ID '{UserId}'.", user.Id);
+                    ModelState.AddModelError(string.Empty, "操作与另一个请求冲突，恢复码未被使用，请重试。");
+                    break;
+
+                default:
+                    _logger.LogError(
+                        "Storage failure during recovery-code 2FA cleanup for user with ID '{UserId}'.",
+                        user.Id);
+                    ModelState.AddModelError(string.Empty, "关闭双重验证失败，未做任何更改，请稍后重试。");
+                    break;
+            }
+
             return Page();
         }
     }

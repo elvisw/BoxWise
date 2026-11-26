@@ -194,9 +194,9 @@
 > 本轮「恢复码关闭 2FA」修复中确认的既有问题，不在该 PR 范围。
 
 - [ ] **仅通行密钥的账户不被密码登录的 2FA 保护** — `SignInManager.IsTwoFactorEnabledAsync` 要求 `GetValidTwoFactorProvidersAsync(user).Count > 0`；`EmailTokenProvider.CanGenerateTwoFactorTokenAsync` 要求 `IsEmailConfirmedAsync`；`Pages/Admin/CreateAccount.cshtml.cs:77-82` 不设 `EmailConfirmed=true`。结果：邮箱未确认时密码登录不触发 2FA；邮箱已确认时 `Areas/Identity/Pages/Account/LoginWith2fa.cshtml.cs:116` 只接受验证器码，用户无法完成，只能用恢复码关闭 2FA（实测见隔离 E2E `recovery-e2e-6`）。修复方向：WebAuthn 注册不再把 `TwoFactorEnabled` 当作密码登录保护；或为这类账户提供通行密钥断言作为第二因素；或让 2FA 页按 `ConfiguredMethods` 提供可完成的方法。当前限制已在 `docs/auth-security.md` 标注。
-- [ ] **管理员重置 2FA 未清 Identity authenticator key 与 Identity 恢复码** — `Endpoints/AdminTwoFactorEndpoints.cs:75-87` 与 `Pages/Admin/ResetTwoFactor.cshtml.cs:65` 只清自定义 `TotpSecretKey` 与 `RecoveryCodes` 表；Identity token store 的 authenticator key 与恢复码仍在。用户重新启用 TOTP 会沿用旧密钥，旧恢复码在重新开启 2FA 后仍有效。修复方向：重置时调用 `ResetAuthenticatorKeyAsync` 与 `GenerateNewTwoFactorRecoveryCodesAsync(user, 0)`，并补测试。
-- [ ] **`Manage/Disable2fa` 关闭 2FA 不清理恢复码、不轮换 SecurityStamp** — `Areas/Identity/Pages/Account/Manage/Disable2fa.cshtml.cs:59-61` 只置 `TwoFactorEnabled=false`、`ConfiguredMethods=None`；自定义恢复码、Identity 恢复码、`TotpSecretKey`、WebAuthn 凭证都保留。重新启用 2FA 后旧恢复码仍有效，已有会话不被失效。修复方向：复用 `RecoveryCodeService.DisableTwoFactorAsync` 或等价清理。
-- [ ] **`DisableTwoFactorAsync` 失败路径会产生 500 且状态已部分落库** — `Services/RecoveryCodeService.cs:100-113`：`UpdateAsync` + `SaveChangesAsync` 已提交 2FA 关闭，随后 `GenerateNewTwoFactorRecoveryCodesAsync(user, 0)` 失败会抛 `InvalidOperationException`，页面 500 但 2FA 实际已关闭。修复方向：改为返回结果对象并在页面提示，或先完成 token store 清理再提交用户状态；补失败路径测试。
+- [x] **管理员重置 2FA 未清 Identity authenticator key 与 Identity 恢复码** — 已修复 (2026-11-26)：API、Admin 页面与 CLI 统一委托 `RecoveryCodeService.ResetForAdminAsync`，在单个事务内清空两套恢复码、吊销通行密钥、清除 2FA 字段与宽限期，并在 authenticator key 存在时轮换它。
+- [x] **`Manage/Disable2fa` 关闭 2FA 不清理恢复码、不轮换 SecurityStamp** — 已修复 (2026-11-26)：改为委托 `RecoveryCodeService.DisableTwoFactorAsync`（单事务，清两套恢复码 + 轮换安全戳，保留验证器密钥/通行密钥/现有宽限期）；提交成功后刷新当前登录。
+- [x] **`DisableTwoFactorAsync` 失败路径会产生 500 且状态已部分落库** — 已修复 (2026-11-26)：清理整体置于一个 SQLite 事务内，失败按 `InvalidCode` / `Conflict` / `StorageFailure` 返回结果对象并回滚；提交状态未知时以 `OutcomeConfirmed=false` 提示"结果未确认"，页面不再 500。`LoginWithRecoveryCode` 的 Identity 码消耗也在同一事务内，回滚后原码仍可用。
 
 ## Deferred from: 位置照片实现评审
 

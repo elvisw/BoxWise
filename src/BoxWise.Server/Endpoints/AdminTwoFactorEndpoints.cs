@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using BoxWise.Server.Data;
 using BoxWise.Server.Models;
 using BoxWise.Server.Services;
 using BoxWise.Shared.Dtos;
@@ -55,11 +53,12 @@ public static class AdminTwoFactorEndpoints
 
     /// <summary>
     /// 重置目标用户的 2FA（管理员操作）。
-    /// 清除所有 2FA 设置、恢复码和 WebAuthn 凭证。
+    /// 在单个事务内清除 2FA 设置、两套恢复码与 WebAuthn 凭证，并轮换 SecurityStamp；
+    /// 仅在 Identity authenticator key 存在时轮换它。
     /// </summary>
     private static async Task<Results<Ok, ProblemHttpResult, UnauthorizedHttpResult, ForbidHttpResult, NotFound>>
         ResetTwoFactorAsync(string userId, HttpContext httpContext,
-            UserManager<AppUser> userManager, AppDbContext db,
+            UserManager<AppUser> userManager, RecoveryCodeService recoveryCodeService,
             ILoggerFactory loggerFactory)
     {
         var caller = await userManager.GetUserAsync(httpContext.User);
@@ -72,35 +71,22 @@ public static class AdminTwoFactorEndpoints
         if (targetUser is null)
             return TypedResults.NotFound();
 
-        // 清除 2FA 设置
-        targetUser.TotpSecretKey = null;
-        targetUser.ConfiguredMethods = TwoFactorMethod.None;
-        targetUser.TwoFactorEnabled = false;
-        targetUser.TwoFactorSetupCompletedAt = null;
-        targetUser.TwoFactorGracePeriodUntil = null;
-        targetUser.EmailForTwoFactor = null;
-
-        // 删除所有恢复码
-        var recoveryCodes = await db.RecoveryCodes
-            .Where(rc => rc.UserId == targetUser.Id)
-            .ToListAsync();
-        db.RecoveryCodes.RemoveRange(recoveryCodes);
-
-        // 删除所有 WebAuthn 凭证
-        var credentials = await db.WebAuthnCredentials
-            .Where(wc => wc.UserId == targetUser.Id)
-            .ToListAsync();
-        db.WebAuthnCredentials.RemoveRange(credentials);
-
         var logger = loggerFactory.CreateLogger("BoxWise.Admin");
-        var updateResult = await userManager.UpdateAsync(targetUser);
-        if (!updateResult.Succeeded)
+        var result = await recoveryCodeService.ResetForAdminAsync(targetUser, userManager);
+        if (!result.Succeeded)
         {
-            logger.LogWarning("Failed to update user {UserId} during 2FA reset: {Errors}",
-                userId, string.Join("; ", updateResult.Errors.Select(e => e.Description)));
-            return TypedResults.Problem("2FA reset failed", statusCode: 500);
+            logger.LogWarning(
+                "Failed to reset 2FA for user {UserId}: {Status} (outcome confirmed: {Confirmed})",
+                userId, result.Status, result.OutcomeConfirmed);
+
+            // 保持既有 500/ProblemDetails 约定，仅区分“已回滚”与“提交结果未知”，
+            // 避免调用方在结果未知时误以为可以安全重试或状态未变。
+            return TypedResults.Problem(
+                detail: result.OutcomeConfirmed
+                    ? "2FA reset failed; no changes were committed."
+                    : "2FA reset outcome is unconfirmed; verify the account state before retrying.",
+                statusCode: StatusCodes.Status500InternalServerError);
         }
-        await userManager.UpdateSecurityStampAsync(targetUser);
 
         logger.LogWarning(
             "Admin {Admin} (Id={AdminId}) reset 2FA for user {User} (Id={UserId}) at {Timestamp}",
